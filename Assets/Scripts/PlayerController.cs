@@ -1,45 +1,42 @@
-using UnityEngine;
-using UnityEngine.InputSystem; // Input System ³×ÀÓ½ºÆäÀÌ½º ÇÊ¼ö
+ï»¿using UnityEngine;
+using UnityEngine.InputSystem;
 
 public class PlayerController : MonoBehaviour
 {
     [Header("Components")]
-    [SerializeField] private Movement2D movement2D; // ÀÌµ¿ ¸ğÅÍ ¿¬°á
+    [SerializeField] private Movement3D movement3D; // 3D ëª¨í„° ì—°ê²°
     private Camera mainCamera;
 
     [Header("Input Settings")]
-    // 1. Å¬¸¯ ¾×¼Ç (Button Type) - ¿¹: "RightClick"
     [SerializeField] private InputActionReference rightClickInput;
-
-    // 2. ÁÂÇ¥ ¾×¼Ç (Value Type, Vector2) - ¿¹: "MousePos"
-    // »õ·Î ¸¸µå½Å ¾×¼ÇÀ» ¿©±â¿¡ ¿¬°áÇÏ¼¼¿ä.
     [SerializeField] private InputActionReference mousePosInput;
 
-    // ÀÌµ¿ °ü·Ã º¯¼öµé
+    [Header("Raycast Settings")]
+    [Tooltip("ë§ˆìš°ìŠ¤ í´ë¦­ì„ ê°ì§€í•  ë°”ë‹¥ ë ˆì´ì–´ (ë°˜ë“œì‹œ ì„¤ì • í•„ìš”)")]
+    [SerializeField] private LayerMask groundLayer;
+
+    // ì´ë™ ê´€ë ¨ ë³€ìˆ˜
     private Vector3 targetPosition;
     private bool isMoving = false;
-    private const float StopDistance = 0.1f; // ¸ñÇ¥ µµ´Ş ÀÎÁ¤ °Å¸®
+    private const float StopDistance = 0.1f;
 
     private void Awake()
     {
         mainCamera = Camera.main;
 
-        // Movement2D°¡ ¿¬°áµÇÁö ¾Ê¾ÒÀ» °æ¿ì ÀÚµ¿ ÇÒ´ç
-        if (movement2D == null)
-            movement2D = GetComponent<Movement2D>();
+        if (movement3D == null)
+            movement3D = GetComponent<Movement3D>();
     }
 
     private void OnEnable()
     {
-        // 1. ¿ìÅ¬¸¯ ¾×¼Ç È°¼ºÈ­ ¹× ÀÌº¥Æ® ¿¬°á
-        if (rightClickInput != null && rightClickInput.action != null)
+        if (rightClickInput != null)
         {
             rightClickInput.action.Enable();
             rightClickInput.action.performed += OnRightClick;
         }
 
-        // 2. ¸¶¿ì½º ÁÂÇ¥ ¾×¼Ç È°¼ºÈ­ (ÀÌ°É ÄÑ¾ß °ªÀ» ÀĞÀ» ¼ö ÀÖ½À´Ï´Ù!)
-        if (mousePosInput != null && mousePosInput.action != null)
+        if (mousePosInput != null)
         {
             mousePosInput.action.Enable();
         }
@@ -47,15 +44,13 @@ public class PlayerController : MonoBehaviour
 
     private void OnDisable()
     {
-        // 1. ¿ìÅ¬¸¯ ¾×¼Ç ºñÈ°¼ºÈ­ ¹× ÀÌº¥Æ® ÇØÁ¦
-        if (rightClickInput != null && rightClickInput.action != null)
+        if (rightClickInput != null)
         {
             rightClickInput.action.performed -= OnRightClick;
             rightClickInput.action.Disable();
         }
 
-        // 2. ¸¶¿ì½º ÁÂÇ¥ ¾×¼Ç ºñÈ°¼ºÈ­
-        if (mousePosInput != null && mousePosInput.action != null)
+        if (mousePosInput != null)
         {
             mousePosInput.action.Disable();
         }
@@ -65,71 +60,60 @@ public class PlayerController : MonoBehaviour
     {
         if (isMoving)
         {
-            // 1. ÇöÀç ³ª¿Í ¸ñÇ¥ »çÀÌÀÇ °Å¸® °è»ê
+            // 1. ê±°ë¦¬ ê³„ì‚° (Yì¶• ë†’ì´ ì°¨ì´ëŠ” ë¬´ì‹œí•˜ê¸° ìœ„í•´ targetPositionì˜ Yë¥¼ ë‚´ Yì™€ ë§ì¶¤)
+            // í•˜ì§€ë§Œ ì´ë¯¸ SetTargetì—ì„œ Yë¥¼ ë§ì·„ìœ¼ë¯€ë¡œ ê·¸ëƒ¥ Distance êµ¬í•´ë„ ë¨.
             float distance = Vector3.Distance(transform.position, targetPosition);
 
-            // 2. [ÇÙ½É] ÀÌ¹ø ÇÁ·¹ÀÓ¿¡ ³»°¡ ÀÌµ¿ÇÒ ¼ö ÀÖ´Â ÃÖ´ë °Å¸® °è»ê
-            // (Movement2DÀÇ ¼Óµµ Á¤º¸¸¦ °¡Á®¿Í¼­ °è»ê)
-            float step = movement2D.moveSpeed * Time.deltaTime;
+            // 2. ì´ë²ˆ í”„ë ˆì„ ì´ë™ ê°€ëŠ¥ ê±°ë¦¬
+            float step = movement3D.moveSpeed * Time.deltaTime;
 
-            // 3. ¸¸¾à ³²Àº °Å¸®°¡ ³»°¡ ÀÌµ¿ÇÒ °Å¸®º¸´Ù ÀÛ´Ù¸é? (µµÂøÀ¸·Î °£ÁÖ!)
+            // 3. ë„ì°© íŒì •
             if (distance <= step)
             {
-                // [½º³À] ¸ñÇ¥ À§Ä¡¿¡ °­Á¦·Î µü! ºÙ¿©¹ö¸³´Ï´Ù. (¿ÀÂ÷ 0)
+                // ë„ì°©: ìœ„ì¹˜ ê°•ì œ ì¡°ì • ë° ì •ì§€
                 transform.position = targetPosition;
-
-                // ÀÌµ¿ Á¾·á
                 StopMoving();
             }
             else
             {
-                // ¾ÆÁ÷ ¸Ö¾úÀ¸¸é °è¼Ó ¹æÇâ °»½ÅÇØ¼­ ÀÌµ¿
+                // ì´ë™ ì¤‘: ë°©í–¥ ê°±ì‹ 
                 Vector3 direction = (targetPosition - transform.position).normalized;
-                movement2D.MoveDirection = direction;
+                movement3D.MoveDirection = direction;
             }
         }
     }
 
-    // ¿ìÅ¬¸¯ ¹ß»ı ½Ã ½ÇÇàµÇ´Â ÇÔ¼ö
+    // ìš°í´ë¦­ ì‹œ ì‹¤í–‰ (í•µì‹¬ ë³€ê²½ ë¶€ë¶„)
     private void OnRightClick(InputAction.CallbackContext context)
     {
-        // [ÇÙ½É º¯°æ] ÇÏµå¿ş¾î(Mouse.current) ´ë½Å ÀÎÇ² ½Ã½ºÅÛ ¾×¼Ç¿¡¼­ ÁÂÇ¥ ÀĞ±â
-        // ¿¬°áµÈ 'MousePos' ¾×¼ÇÀ¸·ÎºÎÅÍ Vector2 °ªÀ» °¡Á®¿É´Ï´Ù.
+        // 1. ë§ˆìš°ìŠ¤ í™”ë©´ ì¢Œí‘œ ê°€ì ¸ì˜¤ê¸°
         Vector2 mouseScreenPos = mousePosInput.action.ReadValue<Vector2>();
 
-        // È­¸é ÁÂÇ¥ -> ¿ùµå ÁÂÇ¥ º¯È¯
-        Vector3 worldPos = mainCamera.ScreenToWorldPoint(mouseScreenPos);
-        worldPos.z = 0; // 2D °ÔÀÓÀÌ¹Ç·Î ZÃà 0À¸·Î °íÁ¤
+        // 2. í™”ë©´ ì¢Œí‘œ -> 3D ì›”ë“œë¡œ ì˜ëŠ” ë ˆì´(Ray) ìƒì„±
+        Ray ray = mainCamera.ScreenPointToRay(mouseScreenPos);
+        RaycastHit hit;
 
-        SetTarget(worldPos);
-    }
-
-    // ¸ñÇ¥ ÁöÁ¡ ¼³Á¤
-    private void SetTarget(Vector3 target)
-    {
-        targetPosition = target;
-        isMoving = true;
-    }
-
-    // ¸ñÇ¥ µµ´Ş È®ÀÎ ·ÎÁ÷
-    private void CheckDestination()
-    {
-        float distance = Vector3.Distance(transform.position, targetPosition);
-
-        // ¸ñÇ¥ ÁöÁ¡°úÀÇ °Å¸®°¡ ¼³Á¤µÈ ¿ÀÂ÷¹üÀ§º¸´Ù ÀÛÀ¸¸é µµÂøÀ¸·Î °£ÁÖ
-        if (distance <= StopDistance)
+        // 3. ë ˆì´ ë°œì‚¬! (Ground ë ˆì´ì–´ì—ë§Œ ì¶©ëŒí•˜ë„ë¡ ì„¤ì •)
+        if (Physics.Raycast(ray, out hit, Mathf.Infinity, groundLayer))
         {
-            StopMoving();
+            // hit.pointê°€ ë§ˆìš°ìŠ¤ë¡œ ì°ì€ ë°”ë‹¥ì˜ ì›”ë“œ ì¢Œí‘œì…ë‹ˆë‹¤.
+            SetTarget(hit.point);
         }
     }
 
-    // ÀÌµ¿ Á¤Áö Ã³¸®
+    private void SetTarget(Vector3 target)
+    {
+        // [ì¤‘ìš”] Yì¶• ê³ ì • ë¡œì§
+        // í´ë¦­í•œ ìœ„ì¹˜(target)ì˜ X, ZëŠ” ê°€ì ¸ì˜¤ë˜, 
+        // ë†’ì´(Y)ëŠ” í˜„ì¬ í”Œë ˆì´ì–´ì˜ ë†’ì´ë¡œ ë®ì–´ì”Œì›ë‹ˆë‹¤.
+        targetPosition = new Vector3(target.x, transform.position.y, target.z);
+
+        isMoving = true;
+    }
+
     private void StopMoving()
     {
         isMoving = false;
-        movement2D.MoveDirection = Vector3.zero; // ÀÌµ¿ ¸ØÃã
-
-        // (¼±ÅÃ»çÇ×) Á¤È®ÇÑ À§Ä¡¿¡ µü ¸ÂÃß°í ½Í´Ù¸é ¾Æ·¡ ÁÖ¼® ÇØÁ¦
-        // transform.position = targetPosition; 
+        movement3D.MoveDirection = Vector3.zero;
     }
 }
