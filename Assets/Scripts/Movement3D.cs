@@ -3,8 +3,8 @@
 public class Movement3D : MonoBehaviour
 {
     [Header("Settings")]
-    [SerializeField] public float moveSpeed = 5f;
-    [SerializeField] private float rotateSpeed = 10f; // 회전 속도
+    [SerializeField] public float moveSpeed = 20f;
+    [SerializeField] private float rotateSpeed = 20f; // 회전 속도
 
     // 외부에서 설정할 이동 방향
     public Vector3 MoveDirection { get; set; } = Vector3.zero;
