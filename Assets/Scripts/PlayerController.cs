@@ -4,7 +4,7 @@ using UnityEngine.InputSystem;
 public class PlayerController : MonoBehaviour
 {
     [Header("Components")]
-    [SerializeField] private Movement3D movement3D; // 3D 모터 연결
+    [SerializeField] private Movement3D movement3D;
     private Camera mainCamera;
 
     [Header("Input Settings")]
@@ -12,102 +12,71 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private InputActionReference mousePosInput;
 
     [Header("Raycast Settings")]
-    [Tooltip("마우스 클릭을 감지할 바닥 레이어 (반드시 설정 필요)")]
     [SerializeField] private LayerMask groundLayer;
 
-    // 이동 관련 변수
     private Vector3 targetPosition;
     private bool isMoving = false;
-    private const float StopDistance = 0.1f;
+
+    // [수정] 멈추는 거리를 조금 여유있게 줍니다 (0.1f -> 0.2f 또는 0.5f)
+    private const float StopDistance = 0.2f;
 
     private void Awake()
     {
         mainCamera = Camera.main;
-
-        if (movement3D == null)
-            movement3D = GetComponent<Movement3D>();
+        if (movement3D == null) movement3D = GetComponent<Movement3D>();
     }
 
     private void OnEnable()
     {
-        if (rightClickInput != null)
-        {
-            rightClickInput.action.Enable();
-            rightClickInput.action.performed += OnRightClick;
-        }
-
-        if (mousePosInput != null)
-        {
-            mousePosInput.action.Enable();
-        }
+        if (rightClickInput != null) { rightClickInput.action.Enable(); rightClickInput.action.performed += OnRightClick; }
+        if (mousePosInput != null) mousePosInput.action.Enable();
     }
 
     private void OnDisable()
     {
-        if (rightClickInput != null)
-        {
-            rightClickInput.action.performed -= OnRightClick;
-            rightClickInput.action.Disable();
-        }
-
-        if (mousePosInput != null)
-        {
-            mousePosInput.action.Disable();
-        }
+        if (rightClickInput != null) { rightClickInput.action.performed -= OnRightClick; rightClickInput.action.Disable(); }
+        if (mousePosInput != null) mousePosInput.action.Disable();
     }
 
     private void Update()
     {
         if (isMoving)
         {
-            // 1. 거리 계산 (Y축 높이 차이는 무시하기 위해 targetPosition의 Y를 내 Y와 맞춤)
-            // 하지만 이미 SetTarget에서 Y를 맞췄으므로 그냥 Distance 구해도 됨.
-            float distance = Vector3.Distance(transform.position, targetPosition);
+            // Y축 무시하고 수평 거리만 계산 (덜덜거림 방지 핵심)
+            Vector3 myPos = new Vector3(transform.position.x, 0, transform.position.z);
+            Vector3 targetPos = new Vector3(targetPosition.x, 0, targetPosition.z);
 
-            // 2. 이번 프레임 이동 가능 거리
-            float step = movement3D.moveSpeed * Time.deltaTime;
+            float distance = Vector3.Distance(myPos, targetPos);
 
-            // 3. 도착 판정
-            if (distance <= step)
+            // [수정] 도착 판정 로직 개선
+            if (distance <= StopDistance)
             {
-                // 도착: 위치 강제 조정 및 정지
-                transform.position = targetPosition;
-                StopMoving();
+                StopMoving(); // 그냥 멈춤 (강제 위치 이동 삭제)
             }
             else
             {
-                // 이동 중: 방향 갱신
                 Vector3 direction = (targetPosition - transform.position).normalized;
                 movement3D.MoveDirection = direction;
             }
         }
     }
 
-    // 우클릭 시 실행 (핵심 변경 부분)
     private void OnRightClick(InputAction.CallbackContext context)
     {
-        // 1. 마우스 화면 좌표 가져오기
         Vector2 mouseScreenPos = mousePosInput.action.ReadValue<Vector2>();
-
-        // 2. 화면 좌표 -> 3D 월드로 쏘는 레이(Ray) 생성
         Ray ray = mainCamera.ScreenPointToRay(mouseScreenPos);
         RaycastHit hit;
 
-        // 3. 레이 발사! (Ground 레이어에만 충돌하도록 설정)
         if (Physics.Raycast(ray, out hit, Mathf.Infinity, groundLayer))
         {
-            // hit.point가 마우스로 찍은 바닥의 월드 좌표입니다.
             SetTarget(hit.point);
         }
     }
 
     private void SetTarget(Vector3 target)
     {
-        // [중요] Y축 고정 로직
-        // 클릭한 위치(target)의 X, Z는 가져오되, 
-        // 높이(Y)는 현재 플레이어의 높이로 덮어씌웁니다.
+        // Y축은 현재 내 높이 유지
         targetPosition = new Vector3(target.x, transform.position.y, target.z);
-
         isMoving = true;
     }
 
