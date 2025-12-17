@@ -1260,13 +1260,10 @@ GameObject:
   - component: {fileID: 1947143827}
   - component: {fileID: 1947143834}
   - component: {fileID: 1947143833}
-  - component: {fileID: 1947143837}
   - component: {fileID: 1947143832}
   - component: {fileID: 1947143831}
-  - component: {fileID: 1947143835}
-
   - component: {fileID: 1947143836}
-
+  - component: {fileID: 1947143837}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -1388,7 +1385,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1947143826}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3d1913597a5d7cf4282b3d49d927a2c6, type: 3}
   m_Name: 
@@ -1398,7 +1395,7 @@ MonoBehaviour:
   cancelBuildInput: {fileID: 1219763504}
   mousePosInput: {fileID: 102757468}
   objectSpawner: {fileID: 1947143833}
-  previewSystem: {fileID: 1947143837}
+  previewSystem: {fileID: 0}
   groundLayer:
     serializedVersion: 2
     m_Bits: 64
@@ -1433,11 +1430,34 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 10f22179d5573db43a51201422925c17, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-
   moveSpeed: 5
   rotateSpeed: 10
---- !u!114 &1947143835
-
+--- !u!143 &1947143836
+CharacterController:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1947143826}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Height: 2
+  m_Radius: 0.5
+  m_SlopeLimit: 45
+  m_StepOffset: 0.3
+  m_SkinWidth: 0.08
+  m_MinMoveDistance: 0.001
+  m_Center: {x: 0, y: 0, z: 0}
+--- !u!114 &1947143837
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -1446,14 +1466,11 @@ MonoBehaviour:
   m_GameObject: {fileID: 1947143826}
   m_Enabled: 1
   m_EditorHideFlags: 0
-
-  m_Script: {fileID: 11500000, guid: c86679b9e118e3e4091b5b85a5fcbb61, type: 3}
+  m_Script: {fileID: 11500000, guid: ebcd5144c3e887e4d81a8db3f588ef67, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   toggleTargets:
   - {fileID: 1947143832}
-
-
 --- !u!1 &2012845010
 GameObject:
   m_ObjectHideFlags: 0
