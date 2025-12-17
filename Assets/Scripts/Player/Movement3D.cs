@@ -5,7 +5,7 @@ public class Movement3D : MonoBehaviour
 {
     [Header("Settings")]
     [SerializeField] public float moveSpeed = 5f;
-    [SerializeField] private float rotateSpeed = 10f;
+    [SerializeField] private float rotateSpeed = 5f;
 
     private CharacterController characterController;
     public Vector3 MoveDirection { get; set; } = Vector3.zero;
