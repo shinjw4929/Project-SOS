@@ -1663,14 +1663,13 @@ GameObject:
   - component: {fileID: 1947143829}
   - component: {fileID: 1947143828}
   - component: {fileID: 1947143827}
-  - component: {fileID: 1947143835}
+  - component: {fileID: 1947143834}
+  - component: {fileID: 1947143833}
+  - component: {fileID: 1947143832}
+  - component: {fileID: 1947143831}
   - component: {fileID: 1947143836}
-  - component: {fileID: 1947143841}
-  - component: {fileID: 1947143840}
-  - component: {fileID: 1947143844}
-  - component: {fileID: 1947143843}
-  - component: {fileID: 1947143842}
-  m_Layer: 7
+  - component: {fileID: 1947143837}
+  m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1766,33 +1765,78 @@ Transform:
   m_Children: []
   m_Father: {fileID: 470224113}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!54 &1947143835
-Rigidbody:
+--- !u!114 &1947143831
+MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1947143826}
-  serializedVersion: 4
-  m_Mass: 1
-  m_Drag: 0
-  m_AngularDrag: 0.05
-  m_CenterOfMass: {x: 0, y: 0, z: 0}
-  m_InertiaTensor: {x: 1, y: 1, z: 1}
-  m_InertiaRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_IncludeLayers:
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c727f47e2335ac841b7f89289d0fa8dd, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  movement3D: {fileID: 1947143834}
+  rightClickInput: {fileID: 1666524823}
+  mousePosInput: {fileID: 45770758}
+  groundLayer:
     serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
+    m_Bits: 64
+--- !u!114 &1947143832
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1947143826}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3d1913597a5d7cf4282b3d49d927a2c6, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  toggleBuildModeInput: {fileID: 2146481138}
+  buildConfirmInput: {fileID: 134533539}
+  cancelBuildInput: {fileID: 1219763504}
+  mousePosInput: {fileID: 102757468}
+  objectSpawner: {fileID: 1947143833}
+  previewSystem: {fileID: 0}
+  groundLayer:
     serializedVersion: 2
-    m_Bits: 0
-  m_ImplicitCom: 1
-  m_ImplicitTensor: 1
-  m_UseGravity: 1
-  m_IsKinematic: 1
-  m_Interpolate: 0
-  m_Constraints: 84
-  m_CollisionDetection: 0
+    m_Bits: 64
+--- !u!114 &1947143833
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1947143826}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a0a4fdd409e112041ab19ec068c7e7b3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  prefabToSpawn: {fileID: 7195975512159885495, guid: 118356b3d5301164d85e3ec67bda087e, type: 3}
+  spawnPoint: {fileID: 1947143830}
+  useGrid: 1
+  gridSize: 30
+  obstacleLayer:
+    serializedVersion: 2
+    m_Bits: 128
+--- !u!114 &1947143834
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1947143826}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 10f22179d5573db43a51201422925c17, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  moveSpeed: 5
+  rotateSpeed: 10
 --- !u!143 &1947143836
 CharacterController:
   m_ObjectHideFlags: 0
@@ -1811,9 +1855,9 @@ CharacterController:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Height: 1
+  m_Height: 2
   m_Radius: 0.5
-  m_SlopeLimit: 0
+  m_SlopeLimit: 45
   m_StepOffset: 0.3
   m_SkinWidth: 0.08
   m_MinMoveDistance: 0.001
@@ -1858,50 +1902,11 @@ MonoBehaviour:
   m_GameObject: {fileID: 1947143826}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 935c5fd0a7f9f9f44a1c7c18734edf8c, type: 3}
+  m_Script: {fileID: 11500000, guid: ebcd5144c3e887e4d81a8db3f588ef67, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  validMaterial: {fileID: 2100000, guid: 881761d82ddc96e4ab0a61ccc7417fc7, type: 2}
-  invalidMaterial: {fileID: 2100000, guid: 32130c2be32f96a48900bb46d776a598, type: 2}
---- !u!114 &1947143843
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1947143826}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: a0a4fdd409e112041ab19ec068c7e7b3, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  prefabToSpawn: {fileID: 7195975512159885495, guid: 118356b3d5301164d85e3ec67bda087e, type: 3}
-  obstacleLayer:
-    serializedVersion: 2
-    m_Bits: 448
---- !u!114 &1947143844
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1947143826}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 3d1913597a5d7cf4282b3d49d927a2c6, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  toggleBuildModeInput: {fileID: 1716873612}
-  buildConfirmInput: {fileID: 13473836}
-  cancelBuildInput: {fileID: 1856495752}
-  mousePosInput: {fileID: 602179798}
-  playerController: {fileID: 1947143841}
-  buildingSpawner: {fileID: 1947143843}
-  previewSystem: {fileID: 1947143842}
-  buildRange: 1
-  groundLayer:
-    serializedVersion: 2
-    m_Bits: 64
+  toggleTargets:
+  - {fileID: 1947143832}
 --- !u!1 &2012845010
 GameObject:
   m_ObjectHideFlags: 0
