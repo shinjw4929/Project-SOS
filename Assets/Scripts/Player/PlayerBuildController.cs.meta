@@ -1,2 +1,18 @@
 fileFormatVersion: 2
 guid: 3d1913597a5d7cf4282b3d49d927a2c6
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - toggleBuildModeInput: {fileID: 7795012631629815535, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+  - buildConfirmInput: {fileID: -1116583772494983031, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+  - cancelBuildInput: {fileID: -4611568371016757812, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+  - mousePosInput: {fileID: -7343484384635907347, guid: 052faaac586de48259a63d0c4782560b, type: 3}
+  - playerController: {instanceID: 0}
+  - buildingSpawner: {instanceID: 0}
+  - previewSystem: {instanceID: 0}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
