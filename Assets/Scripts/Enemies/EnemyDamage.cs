@@ -1,8 +1,8 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 using System.Collections;
 
 public class EnemyDamage : MonoBehaviour
-{//0.5ÃÊ¸¶´Ù 1ÀÇ µ¥¹ÌÁö
+{//0.5ì´ˆë§ˆë‹¤ 1ì˜ ë°ë¯¸ì§€
     public int damage = 1;
     public float damageInterval = 0.5f;
 
@@ -12,7 +12,7 @@ public class EnemyDamage : MonoBehaviour
     void OnTriggerEnter(Collider other)
     {
         if (!other.CompareTag("Player")) return;
-        if (isDamaging) return; // ¸Ö¾îÁ®µµ Áö¼Óµ© µé¾î¿À´Â°Å ¹æÁö
+        if (isDamaging) return; // ë©€ì–´ì ¸ë„ ì§€ì†ë€ ë“¤ì–´ì˜¤ëŠ”ê±° ë°©ì§€
 
         PlayerHealth ph = other.GetComponent<PlayerHealth>();
         if (ph != null)
@@ -23,7 +23,7 @@ public class EnemyDamage : MonoBehaviour
     }
 
     void OnTriggerExit(Collider other)
-    {  //ÀÌ°Å ÀÌ¸§ÀÌ player ¾Æ´Ï¶ó tag°¡ player ÀÎ°É ÁöÁ¤ÇÑ°Å ¤·¤·
+    {  //ì´ê±° ì´ë¦„ì´ player ì•„ë‹ˆë¼ tagê°€ player ì¸ê±¸ ì§€ì •í•œê±° ã…‡ã…‡
         if (!other.CompareTag("Player")) return;
 
         StopDamage();
@@ -31,7 +31,7 @@ public class EnemyDamage : MonoBehaviour
 
     void OnDisable()
     {
-        StopDamage(); // Enemy ºñÈ°¼ºÈ­ ´ëºñ
+        StopDamage(); // Enemy ë¹„í™œì„±í™” ëŒ€ë¹„
     }
 
     void StopDamage()

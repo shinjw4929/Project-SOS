@@ -1,30 +1,30 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 
 public class CameraMove : MonoBehaviour
 {
     public GameObject Target;
 
-    // °íÁ¤ Ä«¸Ş¶ó ÁÂÇ¥
+    // ê³ ì • ì¹´ë©”ë¼ ì¢Œí‘œ
     public float offsetX = 0.0f;
     public float offsetY = 0.0f;
     public float offsetZ = -10.0f;
 
     Vector3 TargetPos;
 
-    // FixedUpdate ´ë½Å LateUpdate »ç¿ë ±ÇÀå
-    // ÀÌÀ¯: ÇÃ·¹ÀÌ¾î°¡ ÀÌµ¿À» ´Ù ¸¶Ä£ Á÷ÈÄ¿¡ Ä«¸Ş¶ó°¡ µû¶ó°¡¾ß ¶³¸²(Jitter)ÀÌ ¾øÀ½
+    // FixedUpdate ëŒ€ì‹  LateUpdate ì‚¬ìš© ê¶Œì¥
+    // ì´ìœ : í”Œë ˆì´ì–´ê°€ ì´ë™ì„ ë‹¤ ë§ˆì¹œ ì§í›„ì— ì¹´ë©”ë¼ê°€ ë”°ë¼ê°€ì•¼ ë–¨ë¦¼(Jitter)ì´ ì—†ìŒ
     void LateUpdate()
     {
         if (Target == null) return;
 
-        // 1. ¸ñÇ¥ À§Ä¡ °è»ê
+        // 1. ëª©í‘œ ìœ„ì¹˜ ê³„ì‚°
         TargetPos = new Vector3(
             Target.transform.position.x + offsetX,
             Target.transform.position.y + offsetY,
-            offsetZ // ZÃàÀº °íÁ¤
+            offsetZ // Zì¶•ì€ ê³ ì •
         );
 
-        // 2. ±×³É ¹Ù·Î À§Ä¡¸¦ µ¤¾î¾º¿ò
+        // 2. ê·¸ëƒ¥ ë°”ë¡œ ìœ„ì¹˜ë¥¼ ë®ì–´ì”Œì›€
         transform.position = TargetPos;
     }
 }

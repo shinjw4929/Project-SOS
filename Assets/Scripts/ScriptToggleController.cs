@@ -1,4 +1,4 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 
 public class ScriptToggleController : MonoBehaviour
 {
@@ -6,22 +6,22 @@ public class ScriptToggleController : MonoBehaviour
 
     void Update()
     {
-        // 1¹øÅ°´Â Ç×»ó on/off ±â´ÉÀ»ÇÔ
+        // 1ë²ˆí‚¤ëŠ” í•­ìƒ on/off ê¸°ëŠ¥ì„í•¨
         if (Input.GetKeyDown(KeyCode.Alpha1))
         {
             ToggleBuildMode();
         }
 
-        // ¿À¸¥ÂÊÅ°´Â °Ç¼³ÁßÀÏ¶§¸¸ offÀÇ ±â´ÉÀ» ÇÔ
+        // ì˜¤ë¥¸ìª½í‚¤ëŠ” ê±´ì„¤ì¤‘ì¼ë•Œë§Œ offì˜ ê¸°ëŠ¥ì„ í•¨
         if (IsBuilding() && Input.GetMouseButtonDown(1))
         {
             SetBuildMode(false);
         }
     }
 
-    // true = °Ç¼³, false = ¾È°Ç¼³
-    // ÇöÀç °Ç¼³ ¸ğµåÀÎÁö ¿©ºÎ¸¦ ¹İÈ¯ÇÑ´Ù
-    // ÇÏ³ª¶óµµ È°¼ºÈ­µÈ ´ë»óÀÌ ÀÖÀ¸¸é °Ç¼³ ÁßÀ¸·Î ÆÇ´Ü
+    // true = ê±´ì„¤, false = ì•ˆê±´ì„¤
+    // í˜„ì¬ ê±´ì„¤ ëª¨ë“œì¸ì§€ ì—¬ë¶€ë¥¼ ë°˜í™˜í•œë‹¤
+    // í•˜ë‚˜ë¼ë„ í™œì„±í™”ëœ ëŒ€ìƒì´ ìˆìœ¼ë©´ ê±´ì„¤ ì¤‘ìœ¼ë¡œ íŒë‹¨
     bool IsBuilding()
     {
         foreach (var target in toggleTargets)
@@ -31,15 +31,15 @@ public class ScriptToggleController : MonoBehaviour
         }
         return false;
     }
-    // °Ç¼³ ¸ğµå »óÅÂ¸¦ Åä±ÛÇÑ´Ù (ON ¡ê OFF)
+    // ê±´ì„¤ ëª¨ë“œ ìƒíƒœë¥¼ í† ê¸€í•œë‹¤ (ON â†” OFF)
     void ToggleBuildMode()
     {
         bool nextState = !IsBuilding();
         SetBuildMode(nextState);
     }
-    // °Ç¼³ ¸ğµå »óÅÂ¸¦ ¼³Á¤ÇÑ´Ù
-    // true  : °Ç¼³ Áß »óÅÂ
-    // false : ÀÏ¹İ »óÅÂ (°Ç¼³ ¾Æ´Ô)
+    // ê±´ì„¤ ëª¨ë“œ ìƒíƒœë¥¼ ì„¤ì •í•œë‹¤
+    // true  : ê±´ì„¤ ì¤‘ ìƒíƒœ
+    // false : ì¼ë°˜ ìƒíƒœ (ê±´ì„¤ ì•„ë‹˜)
     void SetBuildMode(bool value)
     {
         foreach (var target in toggleTargets)

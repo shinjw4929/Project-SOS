@@ -1,39 +1,39 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 
 public class BuildingPreviewSystem : MonoBehaviour
 {
     [Header("Materials")]
-    [SerializeField] private Material validMaterial;   // ÃÊ·Ï»ö ¹İÅõ¸í
-    [SerializeField] private Material invalidMaterial; // »¡°£»ö ¹İÅõ¸í
+    [SerializeField] private Material validMaterial;   // ì´ˆë¡ìƒ‰ ë°˜íˆ¬ëª…
+    [SerializeField] private Material invalidMaterial; // ë¹¨ê°„ìƒ‰ ë°˜íˆ¬ëª…
 
-    private GameObject previewObject; // ÇöÀç º¸¿©ÁÖ°í ÀÖ´Â À¯·É °´Ã¼
-    private MeshRenderer[] renderers; // »ö»óÀ» ¹Ù²Ù±â À§ÇÑ ·»´õ·¯µé
+    private GameObject previewObject; // í˜„ì¬ ë³´ì—¬ì£¼ê³  ìˆëŠ” ìœ ë ¹ ê°ì²´
+    private MeshRenderer[] renderers; // ìƒ‰ìƒì„ ë°”ê¾¸ê¸° ìœ„í•œ ë Œë”ëŸ¬ë“¤
     private float yOffset = 0f;
 
-    // ¹Ì¸®º¸±â °´Ã¼ »ı¼º (°Ç¼³ ¸ğµå ÁøÀÔ ½Ã È£Ãâ)
+    // ë¯¸ë¦¬ë³´ê¸° ê°ì²´ ìƒì„± (ê±´ì„¤ ëª¨ë“œ ì§„ì… ì‹œ í˜¸ì¶œ)
     public void ShowPreview(GameObject prefab, Vector3 position)
     {
         if (previewObject != null) Destroy(previewObject);
 
-        // 1. ÇÁ¸®ÆÕÀ» º¹Á¦ÇØ¼­ ¹Ì¸®º¸±â °´Ã¼ »ı¼º
+        // 1. í”„ë¦¬íŒ¹ì„ ë³µì œí•´ì„œ ë¯¸ë¦¬ë³´ê¸° ê°ì²´ ìƒì„±
         previewObject = Instantiate(prefab, position, Quaternion.identity);
         yOffset = prefab.transform.position.y;
 
-        // 2. ¹°¸® Ãæµ¹Ã¼(Collider) Á¦°Å (ÇÃ·¹ÀÌ¾î¸¦ ¹Ğ¾î³»°Å³ª °¨ÁöµÇ¸é ¾È µÇ¹Ç·Î)
+        // 2. ë¬¼ë¦¬ ì¶©ëŒì²´(Collider) ì œê±° (í”Œë ˆì´ì–´ë¥¼ ë°€ì–´ë‚´ê±°ë‚˜ ê°ì§€ë˜ë©´ ì•ˆ ë˜ë¯€ë¡œ)
         Collider[] colliders = previewObject.GetComponentsInChildren<Collider>();
         foreach (var col in colliders) Destroy(col);
 
-        // 3. ·»´õ·¯ Ä³½Ì (»ö»ó º¯°æ¿ë)
+        // 3. ë Œë”ëŸ¬ ìºì‹± (ìƒ‰ìƒ ë³€ê²½ìš©)
         renderers = previewObject.GetComponentsInChildren<MeshRenderer>();
 
-        // 4. ±×¸²ÀÚ ²ô±â (¼±ÅÃ»çÇ×)
+        // 4. ê·¸ë¦¼ì ë„ê¸° (ì„ íƒì‚¬í•­)
         foreach (var r in renderers)
         {
             r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         }
     }
 
-    // ¹Ì¸®º¸±â °´Ã¼ ²ô±â (°Ç¼³ ¸ğµå Á¾·á ½Ã È£Ãâ)
+    // ë¯¸ë¦¬ë³´ê¸° ê°ì²´ ë„ê¸° (ê±´ì„¤ ëª¨ë“œ ì¢…ë£Œ ì‹œ í˜¸ì¶œ)
     public void HidePreview()
     {
         if (previewObject != null)
@@ -43,20 +43,20 @@ public class BuildingPreviewSystem : MonoBehaviour
         }
     }
 
-    // À§Ä¡¿Í »ö»ó ¾÷µ¥ÀÌÆ® (¸Å ÇÁ·¹ÀÓ È£Ãâ)
+    // ìœ„ì¹˜ì™€ ìƒ‰ìƒ ì—…ë°ì´íŠ¸ (ë§¤ í”„ë ˆì„ í˜¸ì¶œ)
     public void UpdatePreview(Vector3 position, bool isValid)
     {
         if (previewObject == null) return;
 
-        // À§Ä¡ ÀÌµ¿
+        // ìœ„ì¹˜ ì´ë™
         previewObject.transform.position = position + new Vector3(0, yOffset, 0);
 
-        // »ö»ó º¯°æ (°¡´ÉÇÏ¸é ÃÊ·Ï, ºÒ°¡´ÉÇÏ¸é »¡°­)
+        // ìƒ‰ìƒ ë³€ê²½ (ê°€ëŠ¥í•˜ë©´ ì´ˆë¡, ë¶ˆê°€ëŠ¥í•˜ë©´ ë¹¨ê°•)
         Material targetMat = isValid ? validMaterial : invalidMaterial;
 
         foreach (var r in renderers)
         {
-            // ¸ğµç ÀçÁúÀ» ±³Ã¼ (¹è¿­ ÀüÃ¼¸¦ µ¤¾î¾º¿ò)
+            // ëª¨ë“  ì¬ì§ˆì„ êµì²´ (ë°°ì—´ ì „ì²´ë¥¼ ë®ì–´ì”Œì›€)
             Material[] mats = new Material[r.sharedMaterials.Length];
             for (int i = 0; i < mats.Length; i++) mats[i] = targetMat;
             r.materials = mats;

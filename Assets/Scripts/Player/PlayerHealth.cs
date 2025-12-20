@@ -1,7 +1,7 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 
 public class PlayerHealth : MonoBehaviour
-{       //ÇÏÇÏ ÁÖ¼® ¾²±â¿£ Á» ±×·¸ÁÒ?
+{       //í•˜í•˜ ì£¼ì„ ì“°ê¸°ì—” ì¢€ ê·¸ë ‡ì£ ?
     public int maxHp = 100;
     public int hp = 100;
 

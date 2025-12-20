@@ -1,8 +1,8 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 using TMPro;
 
 public class PlayerHpUI : MonoBehaviour
-{//100/100 ÅØ½ºÆ®¸¦ ÃÖ´ëÃ¼·Â°ú ÇöÀçÃ¼·Â ÁöÁ¤ÇØÁØ°Å
+{//100/100 í…ìŠ¤íŠ¸ë¥¼ ìµœëŒ€ì²´ë ¥ê³¼ í˜„ì¬ì²´ë ¥ ì§€ì •í•´ì¤€ê±°
     public PlayerHealth playerHealth;
     public TextMeshProUGUI hpText;
 

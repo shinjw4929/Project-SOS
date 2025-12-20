@@ -1,22 +1,22 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 
 public class EnemyFollow : MonoBehaviour
 {
-    public Transform player;      // µû¶ó°¥ ´ë»ó
-    public float moveSpeed = 3f;   // ÀÌµ¿ ¼Óµµ
+    public Transform player;      // ë”°ë¼ê°ˆ ëŒ€ìƒ
+    public float moveSpeed = 3f;   // ì´ë™ ì†ë„
 
     void Update()
     {
         if (player == null) return;
 
-        // ¹æÇâ °è»ê
+        // ë°©í–¥ ê³„ì‚°
         Vector3 dir = (player.position - transform.position).normalized;
 
-        // ÀÌµ¿ (Y °íÁ¤)
+        // ì´ë™ (Y ê³ ì •)
         transform.position += new Vector3(dir.x, 0, dir.z) * moveSpeed * Time.deltaTime;
     }
     
-    //¹üÀ§ ¼³Á¤ÈÄ ÃßÀû
+    //ë²”ìœ„ ì„¤ì •í›„ ì¶”ì 
     //public float detectRange = 10f;
 
     //void Update()

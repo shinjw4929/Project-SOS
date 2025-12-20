@@ -1,4 +1,4 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 using UnityEngine.InputSystem;
 
 public class GameCursor : MonoBehaviour
@@ -6,21 +6,21 @@ public class GameCursor : MonoBehaviour
     [Header("Input Settings")]
     [SerializeField] private InputActionReference mousePosInput;
 
-    private RectTransform rectTransform; // transform ´ë½Å RectTransform »ç¿ë
-    private Canvas parentCanvas;         // ºÎ¸ğ Äµ¹ö½º (ÁÂÇ¥ º¯È¯ ±âÁØ)
+    private RectTransform rectTransform; // transform ëŒ€ì‹  RectTransform ì‚¬ìš©
+    private Canvas parentCanvas;         // ë¶€ëª¨ ìº”ë²„ìŠ¤ (ì¢Œí‘œ ë³€í™˜ ê¸°ì¤€)
     private Camera mainCamera;
 
     private void Awake()
     {
         mainCamera = Camera.main;
 
-        // 1. ³» ÄÄÆ÷³ÍÆ® °¡Á®¿À±â
+        // 1. ë‚´ ì»´í¬ë„ŒíŠ¸ ê°€ì ¸ì˜¤ê¸°
         rectTransform = GetComponent<RectTransform>();
 
-        // 2. ºÎ¸ğ Äµ¹ö½º Ã£±â (ÃÖ»óÀ§ Äµ¹ö½º)
+        // 2. ë¶€ëª¨ ìº”ë²„ìŠ¤ ì°¾ê¸° (ìµœìƒìœ„ ìº”ë²„ìŠ¤)
         parentCanvas = GetComponentInParent<Canvas>();
 
-        // 3. Ä¿¼­ ¼û±â±â ¼³Á¤
+        // 3. ì»¤ì„œ ìˆ¨ê¸°ê¸° ì„¤ì •
         Cursor.visible = false;
         Cursor.lockState = CursorLockMode.Confined;
     }
@@ -43,11 +43,11 @@ public class GameCursor : MonoBehaviour
 
     private void UpdateCursorPosition()
     {
-        // 1. ÀÎÇ² ½Ã½ºÅÛ¿¡¼­ È­¸é(½ºÅ©¸°) ÁÂÇ¥ °¡Á®¿À±â
+        // 1. ì¸í’‹ ì‹œìŠ¤í…œì—ì„œ í™”ë©´(ìŠ¤í¬ë¦°) ì¢Œí‘œ ê°€ì ¸ì˜¤ê¸°
         Vector2 screenPos = mousePosInput.action.ReadValue<Vector2>();
 
-        // 2. ½ºÅ©¸° ÁÂÇ¥¸¦ UI(RectTransform) ³»ºÎ ÁÂÇ¥·Î º¯È¯
-        // Canvas Render Mode¿¡ µû¶ó Ä«¸Ş¶ó ÇÊ¿ä ¿©ºÎ°¡ ´Ù¸§
+        // 2. ìŠ¤í¬ë¦° ì¢Œí‘œë¥¼ UI(RectTransform) ë‚´ë¶€ ì¢Œí‘œë¡œ ë³€í™˜
+        // Canvas Render Modeì— ë”°ë¼ ì¹´ë©”ë¼ í•„ìš” ì—¬ë¶€ê°€ ë‹¤ë¦„
         Camera cam = null;
         if (parentCanvas.renderMode != RenderMode.ScreenSpaceOverlay)
         {
@@ -55,22 +55,22 @@ public class GameCursor : MonoBehaviour
         }
 
         Vector2 localPoint;
-        // ÀÌ ÇÔ¼ö°¡ ÇØ»óµµ, Äµ¹ö½º ½ºÄÉÀÏ·¯ µîÀ» ¸ğµÎ °í·ÁÇÏ¿© Á¤È®ÇÑ UI À§Ä¡¸¦ °è»êÇØÁİ´Ï´Ù.
+        // ì´ í•¨ìˆ˜ê°€ í•´ìƒë„, ìº”ë²„ìŠ¤ ìŠ¤ì¼€ì¼ëŸ¬ ë“±ì„ ëª¨ë‘ ê³ ë ¤í•˜ì—¬ ì •í™•í•œ UI ìœ„ì¹˜ë¥¼ ê³„ì‚°í•´ì¤ë‹ˆë‹¤.
         RectTransformUtility.ScreenPointToLocalPointInRectangle(
-            parentCanvas.transform as RectTransform, // ±âÁØÀÌ µÇ´Â ºÎ¸ğ (º¸Åë Äµ¹ö½º)
-            screenPos,                               // ¸¶¿ì½º À§Ä¡
-            cam,                                     // Ä«¸Ş¶ó (Overlay¸é null)
-            out localPoint                           // °á°ú°¡ ´ã±æ º¯¼ö
+            parentCanvas.transform as RectTransform, // ê¸°ì¤€ì´ ë˜ëŠ” ë¶€ëª¨ (ë³´í†µ ìº”ë²„ìŠ¤)
+            screenPos,                               // ë§ˆìš°ìŠ¤ ìœ„ì¹˜
+            cam,                                     // ì¹´ë©”ë¼ (Overlayë©´ null)
+            out localPoint                           // ê²°ê³¼ê°€ ë‹´ê¸¸ ë³€ìˆ˜
         );
 
-        // 3. À§Ä¡ Àû¿ë (UI´Â anchoredPositionÀ» »ç¿ë)
+        // 3. ìœ„ì¹˜ ì ìš© (UIëŠ” anchoredPositionì„ ì‚¬ìš©)
         rectTransform.anchoredPosition = localPoint;
     }
 
-    // ¿ÜºÎ¿¡¼­ À§Ä¡¸¦ °¡Á®°¥ ¶§
+    // ì™¸ë¶€ì—ì„œ ìœ„ì¹˜ë¥¼ ê°€ì ¸ê°ˆ ë•Œ
     public Vector3 GetPosition()
     {
-        // UI ¿ä¼ÒÀÇ ¿ùµå ÁÂÇ¥¸¦ ¹İÈ¯ÇÏ°Å³ª, ÇÊ¿ä¿¡ µû¶ó anchoredPositionÀ» ¹İÈ¯ÇÒ ¼ö ÀÖ½À´Ï´Ù.
+        // UI ìš”ì†Œì˜ ì›”ë“œ ì¢Œí‘œë¥¼ ë°˜í™˜í•˜ê±°ë‚˜, í•„ìš”ì— ë”°ë¼ anchoredPositionì„ ë°˜í™˜í•  ìˆ˜ ìˆìŠµë‹ˆë‹¤.
         return transform.position;
     }
 }
