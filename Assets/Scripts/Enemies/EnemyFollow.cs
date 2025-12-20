@@ -8,9 +8,11 @@ public class EnemyFollow : MonoBehaviour
 
     private CharacterController characterController;
 
-    // Player Movement3D와 동일한 벽 처리용 변수
-    private Vector3 lastHitNormal;
-    private bool isCollidingWall = false;
+    // 벽에 접촉했는지 여부
+    private bool isTouchingWall;
+
+    // 중력 누적값 (CharacterController 보정용)
+    private float verticalVelocity;
 
     private void Awake()
     {
@@ -21,33 +23,45 @@ public class EnemyFollow : MonoBehaviour
     {
         if (player == null) return;
 
-        // 1. 추적 방향 계산
-        Vector3 moveDir = (player.position - transform.position).normalized;
+        // 플레이어 방향 계산 (수평 이동만)
+        Vector3 dir = player.position - transform.position;
+        dir.y = 0f;
+        dir.Normalize();
 
-        Vector3 finalMove = moveDir;
+        bool grounded = characterController.isGrounded;
 
-        // 2. 벽에 닿아 있다면 벽을 타도록 투영
-        if (isCollidingWall)
+        // 바닥에 붙어 있을 때 아래로 미는 힘을 유지해 공중 뜸 방지
+        if (grounded && verticalVelocity < 0f)
+            verticalVelocity = -2f;
+
+        // 중력 적용
+        verticalVelocity += Physics.gravity.y * Time.deltaTime;
+
+        // 벽에 닿아 있으면 전진하지 않음
+        if (isTouchingWall && dir != Vector3.zero)
         {
-            finalMove = Vector3.ProjectOnPlane(moveDir, lastHitNormal).normalized;
+            isTouchingWall = false;
+            return;
         }
 
-        finalMove = new Vector3(finalMove.x, 0, finalMove.z);
+        // 이동 벡터 구성
+        Vector3 move = dir * moveSpeed;
+        move.y = verticalVelocity;
 
-        // 3. CharacterController 이동 (벽 충돌 정상 작동)
-        characterController.Move(finalMove * moveSpeed * Time.deltaTime);
+        // CharacterController 이동
+        characterController.Move(move * Time.deltaTime);
 
-        // 매 프레임 초기화
-        isCollidingWall = false;
+        // 프레임 종료 시 초기화
+        isTouchingWall = false;
     }
 
-    // 🔥 Player랑 동일하게 작동
+    // CharacterController 충돌 콜백
     private void OnControllerColliderHit(ControllerColliderHit hit)
     {
+        // 노멀의 y값이 낮으면 벽으로 판단
         if (hit.normal.y < 0.5f)
         {
-            isCollidingWall = true;
-            lastHitNormal = hit.normal;
+            isTouchingWall = true;
         }
     }
 }
