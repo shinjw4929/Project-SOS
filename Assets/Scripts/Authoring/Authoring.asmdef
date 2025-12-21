@@ -1,0 +1,23 @@
+{
+    "name": "Authoring",
+    "rootNamespace": "",
+    "references": [
+        "Unity.NetCode",
+        "Unity.Mathematics",
+        "Unity.Entities",
+        "Unity.Entities.Hybrid",
+        "Unity.Burst",
+        "Unity.Collections",
+        "Unity.Transforms",
+        "Shared"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

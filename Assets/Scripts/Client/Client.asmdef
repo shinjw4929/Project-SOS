@@ -1,0 +1,22 @@
+{
+    "name": "Client",
+    "rootNamespace": "",
+    "references": [
+        "Unity.Burst",
+        "Unity.NetCode",
+        "Unity.InputSystem",
+        "Unity.Entities",
+        "Unity.Collections",
+        "Unity.Mathematics",
+        "Shared"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

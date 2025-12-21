@@ -1,0 +1,21 @@
+{
+    "name": "Shared",
+    "rootNamespace": "",
+    "references": [
+        "Unity.Burst",
+        "Unity.Entities",
+        "Unity.NetCode",
+        "Unity.Collections",
+        "Unity.Mathematics",
+        "Unity.Transforms"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
