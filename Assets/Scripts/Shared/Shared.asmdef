@@ -7,7 +7,8 @@
         "Unity.NetCode",
         "Unity.Collections",
         "Unity.Mathematics",
-        "Unity.Transforms"
+        "Unity.Transforms",
+        "Unity.Physics"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

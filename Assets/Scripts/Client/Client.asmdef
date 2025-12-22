@@ -8,6 +8,9 @@
         "Unity.Entities",
         "Unity.Collections",
         "Unity.Mathematics",
+        "Unity.Transforms",
+        "Unity.Physics",
+        "Unity.Entities.Graphics",
         "Shared"
     ],
     "includePlatforms": [],
