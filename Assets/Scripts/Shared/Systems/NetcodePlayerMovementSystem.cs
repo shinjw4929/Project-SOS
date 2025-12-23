@@ -3,8 +3,14 @@ using Unity.Entities;
 using Unity.NetCode;
 using Unity.Transforms;
 using Unity.Mathematics;
-using Shared; // RTSCommand 사용을 위해 추가
+using Shared;
 
+/*
+ * 실행 환경: 클라이언트 + 서버 (예측 시뮬레이션)
+ * RTS 유닛의 이동 로직을 처리하는 시스템
+ *    명령 처리: RTSCommand 버퍼에서 Move 명령 읽기 → MoveTarget 설정
+ *    이동 로직: MoveTarget을 향해 직선 이동, 도착하면 isValid = false
+ */
 [UpdateInGroup(typeof(PredictedSimulationSystemGroup))]
 public partial struct NetcodePlayerMovementSystem : ISystem
 {
@@ -19,14 +25,14 @@ public partial struct NetcodePlayerMovementSystem : ISystem
     {
         float deltaTime = SystemAPI.Time.DeltaTime;
         float moveSpeed = 10f;
-        float arrivalThreshold = 0.1f; // 더 정밀하게 변경
+        float arrivalThreshold = 0.5f;
 
         var networkTime = SystemAPI.GetSingleton<NetworkTime>();
 
         foreach ((
              RefRW<MoveTarget> moveTarget,
              RefRW<LocalTransform> localTransform,
-             DynamicBuffer<RTSCommand> inputBuffer) // 명령 버퍼 추가
+             DynamicBuffer<RTSCommand> inputBuffer)
              in SystemAPI.Query<
                  RefRW<MoveTarget>,
                  RefRW<LocalTransform>,
@@ -47,9 +53,8 @@ public partial struct NetcodePlayerMovementSystem : ISystem
             {
                 float3 currentPos = localTransform.ValueRO.Position;
                 float3 targetPos = moveTarget.ValueRO.position;
-
-                // [핵심 해결] 높이(Y) 차이 무시!
-                // 목표 지점의 Y를 내 높이와 똑같이 맞춰서, 수평 거리만 따지게 함
+                
+                // 목표 지점의 Y 현재 Y와 일치
                 targetPos.y = currentPos.y; 
 
                 float distance = math.distance(currentPos, targetPos);
@@ -59,12 +64,12 @@ public partial struct NetcodePlayerMovementSystem : ISystem
                 {
                     moveTarget.ValueRW.isValid = false;
                     
-                    // [옵션] 도착 시 미세한 떨림 방지를 위해 위치 강제 고정
-                    // localTransform.ValueRW.Position = targetPos; 
+                    // 도착 시 떨림 방지를 위해 위치 강제 고정
+                    localTransform.ValueRW.Position = targetPos; 
                 }
                 else
                 {
-                    // [추가] 오버슈팅 방지 (이번 프레임 이동량이 남은 거리보다 크면 바로 도착 처리)
+                    // 오버슈팅 방지 (이번 프레임 이동량이 남은 거리보다 크면 바로 도착 처리)
                     float moveStep = moveSpeed * deltaTime;
                     
                     if (distance <= moveStep)

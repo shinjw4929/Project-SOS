@@ -9,7 +9,7 @@ using Shared; // [필수] Player 컴포넌트(TeamId)를 수정하기 위해 필
 [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
 partial struct GoInGameServerSystem : ISystem
 {
-    //[BurstCompile]
+    [BurstCompile]
     public void OnCreate(ref SystemState state)
     {
         state.RequireForUpdate<EntitiesReferences>();
@@ -35,9 +35,13 @@ partial struct GoInGameServerSystem : ISystem
           // 1. 유닛 생성
           Entity playerEntity = entityCommandBuffer.Instantiate(entitiesReferences.playerPrefabEntity);
           
+          // 프리팹 엔티티의 원본 LocalTransform을 읽어옵니다.
+          LocalTransform prefabTransform = SystemAPI.GetComponent<LocalTransform>(entitiesReferences.playerPrefabEntity);
+          float prefabY = prefabTransform.Position.y;
+          
           // 2. 랜덤 위치 배치
           entityCommandBuffer.SetComponent(playerEntity, LocalTransform.FromPosition(new float3(
-              UnityEngine.Random.Range(-10, 10), 0, 0
+              UnityEngine.Random.Range(-10, 10), prefabY, 0
               )));
           
           // 3. 접속한 클라이언트의 고유 ID (0, 1, 2...) 가져오기

@@ -42,8 +42,6 @@ namespace Client
                     {
                         inputState.ValueRW.targetPosition = newTargetPos;
                         inputState.ValueRW.hasTarget = true;
-                        
-                        // Debug.Log("New Target Set!");
                     }
                 }
             }

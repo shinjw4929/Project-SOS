@@ -3,6 +3,7 @@ using Unity.NetCode;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using Shared;
 
 namespace Client
 {
@@ -26,7 +27,7 @@ namespace Client
                 isDragging = false
             });
         }
-
+        
         public void OnUpdate(ref SystemState state)
         {
             var mouse = Mouse.current;
@@ -69,8 +70,6 @@ namespace Client
                 // 드래그 중 위치 갱신
                 selectionBox.ValueRW.currentScreenPos = mousePos;
             }
-            
-            // [중요] 상태를 Idle로 초기화하는 코드는 여기서 삭제됨 (SelectionSystem이 처리함)
         }
     }
 }

@@ -17,11 +17,11 @@ namespace Client
         {
             state.RequireForUpdate<NetworkStreamInGame>();
             state.RequireForUpdate<SelectionState>();
-            state.RequireForUpdate<SelectionBox>(); 
+            state.RequireForUpdate<SelectionBox>();
             state.RequireForUpdate<PhysicsWorldSingleton>();
             state.RequireForUpdate<EndSimulationEntityCommandBufferSystem.Singleton>();
             // NetworkId는 필수 (팀 구분을 위해)
-            state.RequireForUpdate<NetworkId>(); 
+            state.RequireForUpdate<NetworkId>();
         }
 
         public void OnUpdate(ref SystemState state)

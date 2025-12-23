@@ -32,13 +32,12 @@ namespace Client
                 float4 currentColor = baseColor.ValueRO.Value;
                 
                 // 목표 색상 (선택됨: 초록, 아니면: 흰색)
-                float4 targetColor = isSelected ? new float4(0f, 1f, 0f, 1f) : new float4(1f, 1f, 1f, 1f);
+                float4 targetColor = isSelected ? new float4(0f, 1f, 0f, 0.3f) : new float4(1f, 1f, 1f, 0.3f);
 
                 // 색상이 다를 때만 변경 (성능 최적화 & 로그 스팸 방지)
                 if (!math.all(currentColor == targetColor))
                 {
                     baseColor.ValueRW.Value = targetColor;
-                    // Debug.Log($"Unit {entity.Index} color changed to {(isSelected ? "Green" : "White")}");
                 }
             }
         }
