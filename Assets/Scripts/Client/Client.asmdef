@@ -11,7 +11,8 @@
         "Unity.Transforms",
         "Unity.Physics",
         "Unity.Entities.Graphics",
-        "Shared"
+        "Shared",
+        "Unity.TextMeshPro"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

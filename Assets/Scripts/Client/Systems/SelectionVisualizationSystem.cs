@@ -31,8 +31,8 @@ namespace Client
                 // 현재 색상
                 float4 currentColor = baseColor.ValueRO.Value;
                 
-                // 목표 색상 (선택됨: 초록, 아니면: 흰색)
-                float4 targetColor = isSelected ? new float4(0f, 1f, 0f, 0.3f) : new float4(1f, 1f, 1f, 0.3f);
+                // 목표 색상 (선택됨: 파랑, 아니면: 흰색)
+                float4 targetColor = isSelected ? new float4(0f, 0f, 1f, 1f) : new float4(1f, 1f, 1f, 1f);
 
                 // 색상이 다를 때만 변경 (성능 최적화 & 로그 스팸 방지)
                 if (!math.all(currentColor == targetColor))

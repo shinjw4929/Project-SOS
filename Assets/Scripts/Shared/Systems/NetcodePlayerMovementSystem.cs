@@ -24,7 +24,6 @@ public partial struct NetcodePlayerMovementSystem : ISystem
     public void OnUpdate(ref SystemState state)
     {
         float deltaTime = SystemAPI.Time.DeltaTime;
-        float moveSpeed = 10f;
         float arrivalThreshold = 0.5f;
 
         var networkTime = SystemAPI.GetSingleton<NetworkTime>();
@@ -32,11 +31,13 @@ public partial struct NetcodePlayerMovementSystem : ISystem
         foreach ((
              RefRW<MoveTarget> moveTarget,
              RefRW<LocalTransform> localTransform,
-             DynamicBuffer<RTSCommand> inputBuffer)
+             DynamicBuffer<RTSCommand> inputBuffer,
+             RefRO<UnitStats> unitStats)
              in SystemAPI.Query<
                  RefRW<MoveTarget>,
                  RefRW<LocalTransform>,
-                 DynamicBuffer<RTSCommand>>().WithAll<Simulate>())
+                 DynamicBuffer<RTSCommand>,
+                 RefRO<UnitStats>>().WithAll<Simulate>())
         {
             // 1. 명령(Command) 처리: 입력 버퍼에서 목표지점 꺼내오기
             if (inputBuffer.GetDataAtTick(networkTime.ServerTick, out RTSCommand command))
@@ -70,7 +71,7 @@ public partial struct NetcodePlayerMovementSystem : ISystem
                 else
                 {
                     // 오버슈팅 방지 (이번 프레임 이동량이 남은 거리보다 크면 바로 도착 처리)
-                    float moveStep = moveSpeed * deltaTime;
+                    float moveStep = unitStats.ValueRO.moveSpeed * deltaTime;
                     
                     if (distance <= moveStep)
                     {

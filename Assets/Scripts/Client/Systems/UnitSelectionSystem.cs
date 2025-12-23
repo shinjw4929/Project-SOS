@@ -76,17 +76,11 @@ namespace Client
                 // 1. 유닛(Player)을 클릭했는지 확인
                 if (state.EntityManager.HasComponent<Player>(hitEntity))
                 {
-                    var playerData = state.EntityManager.GetComponentData<Player>(hitEntity);
-                    
-                    // 2. 팀 확인 (내 팀인가?)
-                    if (playerData.TeamId == myTeamId)
-                    {
-                        // [아군 선택] 기존 선택 해제 후 새로 선택
-                        DeselectAll(ref state, ecb);
+                    // 팀 확인 없이 모든 유닛 선택 가능
+                    DeselectAll(ref state, ecb);
 
-                        if (!state.EntityManager.HasComponent<Selected>(hitEntity)) ecb.AddComponent<Selected>(hitEntity);
-                        ecb.SetComponentEnabled<Selected>(hitEntity, true);
-                    }
+                    if (!state.EntityManager.HasComponent<Selected>(hitEntity)) ecb.AddComponent<Selected>(hitEntity);
+                    ecb.SetComponentEnabled<Selected>(hitEntity, true);
                 }
                 // 3. 유닛이 아닌 것(땅바닥, 장애물)을 클릭한 경우
                 else
