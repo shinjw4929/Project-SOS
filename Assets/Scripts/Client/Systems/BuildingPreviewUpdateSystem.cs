@@ -17,16 +17,16 @@ namespace Client
     {
         public void OnCreate(ref SystemState state)
         {
-            state.RequireForUpdate<PlayerBuildState>();
+            state.RequireForUpdate<UserState>();
             state.RequireForUpdate<BuildingPreviewState>();
         }
 
         public void OnUpdate(ref SystemState state)
         {
-            var buildState = SystemAPI.GetSingleton<PlayerBuildState>();
+            var userState = SystemAPI.GetSingleton<UserState>();
             ref var previewState = ref SystemAPI.GetSingletonRW<BuildingPreviewState>().ValueRW;
 
-            if (!buildState.isBuildMode)
+            if (userState.CurrentState != UserContext.Construction)
             {
                 previewState.isValidPlacement = false;
                 return;

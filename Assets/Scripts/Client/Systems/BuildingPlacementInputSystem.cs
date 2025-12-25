@@ -24,14 +24,14 @@ namespace Client
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<NetworkStreamInGame>();
-            state.RequireForUpdate<PlayerBuildState>();
+            state.RequireForUpdate<UserState>();
             state.RequireForUpdate<GridSettings>();
         }
 
         public void OnUpdate(ref SystemState state)
         {
-            var buildState = SystemAPI.GetSingleton<PlayerBuildState>();
-            if (!buildState.isBuildMode) return;
+            var userState = SystemAPI.GetSingleton<UserState>();
+            if (userState.CurrentState != UserContext.Construction) return;
 
             var mouse = Mouse.current;
             if (mouse == null || Camera.main == null) return;
@@ -64,7 +64,7 @@ namespace Client
                     });
                     state.EntityManager.AddComponent<SendRpcCommandRequest>(rpcEntity);
 
-                    SystemAPI.GetSingletonRW<PlayerBuildState>().ValueRW.isBuildMode = false;
+                    SystemAPI.GetSingletonRW<UserState>().ValueRW.CurrentState = UserContext.Command;
                 }
             }
         }

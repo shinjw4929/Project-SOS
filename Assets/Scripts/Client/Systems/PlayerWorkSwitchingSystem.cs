@@ -1,6 +1,7 @@
 using Unity.Entities;
 using Unity.NetCode;
 using UnityEngine.InputSystem;
+using Shared;
 
 namespace Client
 {
@@ -11,10 +12,6 @@ namespace Client
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<NetworkStreamInGame>();
-
-            // PlayerBuildState 싱글톤 (isBuildMode 초기값 false로 변경)
-            var buildStateEntity = state.EntityManager.CreateEntity();
-            state.EntityManager.AddComponentData(buildStateEntity, new PlayerBuildState { isBuildMode = false });
 
             // BuildingPreviewState 싱글톤 추가
             var previewStateEntity = state.EntityManager.CreateEntity();
@@ -32,14 +29,24 @@ namespace Client
             var keyboard = Keyboard.current;
             if (keyboard == null) return;
 
-            ref var buildState = ref SystemAPI.GetSingletonRW<PlayerBuildState>().ValueRW;
+            ref var userState = ref SystemAPI.GetSingletonRW<UserState>().ValueRW;
 
-            // B 키로 건설 모드 토글
-            if (keyboard.bKey.wasPressedThisFrame)
+            // Q 키로 건설 모드 토글
+            if (keyboard.qKey.wasPressedThisFrame)
             {
-                buildState.isBuildMode = !buildState.isBuildMode;
+                switch (userState.CurrentState)
+                {
+                    case UserContext.Command:
+                        userState.CurrentState = UserContext.Construction;
+                        break;
+                    case UserContext.Construction:
+                        userState.CurrentState = UserContext.Command;
+                        break;
+                    default:
+                        break;
+                }
 
-                if (buildState.isBuildMode)
+                if (userState.CurrentState == UserContext.Construction)
                 {
                     ref var previewState = ref SystemAPI.GetSingletonRW<BuildingPreviewState>().ValueRW;
                     previewState.selectedType = Shared.BuildingTypeEnum.Wall;
@@ -47,9 +54,9 @@ namespace Client
             }
 
             // ESC 키로 건설 모드 취소
-            if (keyboard.escapeKey.wasPressedThisFrame && buildState.isBuildMode)
+            if (keyboard.escapeKey.wasPressedThisFrame && userState.CurrentState == UserContext.Construction)
             {
-                buildState.isBuildMode = false;
+                userState.CurrentState = UserContext.Command;
             }
         }
 

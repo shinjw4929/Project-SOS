@@ -20,6 +20,7 @@ namespace Client
             state.RequireForUpdate<SelectionBox>();
             state.RequireForUpdate<PhysicsWorldSingleton>();
             state.RequireForUpdate<EndSimulationEntityCommandBufferSystem.Singleton>();
+            state.RequireForUpdate<UserState>();
             // NetworkId는 필수 (팀 구분을 위해)
             state.RequireForUpdate<NetworkId>();
         }
@@ -61,9 +62,10 @@ namespace Client
             };
 
             var ecb = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>().CreateCommandBuffer(state.WorldUnmanaged);
-
+            var userState = SystemAPI.GetSingleton<UserState>();
+            
             // 레이캐스트 실행
-            if (collisionWorld.CastRay(raycastInput, out Unity.Physics.RaycastHit hit))
+            if (collisionWorld.CastRay(raycastInput, out Unity.Physics.RaycastHit hit) && userState.CurrentState == UserContext.Command)
             {
                 Entity hitEntity = hit.Entity;
 
