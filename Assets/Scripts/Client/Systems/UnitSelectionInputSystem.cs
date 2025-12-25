@@ -14,7 +14,7 @@ namespace Client
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<NetworkStreamInGame>();
-
+            state.RequireForUpdate<UserState>();
             // 싱글톤 엔티티 생성
             var selectionStateEntity = state.EntityManager.CreateEntity();
             state.EntityManager.AddComponentData(selectionStateEntity, new SelectionState { mode = SelectionMode.Idle });
@@ -33,6 +33,9 @@ namespace Client
             var mouse = Mouse.current;
             if (mouse == null) return;
 
+            var userState = SystemAPI.GetSingleton<UserState>();
+            if(userState.CurrentState != UserContext.Command) return;
+            
             bool leftClickPressed = mouse.leftButton.wasPressedThisFrame;
             bool leftClickReleased = mouse.leftButton.wasReleasedThisFrame;
             float2 mousePos = mouse.position.ReadValue();

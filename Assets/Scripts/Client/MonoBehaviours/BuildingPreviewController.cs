@@ -26,11 +26,11 @@ public class BuildingPreviewController : MonoBehaviour
         if (_buildStateQuery.IsEmptyIgnoreFilter || _previewStateQuery.IsEmptyIgnoreFilter || _gridSettingsQuery.IsEmptyIgnoreFilter)
             return;
 
-        var buildState = _buildStateQuery.GetSingleton<PlayerBuildState>();
+        var userState = _buildStateQuery.GetSingleton<UserState>();
         var previewState = _previewStateQuery.GetSingleton<BuildingPreviewState>();
         var gridSettings = _gridSettingsQuery.GetSingleton<GridSettings>();
 
-        if (!buildState.isBuildMode)
+        if (userState.CurrentState != UserContext.Construction)
         {
             DestroyPreview();
             return;
@@ -73,7 +73,7 @@ public class BuildingPreviewController : MonoBehaviour
             if (world.IsClient())
             {
                 _clientWorld = world;
-                _buildStateQuery = world.EntityManager.CreateEntityQuery(typeof(PlayerBuildState));
+                _buildStateQuery = world.EntityManager.CreateEntityQuery(typeof(UserState));
                 _previewStateQuery = world.EntityManager.CreateEntityQuery(typeof(BuildingPreviewState));
                 _gridSettingsQuery = world.EntityManager.CreateEntityQuery(typeof(GridSettings));
                 return true;

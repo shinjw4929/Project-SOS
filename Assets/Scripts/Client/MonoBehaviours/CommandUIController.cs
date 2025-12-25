@@ -60,10 +60,10 @@ public class CommandUIController : MonoBehaviour
     {
         if (_buildStateQuery.IsEmptyIgnoreFilter) return;
 
-        ref var buildState = ref _buildStateQuery.GetSingletonRW<PlayerBuildState>().ValueRW;
-        buildState.isBuildMode = !buildState.isBuildMode;
+        ref var userState = ref _buildStateQuery.GetSingletonRW<UserState>().ValueRW;
+        userState.CurrentState = UserContext.Construction;
 
-        if (buildState.isBuildMode)
+        if (userState.CurrentState == UserContext.Construction)
         {
             var previewQuery = _clientEntityManager.CreateEntityQuery(typeof(BuildingPreviewState));
             if (!previewQuery.IsEmptyIgnoreFilter)
@@ -85,7 +85,7 @@ public class CommandUIController : MonoBehaviour
                 _clientWorld = world;
                 _clientEntityManager = world.EntityManager;
                 _currentSelectionQuery = _clientEntityManager.CreateEntityQuery(typeof(CurrentSelectedUnit));
-                _buildStateQuery = _clientEntityManager.CreateEntityQuery(typeof(PlayerBuildState));
+                _buildStateQuery = _clientEntityManager.CreateEntityQuery(typeof(UserState));
                 return true;
             }
         }

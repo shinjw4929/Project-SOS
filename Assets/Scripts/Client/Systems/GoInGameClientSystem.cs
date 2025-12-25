@@ -2,6 +2,8 @@ using Unity.Burst;
 using Unity.Entities;
 using Unity.NetCode;
 using UnityEngine;
+using Shared;
+
 
 [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
 partial struct GoInGameClientSystem : ISystem
@@ -10,6 +12,9 @@ partial struct GoInGameClientSystem : ISystem
     public void OnCreate(ref SystemState state)
     {
         state.RequireForUpdate<NetworkId>();
+        // UserState 싱글톤 (초기상태 Command)
+        var userState = state.EntityManager.CreateEntity();
+        state.EntityManager.AddComponentData(userState, new UserState { CurrentState = UserContext.Command});
     }
 
     [BurstCompile]
