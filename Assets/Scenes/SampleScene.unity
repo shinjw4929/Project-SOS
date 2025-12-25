@@ -1059,8 +1059,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 042f07d24a2d72b46b46086e5a56a0b4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  player: {fileID: 1947143830}
-  moveSpeed: 1
 --- !u!23 &770874576
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -1392,8 +1390,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 02a37e2d167e4394fb4acc9937ecdd8e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  playerHealth: {fileID: 1947143842}
-  hpText: {fileID: 1319458527}
 --- !u!1 &1075290085
 GameObject:
   m_ObjectHideFlags: 0
@@ -1470,8 +1466,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4846af4e7214a3f4fbf2b6bae623f8c1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  damage: 1
-  damageInterval: 0.5
 --- !u!65 &1095851151
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -1905,8 +1899,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fd49cca66a485544a9df00726ddd2ef3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  cellSize: 1
-  showDebugGrid: 1
 --- !u!1 &1461879398
 GameObject:
   m_ObjectHideFlags: 0
@@ -2337,8 +2329,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5f970417dcbe24f42bda5751da241760, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  maxHp: 100
-  hp: 100
 --- !u!114 &1947143843
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2351,11 +2341,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c727f47e2335ac841b7f89289d0fa8dd, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  rightClickInput: {fileID: 6853080257336829967, guid: 052faaac586de48259a63d0c4782560b, type: 3}
-  mousePosInput: {fileID: -7343484384635907347, guid: 052faaac586de48259a63d0c4782560b, type: 3}
-  groundLayer:
-    serializedVersion: 2
-    m_Bits: 64
 --- !u!114 &1947143844
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2368,8 +2353,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 10f22179d5573db43a51201422925c17, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  moveSpeed: 20
-  rotateSpeed: 10
 --- !u!114 &1947143845
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2382,8 +2365,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 935c5fd0a7f9f9f44a1c7c18734edf8c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  validMaterial: {fileID: 2100000, guid: 454c065a782dcb942a2dec9acd8f1315, type: 2}
-  invalidMaterial: {fileID: 2100000, guid: 5d1890dc867a72046990b7922bba2f43, type: 2}
 --- !u!114 &1947143846
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2396,10 +2377,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a0a4fdd409e112041ab19ec068c7e7b3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  prefabToSpawn: {fileID: 2697124028170181865, guid: 118356b3d5301164d85e3ec67bda087e, type: 3}
-  obstacleLayer:
-    serializedVersion: 2
-    m_Bits: 256
 --- !u!114 &1947143847
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2412,17 +2389,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3d1913597a5d7cf4282b3d49d927a2c6, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  toggleBuildModeInput: {fileID: 7795012631629815535, guid: 052faaac586de48259a63d0c4782560b, type: 3}
-  buildConfirmInput: {fileID: -1116583772494983031, guid: 052faaac586de48259a63d0c4782560b, type: 3}
-  cancelBuildInput: {fileID: -4611568371016757812, guid: 052faaac586de48259a63d0c4782560b, type: 3}
-  mousePosInput: {fileID: -7343484384635907347, guid: 052faaac586de48259a63d0c4782560b, type: 3}
-  playerController: {fileID: 1947143843}
-  buildingSpawner: {fileID: 1947143846}
-  previewSystem: {fileID: 1947143845}
-  buildRange: 2
-  groundLayer:
-    serializedVersion: 2
-    m_Bits: 64
 --- !u!65 &1947143848
 BoxCollider:
   m_ObjectHideFlags: 0
