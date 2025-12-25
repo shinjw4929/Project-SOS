@@ -9,12 +9,12 @@ namespace Client
 {
     [UpdateInGroup(typeof(GhostInputSystemGroup))]
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
-    public partial struct UnitSelectionInputSystem : ISystem
+    partial struct UnitSelectionInputSystem : ISystem
     {
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<NetworkStreamInGame>();
-            
+
             // 싱글톤 엔티티 생성
             var selectionStateEntity = state.EntityManager.CreateEntity();
             state.EntityManager.AddComponentData(selectionStateEntity, new SelectionState { mode = SelectionMode.Idle });
@@ -27,7 +27,7 @@ namespace Client
                 isDragging = false
             });
         }
-        
+
         public void OnUpdate(ref SystemState state)
         {
             var mouse = Mouse.current;

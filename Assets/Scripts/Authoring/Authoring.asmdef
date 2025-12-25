@@ -1,6 +1,6 @@
 {
     "name": "Authoring",
-    "rootNamespace": "",
+    "rootNamespace": "Authoring",
     "references": [
         "Unity.NetCode",
         "Unity.Mathematics",

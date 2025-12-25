@@ -15,5 +15,6 @@ namespace Shared
     {
         None = 0,
         Move = 1,
+        Build = 2,
     }
 }

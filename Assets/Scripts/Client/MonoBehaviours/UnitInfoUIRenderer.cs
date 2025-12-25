@@ -21,7 +21,8 @@ public class UnitInfoUIRenderer : MonoBehaviour
 
     private void Update()
     {
-        if (!TryInitClientWorld()) return;
+        if (!TryInitClientWorld())
+            return;
 
         if (_currentSelectionQuery.IsEmptyIgnoreFilter)
         {
