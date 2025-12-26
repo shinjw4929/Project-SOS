@@ -7,5 +7,7 @@ namespace Shared
     {
         public float cellSize;
         public float2 gridOrigin;
+        public int gridWidth;
+        public int gridHeight;
     }
 }

@@ -15,6 +15,7 @@ GameObject:
   - component: {fileID: 8807275880046581674}
   - component: {fileID: 4894673168845304372}
   - component: {fileID: -4113397192932736312}
+  - component: {fileID: 1990451344715084162}
   m_Layer: 8
   m_Name: Wall
   m_TagString: Untagged
@@ -165,3 +166,16 @@ MonoBehaviour:
   height: 2
   cost: 100
   buildTime: 1
+--- !u!114 &1990451344715084162
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2697124028170181865}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d12d2f4d82fb04e4193c16301662df63, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  buildingType: 0

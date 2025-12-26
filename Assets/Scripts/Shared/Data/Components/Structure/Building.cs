@@ -8,5 +8,7 @@ namespace Shared
     {
         [GhostField] public BuildingTypeEnum buildingType;
         [GhostField] public int ownerTeamId;
+        [GhostField] public int gridX;
+        [GhostField] public int gridY;
     }
 }

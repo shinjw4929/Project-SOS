@@ -92,10 +92,31 @@ namespace Server
             GridSettings gridSettings)
         {
             var rpc = state.EntityManager.GetComponentData<BuildRequestRpc>(rpcEntity);
-            GridUtility.GetBuildingSize(rpc.buildingType, out int width, out int height);
 
-            // 그리드 충돌 검증
-            if (!CheckGridAvailability(ref state, rpc.gridX, rpc.gridY, width, height))
+            // 프리팹 선택 및 메타데이터에서 크기 조회
+            Entity buildingPrefab = SelectBuildingPrefab(rpc.buildingType, buildingRefs);
+            if (buildingPrefab == Entity.Null)
+            {
+                UnityEngine.Debug.LogWarning($"[HandleBuildRequestSystem] Building prefab not found for type: {rpc.buildingType}");
+                ecb.DestroyEntity(rpcEntity);
+                return;
+            }
+
+            var metadata = state.EntityManager.GetComponentData<BuildingMetadata>(buildingPrefab);
+            int width = metadata.width;
+            int height = metadata.height;
+
+            // GridCell 버퍼로 점유 상태 확인
+            var gridEntity = SystemAPI.GetSingletonEntity<GridSettings>();
+            if (!SystemAPI.HasBuffer<GridCell>(gridEntity))
+            {
+                ecb.DestroyEntity(rpcEntity);
+                return;
+            }
+
+            var buffer = SystemAPI.GetBuffer<GridCell>(gridEntity);
+            if (GridUtility.IsOccupied(buffer, rpc.gridX, rpc.gridY, width, height,
+                gridSettings.gridWidth, gridSettings.gridHeight))
             {
                 ecb.DestroyEntity(rpcEntity);
                 return;
@@ -104,15 +125,6 @@ namespace Server
             // 유닛 충돌 검증
             if (CheckUnitCollision(ref state, rpc.gridX, rpc.gridY, width, height, gridSettings))
             {
-                ecb.DestroyEntity(rpcEntity);
-                return;
-            }
-
-            // 프리팹 선택
-            Entity buildingPrefab = SelectBuildingPrefab(rpc.buildingType, buildingRefs);
-            if (buildingPrefab == Entity.Null)
-            {
-                UnityEngine.Debug.LogWarning($"[HandleBuildRequestSystem] Building prefab not found for type: {rpc.buildingType}");
                 ecb.DestroyEntity(rpcEntity);
                 return;
             }
@@ -138,7 +150,7 @@ namespace Server
         }
 
         /// <summary>
-        /// 건물 엔티티 생성 및 컴포넌트 추가
+        /// 건물 엔티티 생성 및 컴포넌트 설정
         /// </summary>
         private void CreateBuildingEntity(
             ref SystemState state,
@@ -157,21 +169,23 @@ namespace Server
             worldPos.y = GridUtility.GetBuildingYOffset(rpc.buildingType);
             SetBuildingTransform(ref state, ref ecb, buildingEntity, buildingPrefab, worldPos);
 
-            // 그리드 점유 정보 추가 (네트워크 동기화)
-            ecb.AddComponent(buildingEntity, new GridOccupancy
-            {
-                gridX = rpc.gridX,
-                gridY = rpc.gridY,
-                width = width,
-                height = height
-            });
-
-            // 건물 정보 추가
-            ecb.AddComponent(buildingEntity, new Building
+            // 건물 정보 설정
+            var buildingData = new Building
             {
                 buildingType = rpc.buildingType,
-                ownerTeamId = ownerNetworkId
-            });
+                ownerTeamId = ownerNetworkId,
+                gridX = rpc.gridX,
+                gridY = rpc.gridY
+            };
+
+            if (state.EntityManager.HasComponent<Building>(buildingPrefab))
+            {
+                ecb.SetComponent(buildingEntity, buildingData);
+            }
+            else
+            {
+                ecb.AddComponent(buildingEntity, buildingData);
+            }
         }
 
         /// <summary>
@@ -195,23 +209,6 @@ namespace Server
             {
                 ecb.AddComponent(buildingEntity, LocalTransform.FromPosition(worldPos));
             }
-        }
-
-        /// <summary>
-        /// 그리드 위치에 건물 배치가 가능한지 검사 (기존 건물과의 충돌 체크)
-        /// </summary>
-        private bool CheckGridAvailability(ref SystemState state, int gridX, int gridY, int width, int height)
-        {
-            foreach (var occupancy in SystemAPI.Query<RefRO<GridOccupancy>>())
-            {
-                if (GridUtility.IsOverlapping(gridX, gridY, width, height,
-                                              occupancy.ValueRO.gridX, occupancy.ValueRO.gridY,
-                                              occupancy.ValueRO.width, occupancy.ValueRO.height))
-                {
-                    return false;
-                }
-            }
-            return true;
         }
 
         /// <summary>

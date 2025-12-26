@@ -1,19 +1,18 @@
 using Unity.Entities;
 using Unity.Mathematics;
-using Unity.NetCode;
 using Unity.Transforms;
 using Shared;
-using Client;
 
 namespace Client
 {
     /// <summary>
     /// 건물 배치 프리뷰의 유효성 검사
-    /// - 현재 그리드 위치에 건물 배치가 가능한지 검증
-    /// - 기존 건물과의 충돌 체크
+    /// - GridCell 버퍼를 조회하여 점유 상태 확인
+    /// - 유닛 충돌 검사
     /// - BuildingPreviewState.isValidPlacement 업데이트
     /// </summary>
     [UpdateInGroup(typeof(PresentationSystemGroup))]
+    [UpdateAfter(typeof(GridOccupancySystem))]
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
     public partial struct BuildingPreviewUpdateSystem : ISystem
     {
@@ -22,6 +21,7 @@ namespace Client
             state.RequireForUpdate<UserState>();
             state.RequireForUpdate<BuildingPreviewState>();
             state.RequireForUpdate<GridSettings>();
+            state.RequireForUpdate<BuildingEntitiesReferences>();
         }
 
         public void OnUpdate(ref SystemState state)
@@ -36,36 +36,48 @@ namespace Client
             }
 
             var gridSettings = SystemAPI.GetSingleton<GridSettings>();
-            GridUtility.GetBuildingSize(previewState.selectedType, out int width, out int height);
+            var buildingRefs = SystemAPI.GetSingleton<BuildingEntitiesReferences>();
 
-            bool canPlace = CheckGridAvailability(ref state, previewState.gridX, previewState.gridY, width, height);
-            if (canPlace)
+            // 프리팹에서 건물 크기 조회
+            Entity prefab = GetBuildingPrefab(previewState.selectedType, buildingRefs);
+            if (prefab == Entity.Null || !state.EntityManager.HasComponent<BuildingMetadata>(prefab))
             {
-                canPlace = !CheckUnitCollision(ref state, previewState.gridX, previewState.gridY, width, height, gridSettings);
+                previewState.isValidPlacement = false;
+                return;
             }
-            previewState.isValidPlacement = canPlace;
+
+            var metadata = state.EntityManager.GetComponentData<BuildingMetadata>(prefab);
+            int width = metadata.width;
+            int height = metadata.height;
+
+            // GridCell 버퍼로 점유 상태 확인
+            var gridEntity = SystemAPI.GetSingletonEntity<GridSettings>();
+            if (!SystemAPI.HasBuffer<GridCell>(gridEntity))
+            {
+                previewState.isValidPlacement = false;
+                return;
+            }
+
+            var buffer = SystemAPI.GetBuffer<GridCell>(gridEntity);
+            bool isOccupied = GridUtility.IsOccupied(buffer, previewState.gridX, previewState.gridY,
+                width, height, gridSettings.gridWidth, gridSettings.gridHeight);
+
+            bool hasUnitCollision = CheckUnitCollision(ref state, previewState.gridX, previewState.gridY,
+                width, height, gridSettings);
+
+            previewState.isValidPlacement = !isOccupied && !hasUnitCollision;
         }
 
-        /// <summary>
-        /// 그리드 위치에 건물 배치가 가능한지 검사 (기존 건물과의 충돌 체크)
-        /// </summary>
-        private bool CheckGridAvailability(ref SystemState state, int gridX, int gridY, int width, int height)
+        private Entity GetBuildingPrefab(BuildingTypeEnum type, BuildingEntitiesReferences refs)
         {
-            foreach (var occupancy in SystemAPI.Query<RefRO<GridOccupancy>>())
+            return type switch
             {
-                if (GridUtility.IsOverlapping(gridX, gridY, width, height,
-                                              occupancy.ValueRO.gridX, occupancy.ValueRO.gridY,
-                                              occupancy.ValueRO.width, occupancy.ValueRO.height))
-                {
-                    return false;
-                }
-            }
-            return true;
+                BuildingTypeEnum.Wall => refs.wallPrefabEntity,
+                BuildingTypeEnum.Barracks => refs.barracksPrefabEntity,
+                _ => Entity.Null
+            };
         }
 
-        /// <summary>
-        /// 유닛과의 충돌 검사 (건물 배치 영역 내에 유닛이 있는지 확인)
-        /// </summary>
         private bool CheckUnitCollision(ref SystemState state, int gridX, int gridY, int width, int height, GridSettings gridSettings)
         {
             float3 buildingCenter = GridUtility.GridToWorld(gridX, gridY, width, height, gridSettings);
@@ -76,7 +88,6 @@ namespace Client
             {
                 float3 unitPos = transform.ValueRO.Position;
 
-                // AABB 충돌 검사 (XZ 평면)
                 if (unitPos.x >= buildingCenter.x - halfWidth && unitPos.x <= buildingCenter.x + halfWidth &&
                     unitPos.z >= buildingCenter.z - halfHeight && unitPos.z <= buildingCenter.z + halfHeight)
                 {

@@ -1,3 +1,4 @@
+using Unity.Entities;
 using Unity.Mathematics;
 
 namespace Shared
@@ -15,6 +16,22 @@ namespace Shared
             return new int2(
                 (int)math.floor((worldPos.x - settings.gridOrigin.x) / settings.cellSize),
                 (int)math.floor((worldPos.z - settings.gridOrigin.y) / settings.cellSize)
+            );
+        }
+
+        /// <summary>
+        /// 건물 중심점에서 원래 그리드 좌표를 역산 (GridToWorld의 역함수)
+        /// GridToWorld는 건물 중심점을 반환하므로, 이를 역산하여 원래 그리드 좌표를 구함
+        /// </summary>
+        public static int2 WorldToGridForBuilding(float3 centerPos, int width, int height, GridSettings settings)
+        {
+            // 중심점에서 건물 크기의 절반을 빼서 좌하단 모서리로 변환
+            float cornerX = centerPos.x - (width * settings.cellSize) / 2f;
+            float cornerZ = centerPos.z - (height * settings.cellSize) / 2f;
+
+            return new int2(
+                (int)math.round((cornerX - settings.gridOrigin.x) / settings.cellSize),
+                (int)math.round((cornerZ - settings.gridOrigin.y) / settings.cellSize)
             );
         }
 
@@ -39,48 +56,6 @@ namespace Shared
         }
 
         /// <summary>
-        /// 건물 타입에 따른 그리드 크기 반환
-        /// TODO: 향후 BuildingMetadata 컴포넌트를 사용하여 데이터 주도 방식으로 변경 가능
-        /// (프리팹에 BuildingMetadata를 추가하고 런타임에 쿼리)
-        /// </summary>
-        public static void GetBuildingSize(BuildingTypeEnum type, out int width, out int height)
-        {
-            switch (type)
-            {
-                case BuildingTypeEnum.Wall:
-                    width = 2;
-                    height = 2;
-                    break;
-                case BuildingTypeEnum.Barracks:
-                    width = 3;
-                    height = 3;
-                    break;
-                default:
-                    width = 1;
-                    height = 1;
-                    break;
-            }
-        }
-
-        /// <summary>
-        /// 건물 너비 반환
-        /// </summary>
-        public static int GetBuildingWidth(BuildingTypeEnum type)
-        {
-            GetBuildingSize(type, out int width, out _);
-            return width;
-        }
-
-        /// <summary>
-        /// 건물 높이 반환
-        /// </summary>
-        public static int GetBuildingHeight(BuildingTypeEnum type)
-        {
-            GetBuildingSize(type, out _, out int height);
-            return height;
-        }
-
-        /// <summary>
         /// 건물 타입에 따른 Y축 오프셋 반환 (메시 중심을 지면 위에 배치하기 위함)
         /// </summary>
         public static float GetBuildingYOffset(BuildingTypeEnum type)
@@ -91,6 +66,43 @@ namespace Shared
                 BuildingTypeEnum.Barracks => 1.5f,
                 _ => 0.5f
             };
+        }
+
+        /// <summary>
+        /// 그리드 영역이 점유되었는지 확인
+        /// </summary>
+        public static bool IsOccupied(DynamicBuffer<GridCell> buffer, int x, int y, int width, int height, int gridWidth, int gridHeight)
+        {
+            for (int dy = 0; dy < height; dy++)
+            {
+                for (int dx = 0; dx < width; dx++)
+                {
+                    int cx = x + dx;
+                    int cy = y + dy;
+                    if (cx < 0 || cx >= gridWidth || cy < 0 || cy >= gridHeight)
+                        return true;  // 범위 밖 = 배치 불가
+                    int index = cy * gridWidth + cx;
+                    if (buffer[index].isOccupied)
+                        return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// 그리드 영역을 점유로 마킹
+        /// </summary>
+        public static void MarkOccupied(DynamicBuffer<GridCell> buffer, int x, int y, int width, int height, int gridWidth)
+        {
+            for (int dy = 0; dy < height; dy++)
+            {
+                for (int dx = 0; dx < width; dx++)
+                {
+                    int index = (y + dy) * gridWidth + (x + dx);
+                    if (index >= 0 && index < buffer.Length)
+                        buffer[index] = new GridCell { isOccupied = true };
+                }
+            }
         }
     }
 }

@@ -7,8 +7,6 @@ namespace Authoring
     public class BuildingAuthoring : MonoBehaviour
     {
         public BuildingTypeEnum buildingType = BuildingTypeEnum.Wall;
-        public int gridWidth = 1;
-        public int gridHeight = 1;
 
         public class Baker : Baker<BuildingAuthoring>
         {
@@ -19,15 +17,9 @@ namespace Authoring
                 AddComponent(entity, new Building
                 {
                     buildingType = authoring.buildingType,
-                    ownerTeamId = 0
-                });
-
-                AddComponent(entity, new GridOccupancy
-                {
+                    ownerTeamId = 0,
                     gridX = 0,
-                    gridY = 0,
-                    width = authoring.gridWidth,
-                    height = authoring.gridHeight
+                    gridY = 0
                 });
             }
         }
