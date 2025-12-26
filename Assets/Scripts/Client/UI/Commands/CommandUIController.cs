@@ -37,33 +37,39 @@ public class CommandUIController : MonoBehaviour
     private void Update()
     {
         if (!TryInitClientWorld()) return;
+        if (_userStateQuery.IsEmptyIgnoreFilter) return;
 
-        // 1. 선택된 유닛이 없거나 내 유닛이 아니면 UI 숨김
-        if (!IsMyUnitSelected())
-        {
-            HideAllPanels();
-            return;
-        }
-
-        // 2. 현재 UserState에 따라 UI 갱신 (키보드 입력과 동기화)
+        // 현재 UserState 가져오기
         var userState = _userStateQuery.GetSingleton<UserState>();
 
+        // BuildMenu나 Construction 상태에서는 유닛 선택과 관계없이 UI 표시
         switch (userState.CurrentState)
         {
             case UserContext.Command:
-                // 기본 상태: Build 버튼만 보임
-                if (mainCommandPanel) mainCommandPanel.SetActive(true);
-                if (buildMenuPanel) buildMenuPanel.SetActive(false);
+                // 기본 상태: 내 유닛이 선택된 경우에만 Build 버튼 표시
+                if (IsMyUnitSelected())
+                {
+                    if (mainCommandPanel) mainCommandPanel.SetActive(true);
+                    if (buildMenuPanel) buildMenuPanel.SetActive(false);
+                }
+                else
+                {
+                    HideAllPanels();
+                }
                 break;
 
             case UserContext.BuildMenu:
-                // 메뉴 상태: 하위 건물 버튼들 보임
+                // 건설 메뉴 상태: 건물 선택 버튼들 표시 (Q 키로 진입)
                 if (mainCommandPanel) mainCommandPanel.SetActive(false);
                 if (buildMenuPanel) buildMenuPanel.SetActive(true);
                 break;
 
             case UserContext.Construction:
-                // 건설 중: UI 숨김 (혹은 취소 버튼 표시)
+                // 건설 배치 중: UI 숨김
+                HideAllPanels();
+                break;
+
+            default:
                 HideAllPanels();
                 break;
         }
@@ -87,13 +93,14 @@ public class CommandUIController : MonoBehaviour
         ref var previewState = ref _previewStateQuery.GetSingletonRW<StructurePreviewState>().ValueRW;
 
         // 1. 프리팹 찾기 (System과 동일한 로직을 UI에서도 수행)
-        Entity foundPrefab = FindPrefabByTag(isWall);
+        var (foundPrefab, foundIndex) = FindPrefabByTag(isWall);
 
         if (foundPrefab != Entity.Null)
         {
             // 2. 상태 변경 및 프리팹 할당
             userState.CurrentState = UserContext.Construction;
             previewState.SelectedPrefab = foundPrefab;
+            previewState.SelectedPrefabIndex = foundIndex;
         }
         else
         {
@@ -101,27 +108,27 @@ public class CommandUIController : MonoBehaviour
         }
     }
 
-    // [Helper] ECS Buffer를 순회하며 태그로 프리팹 찾기
-    private Entity FindPrefabByTag(bool isWall)
+    // [Helper] ECS Buffer를 순회하며 태그로 프리팹 찾기 (인덱스도 함께 반환)
+    private (Entity prefab, int index) FindPrefabByTag(bool isWall)
     {
         var refsEntity = _refsQuery.GetSingletonEntity();
         var buffer = _em.GetBuffer<StructurePrefabElement>(refsEntity);
 
-        foreach (var element in buffer)
+        for (int i = 0; i < buffer.Length; i++)
         {
-            Entity prefab = element.PrefabEntity;
+            Entity prefab = buffer[i].PrefabEntity;
             if (prefab == Entity.Null || !_em.Exists(prefab)) continue;
 
             if (isWall)
             {
-                if (_em.HasComponent<WallTag>(prefab)) return prefab;
+                if (_em.HasComponent<WallTag>(prefab)) return (prefab, i);
             }
             else // Barracks
             {
-                if (_em.HasComponent<BarracksTag>(prefab)) return prefab;
+                if (_em.HasComponent<BarracksTag>(prefab)) return (prefab, i);
             }
         }
-        return Entity.Null;
+        return (Entity.Null, -1);
     }
 
     // [Helper] 선택된 유닛이 유효하고 내 것인지 확인
