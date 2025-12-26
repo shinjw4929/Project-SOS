@@ -2,6 +2,8 @@ using Unity.Entities;
 using Unity.NetCode;
 using Unity.Transforms;
 using Unity.Mathematics;
+using Shared;
+
 
 [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
 public partial struct EnemySpawnerSystem : ISystem
@@ -13,7 +15,7 @@ public partial struct EnemySpawnerSystem : ISystem
 
     public void OnUpdate(ref SystemState state)
     {
-        // ÇÑ ¹ø¸¸ ½ºÆù
+        // ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
         state.Enabled = false;
 
         var prefabEntity =

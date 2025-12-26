@@ -33,14 +33,14 @@ partial struct GoInGameServerSystem : ISystem
           Debug.Log("Client Connected to Server!");
           
           // 1. 유닛 생성
-          Entity playerEntity = entityCommandBuffer.Instantiate(entitiesReferences.playerPrefabEntity);
+          Entity heroEntity = entityCommandBuffer.Instantiate(entitiesReferences.UnitPrefabEntity);
           
           // 프리팹 엔티티의 원본 LocalTransform을 읽어옵니다.
-          LocalTransform prefabTransform = SystemAPI.GetComponent<LocalTransform>(entitiesReferences.playerPrefabEntity);
+          LocalTransform prefabTransform = SystemAPI.GetComponent<LocalTransform>(entitiesReferences.UnitPrefabEntity);
           float prefabY = prefabTransform.Position.y;
           
           // 2. 랜덤 위치 배치
-          entityCommandBuffer.SetComponent(playerEntity, LocalTransform.FromPosition(new float3(
+          entityCommandBuffer.SetComponent(heroEntity, LocalTransform.FromPosition(new float3(
               UnityEngine.Random.Range(-10, 10), prefabY, 0
               )));
           
@@ -48,7 +48,7 @@ partial struct GoInGameServerSystem : ISystem
           NetworkId networkId = SystemAPI.GetComponent<NetworkId>(receiveRpcCommandRequest.ValueRO.SourceConnection);
           
           // 4. 네트워크 소유권 설정 (Netcode 필수)
-          entityCommandBuffer.AddComponent(playerEntity, new GhostOwner
+          entityCommandBuffer.AddComponent(heroEntity, new GhostOwner
           {
               NetworkId = networkId.Value,
           });
@@ -57,15 +57,15 @@ partial struct GoInGameServerSystem : ISystem
           // [핵심 추가 사항] Player 데이터에 팀 번호(TeamId) 부여하기
           // ================================================================
           // 이 코드가 있어야 UnitSelectionSystem에서 "내 팀인가?"를 확인할 수 있음
-          entityCommandBuffer.SetComponent(playerEntity, new Player
+          entityCommandBuffer.SetComponent(heroEntity, new Team
           {
-              TeamId = networkId.Value // 접속 ID를 그대로 팀 번호로 사용
+              teamId = networkId.Value // 접속 ID를 그대로 팀 번호로 사용
           });
           // ================================================================
           
           entityCommandBuffer.AppendToBuffer(receiveRpcCommandRequest.ValueRO.SourceConnection, new LinkedEntityGroup
           {
-              Value = playerEntity,
+              Value = heroEntity,
           });
           
           entityCommandBuffer.DestroyEntity(entity);

@@ -7,8 +7,8 @@ namespace Shared
     {
         public NetworkTick Tick { get; set; }
 
-        public RTSCommandType commandType;
-        public float3 targetPosition;
+        public RTSCommandType CommandType;
+        public float3 TargetPosition;
     }
 
     public enum RTSCommandType : byte

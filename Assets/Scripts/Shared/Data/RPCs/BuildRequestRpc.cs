@@ -1,13 +1,12 @@
 using Unity.NetCode;
+using Unity.Entities;
 using Unity.Mathematics;
 
 namespace Shared
 {
     public struct BuildRequestRpc : IRpcCommand
     {
-        public BuildingTypeEnum buildingType;
-        public int gridX;
-        public int gridY;
-        public float3 worldPosition;
+        public int StructureIndex;
+        public int2 GridPosition;
     }
 }

@@ -20,7 +20,7 @@ namespace Authoring
                 AddBuffer<RTSCommand>(entity);
 
                 // 3. [핵심 추가] 클라이언트 입력 기억용 (초기값 0)
-                AddComponent(entity, new RTSInputState { targetPosition = float3.zero, hasTarget = false });
+                AddComponent(entity, new RTSInputState { TargetPosition = float3.zero, HasTarget = false });
             }
         }
     }

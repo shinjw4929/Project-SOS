@@ -1,6 +1,8 @@
 using Unity.NetCode;
 
-public struct GoInGameRequestRpc : IRpcCommand
+namespace Shared
 {
-
+    public struct GoInGameRequestRpc : IRpcCommand
+    {
+    }
 }

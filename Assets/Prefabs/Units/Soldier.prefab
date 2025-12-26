@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 3842597775487614233}
   - component: {fileID: 5311303963870271693}
   - component: {fileID: 2618216604821846599}
+  - component: {fileID: -8389805907187040619}
   m_Layer: 0
   m_Name: Soldier
   m_TagString: Untagged
@@ -110,3 +111,26 @@ CapsuleCollider:
   m_Height: 2
   m_Direction: 1
   m_Center: {x: 0, y: 0, z: 0}
+--- !u!114 &-8389805907187040619
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5905964026690146530}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 63dc6ce2a0603a64892e7dfc66a30c36, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  unitType: 2
+  cost: 100
+  populationCost: 1
+  trainingTime: 5
+  moveSpeed: 25
+  reach: 1
+  maxHealth: 100
+  defense: 0
+  visionRange: 10
+  attackPower: 1
+  attackSpeed: 1

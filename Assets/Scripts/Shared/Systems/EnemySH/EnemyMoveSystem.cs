@@ -1,8 +1,9 @@
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Transforms;
+using Shared;
 
-// Enemy¸¦ LastKnownPosition ¹æÇâÀ¸·Î ÀÌµ¿½ÃÅ°´Â ½Ã½ºÅÛ
+// Enemyï¿½ï¿½ LastKnownPosition ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Ìµï¿½ï¿½ï¿½Å°ï¿½ï¿½ ï¿½Ã½ï¿½ï¿½ï¿½
 [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
 public partial struct EnemyMoveSystem : ISystem
 {
@@ -16,14 +17,14 @@ public partial struct EnemyMoveSystem : ISystem
                 RefRO<EnemyTarget>,
                 RefRO<EnemyFollowConfig>>())
         {
-            // Å¸°ÙÀÌ ¾øÀ¸¸é ÀÌµ¿ÇÏÁö ¾ÊÀ½
+            // Å¸ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Ìµï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
             if (!target.ValueRO.HasTarget)
                 continue;
 
             float3 dir =
                 target.ValueRO.LastKnownPosition - transform.ValueRO.Position;
 
-            // °ÅÀÇ °°Àº À§Ä¡¸é ÀÌµ¿ÇÏÁö ¾ÊÀ½
+            // ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½Ä¡ï¿½ï¿½ ï¿½Ìµï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
             if (math.lengthsq(dir) < 0.0001f)
                 continue;
 

@@ -16,8 +16,8 @@ namespace Client
             Entity singletonEntity = state.EntityManager.CreateEntity();
             state.EntityManager.AddComponentData(singletonEntity, new CurrentSelectedUnit
             {
-                selectedEntity = Entity.Null,
-                hasSelection = false
+                SelectedEntity = Entity.Null,
+                HasSelection = false
             });
         }
 
@@ -39,8 +39,8 @@ namespace Client
                 }
             }
 
-            currentSelectionRW.ValueRW.selectedEntity = firstSelected;
-            currentSelectionRW.ValueRW.hasSelection = found;
+            currentSelectionRW.ValueRW.SelectedEntity = firstSelected;
+            currentSelectionRW.ValueRW.HasSelection = found;
         }
     }
 }

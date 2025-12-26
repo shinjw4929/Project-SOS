@@ -1,90 +1,168 @@
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Transforms;
-using Shared;
+using Unity.Collections;
+using Unity.Burst;
+using Shared; // UnitTag, StructureTag, Team, EnemyTarget, EnemyFollowConfig
 
-// Enemy�� Player ������Ʈ�� ���� Entity�� ã��
-// ���� ����� �÷��̾ Ÿ������ �����ϴ� �ý���
-[WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
+[UpdateInGroup(typeof(SimulationSystemGroup))]
+[WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)] // 서버 전용
+[BurstCompile]
 public partial struct EnemyTargetSystem : ISystem
 {
+    private ComponentLookup<LocalTransform> _transformLookup;
+    private EntityQuery _potentialTargetQuery;
+
+    public void OnCreate(ref SystemState state)
+    {
+        _transformLookup = state.GetComponentLookup<LocalTransform>(isReadOnly: true);
+
+        // [핵심] 복합 조건 쿼리 생성 (Any 사용)
+        // 조건: (LocalTransform AND Team) AND (UnitTag OR StructureTag)
+        var queryDesc = new EntityQueryDesc
+        {
+            All = new ComponentType[]
+            {
+                ComponentType.ReadOnly<LocalTransform>(),
+                ComponentType.ReadOnly<Team>()
+            },
+            Any = new ComponentType[]
+            {
+                ComponentType.ReadOnly<UnitTag>(),     // 유닛
+                ComponentType.ReadOnly<StructureTag>() // 건물
+            }
+        };
+        _potentialTargetQuery = state.EntityManager.CreateEntityQuery(queryDesc);
+    }
+
+    [BurstCompile]
     public void OnUpdate(ref SystemState state)
     {
-        foreach (var (enemyTransform, enemyTarget, config) in
-            SystemAPI.Query<
-                RefRO<LocalTransform>,
-                RefRW<EnemyTarget>,
-                RefRO<EnemyFollowConfig>>())
-        {
-            bool needNewTarget = false;
+        _transformLookup.Update(ref state);
 
-            // 1. ���� Ÿ���� ���ų�
-            // 2. Ÿ�� Entity�� ���������
-            if (!enemyTarget.ValueRO.HasTarget ||
-                !state.EntityManager.Exists(enemyTarget.ValueRO.TargetEntity))
+        // 1. 타겟 후보군(아군 유닛/건물) 데이터 스냅샷
+        // Job이 완료되면 자동으로 메모리 해제되도록 TempJob 사용
+        var potentialTargets = _potentialTargetQuery.ToEntityArray(Allocator.TempJob);
+        var targetTransforms = _potentialTargetQuery.ToComponentDataArray<LocalTransform>(Allocator.TempJob);
+        var targetTeams = _potentialTargetQuery.ToComponentDataArray<Team>(Allocator.TempJob);
+
+        // 2. Job 예약
+        var job = new EnemyTargetJob
+        {
+            PotentialTargets = potentialTargets,
+            TargetTransforms = targetTransforms,
+            TargetTeams = targetTeams,
+            TransformLookup = _transformLookup
+        };
+
+        state.Dependency = job.ScheduleParallel(state.Dependency);
+    }
+
+    [BurstCompile]
+    public partial struct EnemyTargetJob : IJobEntity
+    {
+        // [DeallocateOnJobCompletion]: Job이 끝나면 이 배열들을 자동으로 Dispose 함 (메모리 누수 방지)
+        [ReadOnly] [DeallocateOnJobCompletion] public NativeArray<Entity> PotentialTargets;
+        [ReadOnly] [DeallocateOnJobCompletion] public NativeArray<LocalTransform> TargetTransforms;
+        [ReadOnly] [DeallocateOnJobCompletion] public NativeArray<Team> TargetTeams;
+        
+        [ReadOnly] public ComponentLookup<LocalTransform> TransformLookup;
+
+        // 적군(Enemy)을 찾아서 실행
+        // 필터: EnemyTarget과 Config가 있는 엔티티
+        public void Execute(
+            Entity entity,
+            RefRO<LocalTransform> myTransform,
+            RefRW<EnemyTarget> enemyTarget,
+            RefRO<EnemyFollowConfig> config,
+            RefRO<Team> myTeam)
+        {
+            float3 myPos = myTransform.ValueRO.Position;
+            bool needNewTarget = false;
+            float loseDistSq = config.ValueRO.LoseTargetDistance * config.ValueRO.LoseTargetDistance;
+
+            // ---------------------------------------------------------
+            // 1. 현재 타겟 유효성 검사
+            // ---------------------------------------------------------
+            if (!enemyTarget.ValueRO.HasTarget)
             {
                 needNewTarget = true;
             }
             else
             {
-                // ���� Ÿ�� �Ÿ� �˻�
-                var targetTransform =
-                    state.EntityManager.GetComponentData<LocalTransform>(
-                        enemyTarget.ValueRO.TargetEntity);
+                Entity currentTarget = enemyTarget.ValueRO.TargetEntity;
 
-                float dist = math.distance(
-                    enemyTransform.ValueRO.Position,
-                    targetTransform.Position);
-
-                // �ʹ� �־����� Ÿ�� �缱��
-                if (dist > config.ValueRO.LoseTargetDistance)
+                // 타겟이 파괴되었거나(Transform 없음) 유효하지 않으면
+                if (!TransformLookup.HasComponent(currentTarget))
                 {
                     needNewTarget = true;
                 }
                 else
                 {
-                    // ���� ���̸� ��ġ ����
-                    enemyTarget.ValueRW.LastKnownPosition =
-                        targetTransform.Position;
+                    float3 targetPos = TransformLookup[currentTarget].Position;
+                    float distSq = math.distancesq(myPos, targetPos);
+
+                    // 추적 포기 거리보다 멀어지면 타겟 해제
+                    if (distSq > loseDistSq)
+                    {
+                        needNewTarget = true;
+                    }
+                    else
+                    {
+                        // 타겟이 유효하면 마지막 위치 갱신 (이동 시스템에서 사용)
+                        enemyTarget.ValueRW.LastKnownPosition = targetPos;
+                    }
                 }
             }
 
-            if (!needNewTarget)
-                continue;
+            if (!needNewTarget) return;
 
-            // ���� ����� Player ã��
-            Entity closestPlayer = Entity.Null;
-            float closestDist = float.MaxValue;
+            // ---------------------------------------------------------
+            // 2. 새로운 타겟 탐색
+            // ---------------------------------------------------------
+            Entity bestTarget = Entity.Null;
+            float bestDistSq = float.MaxValue;
+            
+            // 참고: Config에 'AggroRange'(인식 범위)가 없으므로 
+            // 일단 'LoseTargetDistance'를 인식 범위로도 사용합니다.
+            // (필요하다면 Config에 AggroRange 필드를 추가하는 것이 좋습니다)
+            float searchRadiusSq = loseDistSq; 
 
-            foreach (var (playerTransform, playerEntity) in
-                SystemAPI.Query<RefRO<LocalTransform>>()
-                    .WithAll<Player>()
-                    .WithEntityAccess())
+            for (int i = 0; i < PotentialTargets.Length; i++)
             {
-                float dist = math.distance(
-                    enemyTransform.ValueRO.Position,
-                    playerTransform.ValueRO.Position);
+                Entity candidate = PotentialTargets[i];
+                
+                // 자기 자신 제외
+                if (candidate == entity) continue;
 
-                if (dist < closestDist)
+                // 같은 팀이면 공격 안 함
+                if (TargetTeams[i].teamId == myTeam.ValueRO.teamId) continue;
+
+                float3 targetPos = TargetTransforms[i].Position;
+                float distSq = math.distancesq(myPos, targetPos);
+
+                // 인식 범위 내에 있고, 가장 가까운 적 선택
+                if (distSq < searchRadiusSq && distSq < bestDistSq)
                 {
-                    closestDist = dist;
-                    closestPlayer = playerEntity;
+                    bestDistSq = distSq;
+                    bestTarget = candidate;
                 }
             }
 
-            // �� Ÿ�� Ȯ��
-            if (closestPlayer != Entity.Null)
+            // ---------------------------------------------------------
+            // 3. 결과 적용
+            // ---------------------------------------------------------
+            if (bestTarget != Entity.Null)
             {
-                var playerTransform =
-                    state.EntityManager.GetComponentData<LocalTransform>(
-                        closestPlayer);
-
-                enemyTarget.ValueRW.TargetEntity = closestPlayer;
+                enemyTarget.ValueRW.TargetEntity = bestTarget;
                 enemyTarget.ValueRW.HasTarget = true;
-
-                // �߿�: ó�� Ÿ�� ���� ���� �ݵ�� ��ġ ����
-                enemyTarget.ValueRW.LastKnownPosition =
-                    playerTransform.Position;
+                enemyTarget.ValueRW.LastKnownPosition = TransformLookup[bestTarget].Position;
+            }
+            else
+            {
+                enemyTarget.ValueRW.HasTarget = false;
+                enemyTarget.ValueRW.TargetEntity = Entity.Null;
+                // 타겟을 잃었을 때는 LastKnownPosition을 유지하거나 제자리로 설정
             }
         }
     }

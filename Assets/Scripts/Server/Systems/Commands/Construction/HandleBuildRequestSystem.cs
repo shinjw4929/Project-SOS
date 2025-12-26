@@ -1,0 +1,223 @@
+using Unity.Entities;
+using Unity.Collections;
+using Unity.NetCode;
+using Unity.Transforms;
+using Unity.Mathematics;
+using Shared; // StructureFootprint, GridSettings, StructureTag, GridPosition 등
+
+namespace Server
+{
+    /// <summary>
+    /// 클라이언트의 건물 건설 요청 RPC를 처리하는 서버 시스템
+    /// - Index 기반 프리팹 조회로 네트워크 동기화 문제 해결
+    /// </summary>
+    [UpdateInGroup(typeof(SimulationSystemGroup))]
+    [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
+    public partial struct HandleBuildRequestSystem : ISystem
+    {
+        private bool _singletonWarningLogged;
+
+        public void OnCreate(ref SystemState state)
+        {
+            _singletonWarningLogged = false;
+            state.RequireForUpdate<GridSettings>();
+            // [추가] 서버의 프리팹 리스트(버퍼)가 반드시 필요합니다.
+            state.RequireForUpdate<StructureEntitiesReferences>();
+        }
+
+        public void OnUpdate(ref SystemState state)
+        {
+            // 필수 싱글톤 검증
+            if (!SystemAPI.HasSingleton<GridSettings>() || !SystemAPI.HasSingleton<StructureEntitiesReferences>())
+            {
+                if (!_singletonWarningLogged)
+                {
+                    UnityEngine.Debug.LogWarning("[HandleBuildRequestSystem] GridSettings or StructureEntitiesReferences singleton not found.");
+                    _singletonWarningLogged = true;
+                }
+                ConsumeAndDestroyRpcs(ref state);
+                return;
+            }
+
+            var gridSettings = SystemAPI.GetSingleton<GridSettings>();
+            
+            // [추가] 프리팹 버퍼 가져오기
+            var refsEntity = SystemAPI.GetSingletonEntity<StructureEntitiesReferences>();
+            var prefabBuffer = SystemAPI.GetBuffer<StructurePrefabElement>(refsEntity);
+            
+            var ecb = new EntityCommandBuffer(Allocator.Temp);
+
+            // 모든 건설 요청 RPC 처리
+            foreach (var (rpcReceive, rpcEntity) in SystemAPI.Query<RefRO<ReceiveRpcCommandRequest>>()
+                         .WithAll<BuildRequestRpc>()
+                         .WithEntityAccess())
+            {
+                // [변경] buffer를 인자로 전달
+                ProcessBuildRequest(ref state, ref ecb, rpcReceive, rpcEntity, gridSettings, prefabBuffer);
+            }
+
+            ecb.Playback(state.EntityManager);
+            ecb.Dispose();
+        }
+
+        private void ConsumeAndDestroyRpcs(ref SystemState state)
+        {
+            var tempEcb = new EntityCommandBuffer(Allocator.Temp);
+            foreach (var (_, rpcEntity) in SystemAPI.Query<RefRO<ReceiveRpcCommandRequest>>()
+                .WithAll<BuildRequestRpc>()
+                .WithEntityAccess())
+            {
+                tempEcb.DestroyEntity(rpcEntity);
+            }
+            tempEcb.Playback(state.EntityManager);
+            tempEcb.Dispose();
+        }
+
+        /// <summary>
+        /// 개별 건설 요청 처리
+        /// </summary>
+        private void ProcessBuildRequest(
+            ref SystemState state,
+            ref EntityCommandBuffer ecb,
+            RefRO<ReceiveRpcCommandRequest> rpcReceive,
+            Entity rpcEntity,
+            GridSettings gridSettings,
+            DynamicBuffer<StructurePrefabElement> prefabBuffer) // [인자 추가]
+        {
+            var rpc = state.EntityManager.GetComponentData<BuildRequestRpc>(rpcEntity);
+            
+            // 1. [변경] RPC로 받은 Index를 사용하여 서버 월드의 프리팹 엔티티 찾기
+            // (Entity를 직접 보내면 클라/서버 간 ID 불일치로 실패함)
+            int index = rpc.StructureIndex;
+
+            if (index < 0 || index >= prefabBuffer.Length)
+            {
+                UnityEngine.Debug.LogWarning($"[Server] Invalid Structure Index received: {index}");
+                ecb.DestroyEntity(rpcEntity);
+                return;
+            }
+
+            Entity structurePrefab = prefabBuffer[index].PrefabEntity;
+            
+            // 2. [검증] 엔티티 유효성 확인
+            if (structurePrefab == Entity.Null || !state.EntityManager.Exists(structurePrefab))
+            {
+                UnityEngine.Debug.LogWarning($"[Server] Structure Prefab is Null/Invalid at index {index}.");
+                ecb.DestroyEntity(rpcEntity);
+                return;
+            }
+
+            // 3. [검증] 필수 컴포넌트(Footprint) 확인
+            if (!state.EntityManager.HasComponent<StructureFootprint>(structurePrefab))
+            {
+                UnityEngine.Debug.LogWarning($"[Server] Prefab does not have StructureFootprint component.");
+                ecb.DestroyEntity(rpcEntity);
+                return;
+            }
+
+            // 4. 데이터 추출
+            var footprint = state.EntityManager.GetComponentData<StructureFootprint>(structurePrefab);
+            int width = footprint.Width;
+            int length = footprint.Length;
+
+            // 5. [검증] 그리드 충돌 (GridCell 버퍼 확인)
+            var gridEntity = SystemAPI.GetSingletonEntity<GridSettings>();
+            if (SystemAPI.HasBuffer<GridCell>(gridEntity))
+            {
+                var buffer = SystemAPI.GetBuffer<GridCell>(gridEntity);
+                
+                if (GridUtility.IsOccupied(buffer, rpc.GridPosition.x, rpc.GridPosition.y, width, length,
+                    gridSettings.GridSize.x, gridSettings.GridSize.y))
+                {
+                    UnityEngine.Debug.Log("[Server] Build failed: Grid Occupied");
+                    ecb.DestroyEntity(rpcEntity);
+                    return;
+                }
+            }
+
+            // 6. [검증] 유닛 충돌
+            if (CheckUnitCollision(ref state, rpc.GridPosition.x, rpc.GridPosition.y, width, length, gridSettings))
+            {
+                UnityEngine.Debug.Log("[Server] Build failed: Unit Collision");
+                ecb.DestroyEntity(rpcEntity);
+                return;
+            }
+
+            // 7. [성공] 건물 생성
+            var networkId = SystemAPI.GetComponent<NetworkId>(rpcReceive.ValueRO.SourceConnection);
+            CreateBuildingEntity(ref state, ref ecb, structurePrefab, rpc, width, length, gridSettings, networkId.Value);
+
+            // 8. RPC 요청 엔티티 삭제 (처리 완료)
+            ecb.DestroyEntity(rpcEntity);
+        }
+        
+        private void CreateBuildingEntity(
+            ref SystemState state,
+            ref EntityCommandBuffer ecb,
+            Entity prefab,
+            BuildRequestRpc rpc,
+            int width,
+            int length,
+            GridSettings gridSettings,
+            int ownerNetworkId)
+        {
+            Entity newStructure = ecb.Instantiate(prefab);
+
+            // 1. 월드 위치 계산
+            float3 worldPos = GridUtility.GridToWorld(rpc.GridPosition.x, rpc.GridPosition.y, width, length, gridSettings);
+    
+            // [중요] 높이 보정 (Visual Height)
+            if (state.EntityManager.HasComponent<StructureFootprint>(prefab))
+            {
+                var footprint = state.EntityManager.GetComponentData<StructureFootprint>(prefab);
+                worldPos.y += footprint.Height * 0.5f; 
+            }
+
+            // 2. [수정] 프리팹의 Transform을 복사해서 위치만 변경!
+            // LocalTransform.FromPosition()을 쓰면 스케일이 1로 초기화되는 문제 해결
+            var transform = state.EntityManager.GetComponentData<LocalTransform>(prefab);
+            transform.Position = worldPos;
+            ecb.SetComponent(newStructure, transform);
+
+            // 3. GridPosition 컴포넌트 추가
+            ecb.SetComponent(newStructure, new GridPosition 
+            { 
+                Position = rpc.GridPosition
+            });
+
+            // 4. 소유자 설정
+            ecb.AddComponent(newStructure, new GhostOwner { NetworkId = ownerNetworkId });
+
+            // 5. 건설 태그 추가
+            if (state.EntityManager.HasComponent<ProductionInfo>(prefab))
+            {
+                var info = state.EntityManager.GetComponentData<ProductionInfo>(prefab);
+                ecb.AddComponent(newStructure, new UnderConstructionTag
+                {
+                    Progress = 0f,
+                    TotalBuildTime = info.ProductionTime
+                });
+            }
+        }
+        
+        private bool CheckUnitCollision(ref SystemState state, int gridX, int gridY, int width, int length, GridSettings gridSettings)
+        {
+            float3 center = GridUtility.GridToWorld(gridX, gridY, width, length, gridSettings);
+            float halfWidth = width * gridSettings.CellSize / 2f;
+            float halfLength = length * gridSettings.CellSize / 2f;
+
+            // UnitTag가 있는 유닛만 충돌 체크
+            foreach (var (transform, _) in SystemAPI.Query<RefRO<LocalTransform>, RefRO<UnitTag>>())
+            {
+                float3 unitPos = transform.ValueRO.Position;
+
+                if (unitPos.x >= center.x - halfWidth && unitPos.x <= center.x + halfWidth &&
+                    unitPos.z >= center.z - halfLength && unitPos.z <= center.z + halfLength)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+}

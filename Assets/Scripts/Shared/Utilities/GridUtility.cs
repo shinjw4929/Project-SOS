@@ -1,106 +1,130 @@
+using System.Runtime.CompilerServices;
 using Unity.Entities;
 using Unity.Mathematics;
 
 namespace Shared
 {
-    /// <summary>
-    /// 그리드 좌표 변환 및 건물 배치 검증 유틸리티
-    /// </summary>
     public static class GridUtility
     {
-        /// <summary>
-        /// 월드 좌표를 그리드 좌표로 변환
-        /// </summary>
+        // 반복 호출되는 작은 함수들의 오버헤드 제거
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int2 WorldToGrid(float3 worldPos, GridSettings settings)
         {
-            return new int2(
-                (int)math.floor((worldPos.x - settings.gridOrigin.x) / settings.cellSize),
-                (int)math.floor((worldPos.z - settings.gridOrigin.y) / settings.cellSize)
-            );
+            // float2 연산으로 간소화 (XZ 평면 기준)
+            float2 localPos = worldPos.xz - settings.GridOrigin;
+            return (int2)math.floor(localPos / settings.CellSize);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static int2 WorldToGridForBuilding(float3 centerPos, int width, int length, GridSettings settings)
+        {
+            // 중심점 -> 좌하단 코너로 변환
+            // (width, length)를 float2로 변환하여 벡터 연산 수행
+            float2 sizeOffset = new float2(width, length) * settings.CellSize * 0.5f;
+            float2 cornerPos = centerPos.xz - sizeOffset;
+
+            // 좌표 정규화
+            return (int2)math.round((cornerPos - settings.GridOrigin) / settings.CellSize);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static float3 GridToWorld(int gridX, int gridY, int width, int length, GridSettings settings)
+        {
+            // (gridX, gridY)는 좌하단 기준, 여기에 건물의 반너비/반높이를 더해 중심점 계산
+            float2 gridSize = new float2(width, length) * settings.CellSize;
+            float2 gridPos = new float2(gridX, gridY) * settings.CellSize;
+            
+            float2 centerPos = settings.GridOrigin + gridPos + (gridSize * 0.5f);
+
+            return new float3(centerPos.x, 0, centerPos.y);
+        }
+
+        // 3D Y축 회전 등을 고려하지 않은 단순 2D AABB
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool IsOverlapping(int2 pos1, int2 size1, int2 pos2, int2 size2)
+        {
+            return pos1.x < pos2.x + size2.x &&
+                   pos1.x + size1.x > pos2.x &&
+                   pos1.y < pos2.y + size2.y &&
+                   pos1.y + size1.y > pos2.y;
         }
 
         /// <summary>
-        /// 건물 중심점에서 원래 그리드 좌표를 역산 (GridToWorld의 역함수)
-        /// GridToWorld는 건물 중심점을 반환하므로, 이를 역산하여 원래 그리드 좌표를 구함
+        /// 그리드 영역 점유 확인 (최적화됨)
         /// </summary>
-        public static int2 WorldToGridForBuilding(float3 centerPos, int width, int height, GridSettings settings)
+        public static bool IsOccupied(DynamicBuffer<GridCell> buffer, int startX, int startY, int width, int length, int gridSizeX, int gridSizeY)
         {
-            // 중심점에서 건물 크기의 절반을 빼서 좌하단 모서리로 변환
-            float cornerX = centerPos.x - (width * settings.cellSize) / 2f;
-            float cornerZ = centerPos.z - (height * settings.cellSize) / 2f;
-
-            return new int2(
-                (int)math.round((cornerX - settings.gridOrigin.x) / settings.cellSize),
-                (int)math.round((cornerZ - settings.gridOrigin.y) / settings.cellSize)
-            );
-        }
-
-        /// <summary>
-        /// 그리드 좌표를 월드 좌표로 변환 (건물 중심점)
-        /// </summary>
-        public static float3 GridToWorld(int gridX, int gridY, int width, int height, GridSettings settings)
-        {
-            return new float3(
-                settings.gridOrigin.x + gridX * settings.cellSize + (width * settings.cellSize) / 2f,
-                0,
-                settings.gridOrigin.y + gridY * settings.cellSize + (height * settings.cellSize) / 2f
-            );
-        }
-
-        /// <summary>
-        /// 두 사각형 영역이 겹치는지 검사 (AABB collision)
-        /// </summary>
-        public static bool IsOverlapping(int x1, int y1, int w1, int h1, int x2, int y2, int w2, int h2)
-        {
-            return !(x1 + w1 <= x2 || x2 + w2 <= x1 || y1 + h1 <= y2 || y2 + h2 <= y1);
-        }
-
-        /// <summary>
-        /// 건물 타입에 따른 Y축 오프셋 반환 (메시 중심을 지면 위에 배치하기 위함)
-        /// </summary>
-        public static float GetBuildingYOffset(BuildingTypeEnum type)
-        {
-            return type switch
+            // 1. [최적화] 전체 건물이 맵 범위를 벗어나는지 먼저 검사 (Loop 밖에서 처리)
+            if (startX < 0 || startY < 0 || startX + width > gridSizeX || startY + length > gridSizeY)
             {
-                BuildingTypeEnum.Wall => 1.0f,
-                BuildingTypeEnum.Barracks => 1.5f,
-                _ => 0.5f
-            };
-        }
+                return true; // 맵 밖은 건설 불가
+            }
 
-        /// <summary>
-        /// 그리드 영역이 점유되었는지 확인
-        /// </summary>
-        public static bool IsOccupied(DynamicBuffer<GridCell> buffer, int x, int y, int width, int height, int gridWidth, int gridHeight)
-        {
-            for (int dy = 0; dy < height; dy++)
+            // 2. 점유 검사
+            // 메모리 접근 패턴(Cache Locality)을 고려하여 Y(Row) -> X(Col) 순서가 일반적이지만,
+            // 2D 배열을 1D로 펼친 경우 인덱스 계산 순서에 따름 (여기서는 Z가 행 역할)
+            for (int z = 0; z < length; z++)
             {
-                for (int dx = 0; dx < width; dx++)
+                // 행(Row) 시작 인덱스 미리 계산
+                int rowIndex = (startY + z) * gridSizeX; 
+                
+                for (int x = 0; x < width; x++)
                 {
-                    int cx = x + dx;
-                    int cy = y + dy;
-                    if (cx < 0 || cx >= gridWidth || cy < 0 || cy >= gridHeight)
-                        return true;  // 범위 밖 = 배치 불가
-                    int index = cy * gridWidth + cx;
-                    if (buffer[index].isOccupied)
+                    int index = rowIndex + (startX + x);
+                    
+                    // 버퍼 범위 안전 장치 (위의 경계 검사가 통과했다면 사실상 불필요하지만 안전을 위해 유지 가능)
+                    if (buffer[index].IsOccupied)
+                    {
                         return true;
+                    }
                 }
             }
             return false;
         }
 
         /// <summary>
-        /// 그리드 영역을 점유로 마킹
+        /// 그리드 점유 마킹 (최적화됨)
         /// </summary>
-        public static void MarkOccupied(DynamicBuffer<GridCell> buffer, int x, int y, int width, int height, int gridWidth)
+        public static void MarkOccupied(DynamicBuffer<GridCell> buffer, int startX, int startY, int width, int length, int gridSizeX)
         {
-            for (int dy = 0; dy < height; dy++)
+            // 범위 검사 (필요하다면 추가, 보통은 IsOccupied 통과 후 호출되므로 생략하거나 Assert)
+            if (startX < 0 || startY < 0) return; 
+
+            for (int z = 0; z < length; z++)
             {
-                for (int dx = 0; dx < width; dx++)
+                int rowIndex = (startY + z) * gridSizeX;
+                for (int x = 0; x < width; x++)
                 {
-                    int index = (y + dy) * gridWidth + (x + dx);
-                    if (index >= 0 && index < buffer.Length)
-                        buffer[index] = new GridCell { isOccupied = true };
+                    int index = rowIndex + (startX + x);
+                    
+                    if (index < buffer.Length)
+                    {
+                        // 구조체 전체를 새로 생성하지 않고 내부 값만 변경하는 것이
+                        // 컴파일러 최적화에 유리할 수 있음 (ref 사용 가능 시)
+                        // DynamicBuffer는 ref 리턴을 지원하므로 아래 방식 권장
+                        var cell = buffer[index];
+                        cell.IsOccupied = true;
+                        buffer[index] = cell;
+                    }
+                }
+            }
+        }
+        
+        // [편의성 오버로드] IsOccupied 마킹 해제용 (건물 파괴 시 등)
+        public static void UnmarkOccupied(DynamicBuffer<GridCell> buffer, int startX, int startY, int width, int length, int gridSizeX)
+        {
+            for (int z = 0; z < length; z++)
+            {
+                int rowIndex = (startY + z) * gridSizeX;
+                for (int x = 0; x < width; x++)
+                {
+                    int index = rowIndex + (startX + x);
+                    if (index < buffer.Length)
+                    {
+                        var cell = buffer[index];
+                        cell.IsOccupied = false;
+                        buffer[index] = cell;
+                    }
                 }
             }
         }
