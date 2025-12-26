@@ -25,6 +25,9 @@ public class EnemyAuthoring : MonoBehaviour
                 TargetEntity = Entity.Null,
                 LastKnownPosition = default
             });
+
+            // 적 팀 ID (플레이어 teamId=0과 다른 값)
+            AddComponent(entity, new Team { teamId = -1 });
         }
     }
 }
