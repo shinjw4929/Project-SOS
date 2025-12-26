@@ -42,8 +42,10 @@ public class BuildingPreviewController : MonoBehaviour
             _previewRenderer = _currentPreview.GetComponentInChildren<Renderer>();
         }
 
-        // 위치 업데이트
-        float3 worldPos = GridUtility.GridToWorld(previewState.gridX, previewState.gridY, 1, 1, gridSettings);
+        // 위치 업데이트 (건물 타입에 맞는 크기와 높이 적용)
+        GridUtility.GetBuildingSize(previewState.selectedType, out int width, out int height);
+        float3 worldPos = GridUtility.GridToWorld(previewState.gridX, previewState.gridY, width, height, gridSettings);
+        worldPos.y = GridUtility.GetBuildingYOffset(previewState.selectedType);
         _currentPreview.transform.position = worldPos;
 
         // 머티리얼 변경

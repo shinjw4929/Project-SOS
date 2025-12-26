@@ -7,7 +7,7 @@ namespace Shared
     {
         Command, // 유닛 선택 및 명령 하달 모드
         Construction, // 건물 배치/건설 모드
-        OutGame, // 사망 또는 게임 종료 상태 (조작 불능)
+        Dead, // 사망 또는 게임 종료 상태 (조작 불능)
     }
     /// <summary>
     /// 클라이언트 사용자의 전역 상태를 관리하는 싱글톤

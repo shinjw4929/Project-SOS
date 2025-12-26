@@ -48,12 +48,12 @@ namespace Shared
             switch (type)
             {
                 case BuildingTypeEnum.Wall:
-                    width = 1;
-                    height = 1;
-                    break;
-                case BuildingTypeEnum.Barracks:
                     width = 2;
                     height = 2;
+                    break;
+                case BuildingTypeEnum.Barracks:
+                    width = 3;
+                    height = 3;
                     break;
                 default:
                     width = 1;
@@ -78,6 +78,19 @@ namespace Shared
         {
             GetBuildingSize(type, out _, out int height);
             return height;
+        }
+
+        /// <summary>
+        /// 건물 타입에 따른 Y축 오프셋 반환 (메시 중심을 지면 위에 배치하기 위함)
+        /// </summary>
+        public static float GetBuildingYOffset(BuildingTypeEnum type)
+        {
+            return type switch
+            {
+                BuildingTypeEnum.Wall => 1.0f,
+                BuildingTypeEnum.Barracks => 1.5f,
+                _ => 0.5f
+            };
         }
     }
 }

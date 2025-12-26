@@ -14,7 +14,8 @@ GameObject:
   - component: {fileID: 3521279987147721389}
   - component: {fileID: 5410318307187832568}
   - component: {fileID: 1579858311290981489}
-  m_Layer: 0
+  - component: {fileID: 5371993809852726065}
+  m_Layer: 8
   m_Name: Barracks
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -148,3 +149,19 @@ MonoBehaviour:
   UseSingleBaseline: 0
   RollbackPredictedSpawnedGhostState: 0
   RollbackPredictionOnStructuralChanges: 1
+--- !u!114 &5371993809852726065
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1805743339364124677}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 04fb98980e8c4ab419d3539223f03324, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  width: 3
+  height: 3
+  cost: 100
+  buildTime: 1

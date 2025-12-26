@@ -101,6 +101,13 @@ namespace Server
                 return;
             }
 
+            // 유닛 충돌 검증
+            if (CheckUnitCollision(ref state, rpc.gridX, rpc.gridY, width, height, gridSettings))
+            {
+                ecb.DestroyEntity(rpcEntity);
+                return;
+            }
+
             // 프리팹 선택
             Entity buildingPrefab = SelectBuildingPrefab(rpc.buildingType, buildingRefs);
             if (buildingPrefab == Entity.Null)
@@ -145,8 +152,9 @@ namespace Server
         {
             Entity buildingEntity = ecb.Instantiate(buildingPrefab);
 
-            // 그리드 좌표를 월드 좌표로 변환하여 위치 설정
+            // 그리드 좌표를 월드 좌표로 변환하여 위치 설정 (Y 오프셋 적용)
             float3 worldPos = GridUtility.GridToWorld(rpc.gridX, rpc.gridY, width, height, gridSettings);
+            worldPos.y = GridUtility.GetBuildingYOffset(rpc.buildingType);
             SetBuildingTransform(ref state, ref ecb, buildingEntity, buildingPrefab, worldPos);
 
             // 그리드 점유 정보 추가 (네트워크 동기화)
@@ -204,6 +212,29 @@ namespace Server
                 }
             }
             return true;
+        }
+
+        /// <summary>
+        /// 유닛과의 충돌 검사 (건물 배치 영역 내에 유닛이 있는지 확인)
+        /// </summary>
+        private bool CheckUnitCollision(ref SystemState state, int gridX, int gridY, int width, int height, GridSettings gridSettings)
+        {
+            float3 buildingCenter = GridUtility.GridToWorld(gridX, gridY, width, height, gridSettings);
+            float halfWidth = width * gridSettings.cellSize / 2f;
+            float halfHeight = height * gridSettings.cellSize / 2f;
+
+            foreach (var (transform, _) in SystemAPI.Query<RefRO<LocalTransform>, RefRO<UnitType>>())
+            {
+                float3 unitPos = transform.ValueRO.Position;
+
+                // AABB 충돌 검사 (XZ 평면)
+                if (unitPos.x >= buildingCenter.x - halfWidth && unitPos.x <= buildingCenter.x + halfWidth &&
+                    unitPos.z >= buildingCenter.z - halfHeight && unitPos.z <= buildingCenter.z + halfHeight)
+                {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 }

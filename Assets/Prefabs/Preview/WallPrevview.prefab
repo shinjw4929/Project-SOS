@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 3079953263914571462}
   - component: {fileID: 2935241752340977822}
   - component: {fileID: 2396391805595913134}
+  - component: {fileID: -8734847448515723664}
   m_Layer: 8
   m_Name: WallPrevview
   m_TagString: Untagged
@@ -108,3 +109,19 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
+--- !u!114 &-8734847448515723664
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2697124028170181865}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 04fb98980e8c4ab419d3539223f03324, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  width: 2
+  height: 2
+  cost: 100
+  buildTime: 1
