@@ -128,12 +128,10 @@ namespace Client
             // 박스 드래그 시작 시 기존 선택 해제
             DeselectAll(ref state, ecb);
 
-            // [통합 루프 & 최적화]
-            // 유닛과 건물을 각각 돌지 않고 WithAny로 한 번에 처리
+            // [박스 선택] 유닛만 박스 선택 가능 (건물은 단일 클릭으로만 선택)
             // WithAll<GhostOwnerIsLocal> : 내 소유권이 있는(내 팀인) 엔티티만 박스 선택 가능 (RTS 표준)
             foreach (var (transform, team, entity) in SystemAPI.Query<RefRO<LocalTransform>, RefRO<Team>>()
-                .WithAll<GhostOwnerIsLocal>() 
-                .WithAny<UnitTag, StructureTag>() // [변경] Tag 사용
+                .WithAll<GhostOwnerIsLocal, UnitTag>() // 유닛만 박스 선택
                 .WithEntityAccess())
             {
                 // GhostOwnerIsLocal이 있어도 안전을 위해 팀 ID 이중 체크

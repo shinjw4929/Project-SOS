@@ -46,17 +46,33 @@ public class UnitInfoUIRenderer : MonoBehaviour
             return;
         }
 
+        // 필수 컴포넌트 확인
+        if (!_clientEntityManager.HasComponent<Health>(selectedEntity) ||
+            !_clientEntityManager.HasComponent<Team>(selectedEntity))
+        {
+            HidePanel();
+            return;
+        }
+
         Health health = _clientEntityManager.GetComponentData<Health>(selectedEntity);
-        MovementSpeed movementSpeed = _clientEntityManager.GetComponentData<MovementSpeed>(selectedEntity);
-        CombatStatus combatStatus = _clientEntityManager.GetComponentData<CombatStatus>(selectedEntity);
         Team team = _clientEntityManager.GetComponentData<Team>(selectedEntity);
+
+        // 선택적 컴포넌트 (건물에는 없을 수 있음)
+        float moveSpeedValue = 0f;
+        float attackPowerValue = 0f;
+
+        if (_clientEntityManager.HasComponent<MovementSpeed>(selectedEntity))
+            moveSpeedValue = _clientEntityManager.GetComponentData<MovementSpeed>(selectedEntity).Value;
+
+        if (_clientEntityManager.HasComponent<CombatStatus>(selectedEntity))
+            attackPowerValue = _clientEntityManager.GetComponentData<CombatStatus>(selectedEntity).AttackPower;
 
         int myTeamId = _networkIdQuery.GetSingleton<NetworkId>().Value;
 
         ShowPanel();
         healthText.text = $"HP: {health.CurrentValue:F0}/{health.MaxValue:F0}";
-        moveSpeedText.text = $"SPD: {movementSpeed.Value:F1}";
-        attackPowerText.text = $"ATK: {combatStatus.AttackPower:F1}";
+        moveSpeedText.text = $"SPD: {moveSpeedValue:F1}";
+        attackPowerText.text = $"ATK: {attackPowerValue:F1}";
 
         bool isMyTeam = team.teamId == myTeamId;
         teamText.text = isMyTeam ? "MY Unit" : "Other Unit";

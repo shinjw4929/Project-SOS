@@ -188,7 +188,10 @@ namespace Server
             // 4. 소유자 설정
             ecb.AddComponent(newStructure, new GhostOwner { NetworkId = ownerNetworkId });
 
-            // 5. 건설 태그 추가
+            // 5. 팀 ID 설정 (소유자의 NetworkId를 팀 ID로 사용)
+            ecb.SetComponent(newStructure, new Team { teamId = ownerNetworkId });
+
+            // 6. 건설 태그 추가
             if (state.EntityManager.HasComponent<ProductionInfo>(prefab))
             {
                 var info = state.EntityManager.GetComponentData<ProductionInfo>(prefab);
