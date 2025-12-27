@@ -323,8 +323,8 @@ public class StructureCommandUIController : MonoBehaviour
         if (!_em.HasComponent<GhostInstance>(primaryEntity)) return;
 
         // 버퍼 확인
-        if (!_em.HasBuffer<ProducibleUnitElement>(primaryEntity)) return;
-        var unitBuffer = _em.GetBuffer<ProducibleUnitElement>(primaryEntity);
+        if (!_em.HasBuffer<UnitCatalogElement>(primaryEntity)) return;
+        var unitBuffer = _em.GetBuffer<UnitCatalogElement>(primaryEntity);
         if (unitIndex >= unitBuffer.Length) return;
 
         var ghostInstance = _em.GetComponentData<GhostInstance>(primaryEntity);
@@ -333,7 +333,7 @@ public class StructureCommandUIController : MonoBehaviour
         var rpcEntity = _em.CreateEntity();
         _em.AddComponentData(rpcEntity, new ProduceUnitRequestRpc
         {
-            BarracksGhostId = ghostInstance.ghostId,
+            StructureGhostId = ghostInstance.ghostId,
             UnitIndex = unitIndex
         });
         _em.AddComponent<SendRpcCommandRequest>(rpcEntity);

@@ -148,9 +148,9 @@ namespace Client
             if (!state.EntityManager.HasComponent<GhostInstance>(entity)) return;
 
             // 생산 가능 유닛 버퍼 확인
-            if (!state.EntityManager.HasBuffer<ProducibleUnitElement>(entity)) return;
+            if (!state.EntityManager.HasBuffer<UnitCatalogElement>(entity)) return;
 
-            var unitBuffer = state.EntityManager.GetBuffer<ProducibleUnitElement>(entity);
+            var unitBuffer = state.EntityManager.GetBuffer<UnitCatalogElement>(entity);
             if (unitIndex >= unitBuffer.Length)
             {
                 UnityEngine.Debug.LogWarning($"[StructureCommandInput] UnitIndex {unitIndex} is out of range");
@@ -162,7 +162,7 @@ namespace Client
             var rpcEntity = state.EntityManager.CreateEntity();
             state.EntityManager.AddComponentData(rpcEntity, new ProduceUnitRequestRpc
             {
-                BarracksGhostId = ghostInstance.ghostId,
+                StructureGhostId = ghostInstance.ghostId,
                 UnitIndex = unitIndex
             });
             state.EntityManager.AddComponent<SendRpcCommandRequest>(rpcEntity);

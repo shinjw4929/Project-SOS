@@ -88,23 +88,6 @@ namespace Authoring
                             Duration = 0,
                             IsActive = false
                         });
-                        // 생산 가능 유닛 목록
-                        var unitBuffer = AddBuffer<ProducibleUnitElement>(entity);
-                        if (authoring.producibleUnitPrefabs != null)
-                        {
-                            for (int i = 0; i < authoring.producibleUnitPrefabs.Count; i++)
-                            {
-                                var prefab = authoring.producibleUnitPrefabs[i];
-                                if (prefab != null)
-                                {
-                                    unitBuffer.Add(new ProducibleUnitElement
-                                    {
-                                        PrefabEntity = GetEntity(prefab, TransformUsageFlags.Dynamic),
-                                        PrefabIndex = i
-                                    });
-                                }
-                            }
-                        }
                         break;
                     case AuthoringStructureType.Turret:
                         AddComponent(entity, new TurretTag());

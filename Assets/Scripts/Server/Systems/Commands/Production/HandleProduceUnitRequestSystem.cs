@@ -41,30 +41,30 @@ namespace Server
             ProduceUnitRequestRpc rpc)
         {
             // 1. Ghost ID로 배럭 엔티티 찾기
-            Entity barracksEntity = FindEntityByGhostId(ref state, rpc.BarracksGhostId);
-            if (barracksEntity == Entity.Null)
+            Entity producerEntity = FindEntityByGhostId(ref state, rpc.StructureGhostId);
+            if (producerEntity == Entity.Null)
             {
-                UnityEngine.Debug.LogWarning($"[HandleProduceUnitRequest] Barracks not found for GhostId: {rpc.BarracksGhostId}");
+                UnityEngine.Debug.LogWarning($"[HandleProduceUnitRequest] Barracks not found for GhostId: {rpc.StructureGhostId}");
                 return;
             }
 
             // 2. 소유권 검증
-            if (!ValidateOwnership(ref state, barracksEntity, rpcReceive.SourceConnection))
+            if (!ValidateOwnership(ref state, producerEntity, rpcReceive.SourceConnection))
             {
                 UnityEngine.Debug.LogWarning("[HandleProduceUnitRequest] Ownership validation failed");
                 return;
             }
 
             // 3. BarracksTag 및 ProductionQueue 확인
-            if (!state.EntityManager.HasComponent<BarracksTag>(barracksEntity) ||
-                !state.EntityManager.HasComponent<ProductionQueue>(barracksEntity))
+            if (!state.EntityManager.HasComponent<BarracksTag>(producerEntity) ||
+                !state.EntityManager.HasComponent<ProductionQueue>(producerEntity))
             {
                 UnityEngine.Debug.LogWarning("[HandleProduceUnitRequest] Entity is not a valid barracks");
                 return;
             }
 
             // 4. 이미 생산 중인지 확인
-            var productionQueue = state.EntityManager.GetComponentData<ProductionQueue>(barracksEntity);
+            var productionQueue = state.EntityManager.GetComponentData<ProductionQueue>(producerEntity);
             if (productionQueue.IsActive)
             {
                 UnityEngine.Debug.Log("[HandleProduceUnitRequest] Already producing");
@@ -72,13 +72,13 @@ namespace Server
             }
 
             // 5. 생산 가능 유닛 버퍼에서 프리팹 찾기
-            if (!state.EntityManager.HasBuffer<ProducibleUnitElement>(barracksEntity))
+            if (!state.EntityManager.HasBuffer<UnitCatalogElement>(producerEntity))
             {
                 UnityEngine.Debug.LogWarning("[HandleProduceUnitRequest] No ProducibleUnitElement buffer");
                 return;
             }
 
-            var unitBuffer = state.EntityManager.GetBuffer<ProducibleUnitElement>(barracksEntity);
+            var unitBuffer = state.EntityManager.GetBuffer<UnitCatalogElement>(producerEntity);
             if (rpc.UnitIndex < 0 || rpc.UnitIndex >= unitBuffer.Length)
             {
                 UnityEngine.Debug.LogWarning($"[HandleProduceUnitRequest] Invalid UnitIndex: {rpc.UnitIndex}");
@@ -107,7 +107,7 @@ namespace Server
             }
 
             // 8. ProductionQueue 시작 (인덱스 저장 - Entity ID는 서버/클라이언트 간 불일치)
-            ecb.SetComponent(barracksEntity, new ProductionQueue
+            ecb.SetComponent(producerEntity, new ProductionQueue
             {
                 ProducingUnitIndex = rpc.UnitIndex,
                 Progress = 0,

@@ -27,7 +27,9 @@ partial struct GoInGameClientSystem : ISystem
                  in SystemAPI.Query<RefRO<NetworkId>>().WithNone<NetworkStreamInGame>().WithEntityAccess())
         {
             entityCommandBuffer.AddComponent<NetworkStreamInGame>(entity);
-            Debug.Log("Setting Client as InGame");
+            
+            // 서버 연결 디버깅 시 사용
+            // Debug.Log("Setting Client as InGame");
             
             Entity rpcEntity = entityCommandBuffer.CreateEntity();
             entityCommandBuffer.AddComponent(rpcEntity, new GoInGameRequestRpc());

@@ -7,10 +7,10 @@ namespace Shared
     /// </summary>
     public struct ProduceUnitRequestRpc : IRpcCommand
     {
-        /// <summary>생산할 배럭의 Ghost ID</summary>
-        public int BarracksGhostId;
+        /// <summary>생산할 건물의 Ghost ID</summary>
+        public int StructureGhostId;
 
-        /// <summary>생산할 유닛의 인덱스 (ProducibleUnitElement 버퍼 내)</summary>
+        /// <summary>생산할 유닛의 인덱스 (UnitCatalogElement 버퍼 내)</summary>
         public int UnitIndex;
     }
 }

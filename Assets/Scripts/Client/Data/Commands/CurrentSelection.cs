@@ -33,6 +33,5 @@ namespace Client
         None = 0,       // 선택 없음
         Units = 1,      // 유닛만 선택
         Structure = 2,  // 건물만 선택
-        Mixed = 3,      // 유닛 + 건물 혼합
     }
 }

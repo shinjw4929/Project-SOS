@@ -27,7 +27,7 @@ namespace Server
                 .CreateCommandBuffer(state.WorldUnmanaged);
 
             foreach (var (productionQueue, unitBuffer, transform, owner, entity) in
-                SystemAPI.Query<RefRW<ProductionQueue>, DynamicBuffer<ProducibleUnitElement>, RefRO<LocalTransform>, RefRO<GhostOwner>>()
+                SystemAPI.Query<RefRW<ProductionQueue>, DynamicBuffer<UnitCatalogElement>, RefRO<LocalTransform>, RefRO<GhostOwner>>()
                 .WithAll<BarracksTag>()
                 .WithEntityAccess())
             {
