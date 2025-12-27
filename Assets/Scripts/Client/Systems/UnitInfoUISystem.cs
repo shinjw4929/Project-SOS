@@ -5,7 +5,7 @@ using Shared;
 namespace Client
 {
     [UpdateInGroup(typeof(PresentationSystemGroup))]
-    [UpdateAfter(typeof(UnitSelectionSystem))]
+    [UpdateAfter(typeof(EntitiySelectionSystem))]
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
     public partial struct UnitInfoUISystem : ISystem
     {

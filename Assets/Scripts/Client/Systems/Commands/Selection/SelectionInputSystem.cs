@@ -9,7 +9,7 @@ namespace Client
 {
     [UpdateInGroup(typeof(GhostInputSystemGroup))]
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
-    partial struct UnitSelectionInputSystem : ISystem
+    partial struct SelectionInputSystem : ISystem
     {
         public void OnCreate(ref SystemState state)
         {

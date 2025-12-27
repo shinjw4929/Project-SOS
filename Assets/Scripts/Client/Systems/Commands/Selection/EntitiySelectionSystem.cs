@@ -11,7 +11,7 @@ namespace Client
 {
     [UpdateInGroup(typeof(PresentationSystemGroup))]
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
-    public partial struct UnitSelectionSystem : ISystem
+    public partial struct EntitiySelectionSystem : ISystem
     {
         public void OnCreate(ref SystemState state)
         {
