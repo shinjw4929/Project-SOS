@@ -11,11 +11,15 @@ public class SelectionBoxRenderer : MonoBehaviour
 {
     [Header("UI Reference")]
     [SerializeField] private RectTransform selectionBoxRect;
+    [SerializeField] private Canvas parentCanvas;
 
     // ECS 캐싱
     private EntityManager _entityManager;
     private EntityQuery _selectionStateQuery;
     private bool _isInitialized;
+
+    // Canvas 좌표 변환용
+    private RectTransform _canvasRect;
 
     private void Start()
     {
@@ -25,6 +29,11 @@ public class SelectionBoxRenderer : MonoBehaviour
             selectionBoxRect.pivot = Vector2.zero;
             selectionBoxRect.anchorMin = Vector2.zero;
             selectionBoxRect.anchorMax = Vector2.zero;
+        }
+
+        if (parentCanvas != null)
+        {
+            _canvasRect = parentCanvas.GetComponent<RectTransform>();
         }
     }
 
@@ -87,24 +96,43 @@ public class SelectionBoxRenderer : MonoBehaviour
 
     private void UpdateBoxRect(float2 start, float2 current)
     {
-        float width = current.x - start.x;
-        float height = current.y - start.y;
-        float x = start.x;
-        float y = start.y;
+        Vector2 startLocal = ScreenToCanvasPosition(new Vector2(start.x, start.y));
+        Vector2 currentLocal = ScreenToCanvasPosition(new Vector2(current.x, current.y));
+
+        float width = currentLocal.x - startLocal.x;
+        float height = currentLocal.y - startLocal.y;
+        float x = startLocal.x;
+        float y = startLocal.y;
 
         if (width < 0)
         {
-            x = current.x;
+            x = currentLocal.x;
             width = -width;
         }
 
         if (height < 0)
         {
-            y = current.y;
+            y = currentLocal.y;
             height = -height;
         }
 
         selectionBoxRect.anchoredPosition = new Vector2(x, y);
         selectionBoxRect.sizeDelta = new Vector2(width, height);
+    }
+
+    private Vector2 ScreenToCanvasPosition(Vector2 screenPos)
+    {
+        if (_canvasRect == null) return screenPos;
+
+        RectTransformUtility.ScreenPointToLocalPointInRectangle(
+            _canvasRect,
+            screenPos,
+            parentCanvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : parentCanvas.worldCamera,
+            out Vector2 localPoint);
+
+        // Canvas pivot(0.5, 0.5)에 맞춰 조절 
+        Vector2 canvasSize = _canvasRect.rect.size;
+        Vector2 pivotOffset = _canvasRect.pivot * canvasSize;
+        return localPoint + pivotOffset;
     }
 }

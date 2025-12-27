@@ -27,7 +27,7 @@ namespace Client
         public void OnUpdate(ref SystemState state)
         {
             var userState = SystemAPI.GetSingleton<UserState>();
-            if (userState.CurrentState != UserContext.Command) return;
+            if (userState.CurrentState == UserContext.Dead) return;
 
             ProcessRightClickCommand(ref state);
             SubmitCommands(ref state);
