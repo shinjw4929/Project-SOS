@@ -1,7 +1,7 @@
 using UnityEngine;
 using Unity.Entities;
 using Unity.Mathematics;
-using Shared;
+using Client;
 
 public class SelectionBoxRenderer : MonoBehaviour
 {

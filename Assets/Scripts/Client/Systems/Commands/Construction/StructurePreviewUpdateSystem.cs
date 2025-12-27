@@ -69,7 +69,7 @@ namespace Client
             float halfWidth = width * gridSettings.CellSize / 2f;
             float halfLength = length * gridSettings.CellSize / 2f;
 
-            foreach (var (transform, _) in SystemAPI.Query<RefRO<LocalTransform>, RefRO<UnitTag>>()) // UnitTag로 변경
+            foreach (var (transform, _) in SystemAPI.Query<RefRO<LocalTransform>, RefRO<UnitTag>>())
             {
                 float3 unitPos = transform.ValueRO.Position;
                 if (unitPos.x >= buildingCenter.x - halfWidth && unitPos.x <= buildingCenter.x + halfWidth &&

@@ -1,9 +1,9 @@
 using Unity.Entities;
 using Unity.Mathematics;
 
-namespace Shared
+namespace Client
 {
-    // 드래그 박스 선택을 위한 데이터
+    // 드래그 박스 선택을 위한 싱글톤
     public struct SelectionBox : IComponentData
     {
         public float2 StartScreenPos;

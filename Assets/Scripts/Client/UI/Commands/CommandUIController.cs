@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using Unity.Entities;
 using Unity.NetCode;
+using Unity.Mathematics;
 using Shared; // UnitTag, WallTag, BarracksTag, UserState
 using Client; // StructurePreviewState
 
@@ -20,6 +21,8 @@ public class CommandUIController : MonoBehaviour
     private EntityManager _em;
     private EntityQuery _currentSelectionQuery;
     private EntityQuery _userStateQuery;
+    private EntityQuery _selectionStateQuery;
+    private EntityQuery _selectionBoxQuery;
     private EntityQuery _previewStateQuery;
     private EntityQuery _refsQuery;
 
@@ -38,10 +41,10 @@ public class CommandUIController : MonoBehaviour
     {
         if (!TryInitClientWorld()) return;
         if (_userStateQuery.IsEmptyIgnoreFilter) return;
-
+        
         // 현재 UserState 가져오기
         var userState = _userStateQuery.GetSingleton<UserState>();
-
+        
         // BuildMenu나 Construction 상태에서는 유닛 선택과 관계없이 UI 표시
         switch (userState.CurrentState)
         {
@@ -79,8 +82,15 @@ public class CommandUIController : MonoBehaviour
     private void OnBuildButtonClicked()
     {
         if (_userStateQuery.IsEmptyIgnoreFilter) return;
+        if (_selectionStateQuery.IsEmptyIgnoreFilter) return;
+        if (_selectionBoxQuery.IsEmptyIgnoreFilter) return;
         
         ref var userState = ref _userStateQuery.GetSingletonRW<UserState>().ValueRW;
+        ref var selectionState = ref _selectionStateQuery.GetSingletonRW<SelectionState>().ValueRW;
+        ref var selectionBox = ref _selectionBoxQuery.GetSingletonRW<SelectionBox>().ValueRW;
+
+        selectionState.Mode = SelectionMode.Idle;
+        selectionBox.IsDragging = false;
         userState.CurrentState = UserContext.BuildMenu;
     }
 
@@ -101,6 +111,10 @@ public class CommandUIController : MonoBehaviour
             userState.CurrentState = UserContext.Construction;
             previewState.SelectedPrefab = foundPrefab;
             previewState.SelectedPrefabIndex = foundIndex;
+
+            // 3. GridPosition 무효화 (이전 위치에서 깜빡이는 문제 방지)
+            previewState.GridPosition = new int2(-1000, -1000);
+            previewState.IsValidPlacement = false;
         }
         else
         {
@@ -167,9 +181,11 @@ public class CommandUIController : MonoBehaviour
                 // 쿼리 캐싱
                 _currentSelectionQuery = _em.CreateEntityQuery(typeof(CurrentSelectedUnit));
                 _userStateQuery = _em.CreateEntityQuery(typeof(UserState));
+                _selectionStateQuery = _em.CreateEntityQuery(typeof(SelectionState));
+                _selectionBoxQuery = _em.CreateEntityQuery(typeof(SelectionBox));
                 _previewStateQuery = _em.CreateEntityQuery(typeof(StructurePreviewState));
                 _refsQuery = _em.CreateEntityQuery(typeof(StructureEntitiesReferences));
-                
+
                 return true;
             }
         }

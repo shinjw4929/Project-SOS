@@ -1,6 +1,7 @@
 using Unity.Entities;
 using Unity.NetCode;
 using UnityEngine.InputSystem;
+using Unity.Mathematics;
 using Shared;
 
 namespace Client
@@ -118,6 +119,10 @@ namespace Client
             {
                 previewState.SelectedPrefab = foundPrefab;
                 previewState.SelectedPrefabIndex = foundIndex; // State에 저장
+
+                // GridPosition 무효화 (이전 위치에서 깜빡이는 문제 방지)
+                previewState.GridPosition = new int2(-1000, -1000);
+                previewState.IsValidPlacement = false;
             }
             else
             {

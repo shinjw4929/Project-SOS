@@ -75,7 +75,7 @@ public class StructurePreviewController : MonoBehaviour
         // X, Z는 그리드 크기 기준, Y는 설정한 높이 기준
         _currentPreview.transform.localScale = new Vector3(
             width * gridSettings.CellSize, 
-            height,  // [변경] 1.0f 대신 실제 높이 적용
+            height,
             length * gridSettings.CellSize
         );
         
