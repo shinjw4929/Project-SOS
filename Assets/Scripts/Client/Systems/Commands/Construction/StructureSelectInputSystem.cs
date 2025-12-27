@@ -15,6 +15,7 @@ namespace Client
             state.RequireForUpdate<NetworkStreamInGame>();
             state.RequireForUpdate<UserState>();
             state.RequireForUpdate<StructureEntitiesReferences>();
+            state.RequireForUpdate<CurrentSelection>();
 
             if (!SystemAPI.HasSingleton<StructurePreviewState>())
             {
@@ -43,9 +44,12 @@ namespace Client
             {
                 if (keyboard.qKey.wasPressedThisFrame)
                 {
+                    // 건설 가능 유닛 선택 여부 확인
+                    var selection = SystemAPI.GetSingleton<CurrentSelection>();
+                    if (!selection.HasBuilder || selection.SelectedCount != 1 || !selection.IsOwnedSelection) return;
+                    
                     // 건설 메뉴 상태로 진입 (아직 건물 선택 안 함)
                     userState.CurrentState = UserContext.BuildMenu;
-                    // Debug.Log("Build Menu Opened");
                 }
             }
             // 2. 건설 메뉴 상태일 때 (Q/W로 건물 선택)

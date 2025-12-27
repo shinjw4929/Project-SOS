@@ -78,6 +78,9 @@ public class CommandUIController : MonoBehaviour
 
     private void OnBuildButtonClicked()
     {
+        // 건설 가능 유닛 선택 여부 재확인 (UI 버그 방지)
+        if (!CanShowBuildButton()) return;
+
         if (_userStateQuery.IsEmptyIgnoreFilter) return;
         if (_selectionStateQuery.IsEmptyIgnoreFilter) return;
 
@@ -150,8 +153,8 @@ public class CommandUIController : MonoBehaviour
 
         var selection = _currentSelectionQuery.GetSingleton<CurrentSelection>();
 
-        // 선택 없거나, 내 소유가 아니면 false
-        if (selection.SelectedCount == 0 || !selection.IsOwnedSelection) return false;
+        // 정확히 1개만 선택, 내 소유여야 함 (다중 선택 시 건설 명령 중복 방지)
+        if (selection.SelectedCount != 1 || !selection.IsOwnedSelection) return false;
 
         // 건설 가능 유닛이 있어야 함
         return selection.HasBuilder;
