@@ -6,7 +6,7 @@ using Shared;
 
 namespace Client
 {
-    /// <summary>
+/// <summary>
     /// 마우스 입력 → SelectionState 업데이트
     /// - Phase 기반 상태 머신
     /// - 드래그 임계값(5px) 기준으로 클릭/드래그 구분
@@ -22,7 +22,7 @@ namespace Client
             state.RequireForUpdate<NetworkStreamInGame>();
             state.RequireForUpdate<UserState>();
 
-            // 싱글톤 생성 (통합된 SelectionState)
+            // 싱글톤 생성 [SelectionState]
             var entity = state.EntityManager.CreateEntity();
             state.EntityManager.AddComponentData(entity, new SelectionState
             {
@@ -31,7 +31,7 @@ namespace Client
                 CurrentScreenPos = float2.zero
             });
 
-            // CurrentSelection 싱글톤도 생성
+            // 싱글톤 생성 [CurrentSelection]
             var selectionEntity = state.EntityManager.CreateEntity();
             state.EntityManager.AddComponentData(selectionEntity, new CurrentSelection());
         }
@@ -95,7 +95,6 @@ namespace Client
                 case SelectionPhase.PendingClick:
                 case SelectionPhase.PendingBox:
                     // EntitySelectionSystem에서 처리 후 Idle로 복귀
-                    // (여기서는 아무것도 하지 않음)
                     break;
             }
         }

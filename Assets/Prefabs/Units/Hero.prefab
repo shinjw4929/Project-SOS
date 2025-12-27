@@ -12,12 +12,12 @@ GameObject:
   - component: {fileID: 2566047443692799167}
   - component: {fileID: 5993142842393927599}
   - component: {fileID: 4735641690498300850}
-  - component: {fileID: 144182510915702866}
-  - component: {fileID: 3591145102254405203}
   - component: {fileID: -7965124567252083613}
   - component: {fileID: -1956919634800290057}
-  - component: {fileID: 273674340279548180}
   - component: {fileID: 2142624865458360963}
+  - component: {fileID: 144182510915702866}
+  - component: {fileID: 3591145102254405203}
+  - component: {fileID: 273674340279548180}
   m_Layer: 7
   m_Name: Hero
   m_TagString: Untagged
@@ -116,6 +116,53 @@ CapsuleCollider:
   m_Height: 2
   m_Direction: 1
   m_Center: {x: 0, y: 0, z: 0}
+--- !u!114 &-7965124567252083613
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4751367205981193261}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c2e7876e32d2ec0408790590305e4439, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+--- !u!114 &-1956919634800290057
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4751367205981193261}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a71c64b884ae6f64c963a8a8ad5f364d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+--- !u!114 &2142624865458360963
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4751367205981193261}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 63dc6ce2a0603a64892e7dfc66a30c36, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  unitType: 0
+  cost: 25
+  populationCost: 1
+  trainingTime: 5
+  moveSpeed: 25
+  reach: 1
+  maxHealth: 100
+  defense: 0
+  visionRange: 10
+  attackPower: 1
+  attackSpeed: 1
 --- !u!114 &144182510915702866
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -154,30 +201,6 @@ MonoBehaviour:
   UseSingleBaseline: 0
   RollbackPredictedSpawnedGhostState: 0
   RollbackPredictionOnStructuralChanges: 1
---- !u!114 &-7965124567252083613
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4751367205981193261}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c2e7876e32d2ec0408790590305e4439, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
---- !u!114 &-1956919634800290057
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4751367205981193261}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: a71c64b884ae6f64c963a8a8ad5f364d, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
 --- !u!54 &273674340279548180
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -205,26 +228,3 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 0
   m_CollisionDetection: 0
---- !u!114 &2142624865458360963
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4751367205981193261}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 63dc6ce2a0603a64892e7dfc66a30c36, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  unitType: 0
-  cost: 25
-  populationCost: 1
-  trainingTime: 5
-  moveSpeed: 25
-  reach: 1
-  maxHealth: 100
-  defense: 0
-  visionRange: 10
-  attackPower: 1
-  attackSpeed: 1

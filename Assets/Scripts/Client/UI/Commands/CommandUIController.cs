@@ -70,6 +70,11 @@ public class CommandUIController : MonoBehaviour
                 HideAllPanels();
                 break;
 
+            case UserContext.StructureMenu:
+                // 건물 명령 메뉴 상태에서는 Build 관련 패널 숨김
+                HideAllPanels();
+                break;
+
             default:
                 HideAllPanels();
                 break;

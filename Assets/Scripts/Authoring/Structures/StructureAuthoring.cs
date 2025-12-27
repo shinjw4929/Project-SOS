@@ -1,8 +1,9 @@
+using System.Collections.Generic;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Rendering;
 using UnityEngine;
-using Shared; // Shared.Data.Components...
+using Shared;
 
 namespace Authoring
 {
@@ -40,6 +41,14 @@ namespace Authoring
         public float attackRange = 0.0f;
         public float attackSpeed = 0.0f;
 
+        [Header("Self-Destruct (Wall Only)")]
+        public float explosionRadius = 3.0f;
+        public float explosionDamage = 100.0f;
+        public float explosionDelay = 0.5f;
+
+        [Header("Production (Barracks Only)")]
+        public List<GameObject> producibleUnitPrefabs;
+
         public class Baker : Baker<StructureAuthoring>
         {
             public override void Bake(StructureAuthoring authoring)
@@ -56,17 +65,46 @@ namespace Authoring
                 {
                     case AuthoringStructureType.Wall:
                         AddComponent(entity, new WallTag());
+                        // 벽은 자폭 기능이 있음
+                        AddComponent(entity, new ExplosionData
+                        {
+                            Radius = authoring.explosionRadius,
+                            Damage = authoring.explosionDamage,
+                            Delay = authoring.explosionDelay
+                        });
+                        // 자폭 상태 (RemainingTime < 0이면 자폭 대기 아님)
+                        AddComponent(entity, new SelfDestructTag
+                        {
+                            RemainingTime = -1f
+                        });
                         break;
                     case AuthoringStructureType.Barracks:
                         AddComponent(entity, new BarracksTag());
                         // 배럭은 생산 대기열이 필요함
                         AddComponent(entity, new ProductionQueue
                         {
-                            ProducingPrefab = Entity.Null,
+                            ProducingUnitIndex = -1,
                             Progress = 0,
                             Duration = 0,
                             IsActive = false
                         });
+                        // 생산 가능 유닛 목록
+                        var unitBuffer = AddBuffer<ProducibleUnitElement>(entity);
+                        if (authoring.producibleUnitPrefabs != null)
+                        {
+                            for (int i = 0; i < authoring.producibleUnitPrefabs.Count; i++)
+                            {
+                                var prefab = authoring.producibleUnitPrefabs[i];
+                                if (prefab != null)
+                                {
+                                    unitBuffer.Add(new ProducibleUnitElement
+                                    {
+                                        PrefabEntity = GetEntity(prefab, TransformUsageFlags.Dynamic),
+                                        PrefabIndex = i
+                                    });
+                                }
+                            }
+                        }
                         break;
                     case AuthoringStructureType.Turret:
                         AddComponent(entity, new TurretTag());

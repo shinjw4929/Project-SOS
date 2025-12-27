@@ -5,7 +5,7 @@ using TMPro;
 using Shared;
 using Client;
 
-public class UnitInfoUIRenderer : MonoBehaviour
+public class EntityInfoUIRenderer : MonoBehaviour
 {
     [Header("UI References")]
     [SerializeField] private GameObject panelRoot;

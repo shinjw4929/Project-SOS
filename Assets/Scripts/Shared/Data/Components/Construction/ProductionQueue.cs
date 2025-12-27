@@ -6,10 +6,12 @@ namespace Shared
     [GhostComponent]
     public struct ProductionQueue : IComponentData
     {
-        // [핵심] Enum 대신, 생산하려는 "원본 프리팹 엔티티"를 저장합니다.
-        // Netcode는 GhostPrefab으로 등록된 엔티티의 동기화를 지원합니다.
-        [GhostField] public Entity ProducingPrefab; 
-        
+        /// <summary>
+        /// 생산 중인 유닛의 인덱스 (ProducibleUnitElement 버퍼 내)
+        /// Entity를 직접 저장하면 서버/클라이언트 간 ID 불일치 발생
+        /// </summary>
+        [GhostField] public int ProducingUnitIndex;
+
         [GhostField] public float Progress;
         [GhostField] public float Duration;
         [GhostField] public bool IsActive;
