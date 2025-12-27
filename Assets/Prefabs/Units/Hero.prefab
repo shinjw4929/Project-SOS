@@ -218,13 +218,13 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   unitType: 0
-  cost: 100
+  cost: 25
   populationCost: 1
   trainingTime: 5
   moveSpeed: 25
   reach: 1
   maxHealth: 100
   defense: 0
-  visionRange: 12
+  visionRange: 10
   attackPower: 1
   attackSpeed: 1

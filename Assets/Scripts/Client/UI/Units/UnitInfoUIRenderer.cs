@@ -30,15 +30,15 @@ public class UnitInfoUIRenderer : MonoBehaviour
             return;
         }
 
-        var currentSelection = _currentSelectionQuery.GetSingleton<CurrentSelectedUnit>();
+        var currentSelection = _currentSelectionQuery.GetSingleton<CurrentSelection>();
 
-        if (!currentSelection.HasSelection)
+        if (currentSelection.SelectedCount == 0)
         {
             HidePanel();
             return;
         }
 
-        Entity selectedEntity = currentSelection.SelectedEntity;
+        Entity selectedEntity = currentSelection.PrimaryEntity;
 
         if (!_clientEntityManager.Exists(selectedEntity))
         {
@@ -90,7 +90,7 @@ public class UnitInfoUIRenderer : MonoBehaviour
             {
                 _clientWorld = world;
                 _clientEntityManager = world.EntityManager;
-                _currentSelectionQuery = _clientEntityManager.CreateEntityQuery(typeof(CurrentSelectedUnit));
+                _currentSelectionQuery = _clientEntityManager.CreateEntityQuery(typeof(CurrentSelection));
                 _networkIdQuery = _clientEntityManager.CreateEntityQuery(typeof(NetworkId));
                 return true;
             }
