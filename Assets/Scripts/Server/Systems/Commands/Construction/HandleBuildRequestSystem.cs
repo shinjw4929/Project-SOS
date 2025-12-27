@@ -3,6 +3,7 @@ using Unity.Collections;
 using Unity.NetCode;
 using Unity.Transforms;
 using Unity.Mathematics;
+using Unity.Physics;
 using Shared; // StructureFootprint, GridSettings, StructureTag, GridPosition 등
 
 namespace Server
@@ -21,8 +22,8 @@ namespace Server
         {
             _singletonWarningLogged = false;
             state.RequireForUpdate<GridSettings>();
-            // [추가] 서버의 프리팹 리스트(버퍼)가 반드시 필요합니다.
             state.RequireForUpdate<StructureEntitiesReferences>();
+            state.RequireForUpdate<PhysicsWorldSingleton>();
         }
 
         public void OnUpdate(ref SystemState state)
@@ -135,8 +136,15 @@ namespace Server
                 }
             }
 
-            // 6. [검증] 유닛 충돌
-            if (CheckUnitCollision(ref state, rpc.GridPosition.x, rpc.GridPosition.y, width, length, gridSettings))
+            // 6. [검증] 유닛 충돌 (Physics OverlapAabb)
+            var physicsWorld = SystemAPI.GetSingleton<PhysicsWorldSingleton>();
+            float3 buildingCenter = GridUtility.GridToWorld(rpc.GridPosition.x, rpc.GridPosition.y, width, length, gridSettings);
+            float3 halfExtents = new float3(
+                width * gridSettings.CellSize * 0.5f,
+                1f,
+                length * gridSettings.CellSize * 0.5f
+            );
+            if (CheckUnitCollisionPhysics(physicsWorld, buildingCenter, halfExtents))
             {
                 UnityEngine.Debug.Log("[Server] Build failed: Unit Collision");
                 ecb.DestroyEntity(rpcEntity);
@@ -203,24 +211,29 @@ namespace Server
             }
         }
         
-        private bool CheckUnitCollision(ref SystemState state, int gridX, int gridY, int width, int length, GridSettings gridSettings)
+        private bool CheckUnitCollisionPhysics(PhysicsWorldSingleton physicsWorld, float3 center, float3 halfExtents)
         {
-            float3 center = GridUtility.GridToWorld(gridX, gridY, width, length, gridSettings);
-            float halfWidth = width * gridSettings.CellSize / 2f;
-            float halfLength = length * gridSettings.CellSize / 2f;
-
-            // UnitTag가 있는 유닛만 충돌 체크
-            foreach (var (transform, _) in SystemAPI.Query<RefRO<LocalTransform>, RefRO<UnitTag>>())
+            // Structure(6) → Unit(7) + Enemy(8) 충돌 체크
+            var input = new OverlapAabbInput
             {
-                float3 unitPos = transform.ValueRO.Position;
-
-                if (unitPos.x >= center.x - halfWidth && unitPos.x <= center.x + halfWidth &&
-                    unitPos.z >= center.z - halfLength && unitPos.z <= center.z + halfLength)
+                Aabb = new Aabb
                 {
-                    return true;
+                    Min = center - halfExtents,
+                    Max = center + halfExtents
+                },
+                Filter = new CollisionFilter
+                {
+                    BelongsTo = 1u << 6,                      // Structure
+                    CollidesWith = (1u << 7) | (1u << 8),    // Unit + Enemy
+                    GroupIndex = 0
                 }
-            }
-            return false;
+            };
+
+            var hits = new NativeList<int>(Allocator.Temp);
+            bool hasCollision = physicsWorld.OverlapAabb(input, ref hits);
+            hits.Dispose();
+
+            return hasCollision;
         }
     }
 }

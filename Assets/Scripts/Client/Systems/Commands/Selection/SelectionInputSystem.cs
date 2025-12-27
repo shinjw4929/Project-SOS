@@ -15,7 +15,7 @@ namespace Client
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
     partial struct SelectionInputSystem : ISystem
     {
-        private const float DRAG_THRESHOLD = 5f;
+        private const float DragThreshold = 5f;
 
         public void OnCreate(ref SystemState state)
         {
@@ -74,7 +74,7 @@ namespace Client
                         selectionState.CurrentScreenPos = mousePos;
                         float dragDistance = math.length(mousePos - selectionState.StartScreenPos);
 
-                        if (dragDistance >= DRAG_THRESHOLD)
+                        if (dragDistance >= DragThreshold)
                         {
                             // 드래그 임계값 초과 → Dragging 상태로
                             selectionState.Phase = SelectionPhase.Dragging;
