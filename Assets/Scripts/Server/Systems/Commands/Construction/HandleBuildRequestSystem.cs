@@ -22,18 +22,18 @@ namespace Server
         {
             _singletonWarningLogged = false;
             state.RequireForUpdate<GridSettings>();
-            state.RequireForUpdate<StructureEntitiesReferences>();
+            state.RequireForUpdate<StructureCatalog>();
             state.RequireForUpdate<PhysicsWorldSingleton>();
         }
 
         public void OnUpdate(ref SystemState state)
         {
             // 필수 싱글톤 검증
-            if (!SystemAPI.HasSingleton<GridSettings>() || !SystemAPI.HasSingleton<StructureEntitiesReferences>())
+            if (!SystemAPI.HasSingleton<GridSettings>() || !SystemAPI.HasSingleton<StructureCatalog>())
             {
                 if (!_singletonWarningLogged)
                 {
-                    UnityEngine.Debug.LogWarning("[HandleBuildRequestSystem] GridSettings or StructureEntitiesReferences singleton not found.");
+                    UnityEngine.Debug.LogWarning("[HandleBuildRequestSystem] GridSettings or StructureCatalog singleton not found.");
                     _singletonWarningLogged = true;
                 }
                 ConsumeAndDestroyRpcs(ref state);
@@ -42,9 +42,9 @@ namespace Server
 
             var gridSettings = SystemAPI.GetSingleton<GridSettings>();
             
-            // [추가] 프리팹 버퍼 가져오기
-            var refsEntity = SystemAPI.GetSingletonEntity<StructureEntitiesReferences>();
-            var prefabBuffer = SystemAPI.GetBuffer<StructurePrefabElement>(refsEntity);
+            // 프리팹 버퍼 가져오기
+            var refsEntity = SystemAPI.GetSingletonEntity<StructureCatalog>();
+            var prefabBuffer = SystemAPI.GetBuffer<StructureCatalogElement>(refsEntity);
             
             var ecb = new EntityCommandBuffer(Allocator.Temp);
 
@@ -83,7 +83,7 @@ namespace Server
             RefRO<ReceiveRpcCommandRequest> rpcReceive,
             Entity rpcEntity,
             GridSettings gridSettings,
-            DynamicBuffer<StructurePrefabElement> prefabBuffer) // [인자 추가]
+            DynamicBuffer<StructureCatalogElement> prefabBuffer) // [인자 추가]
         {
             var rpc = state.EntityManager.GetComponentData<BuildRequestRpc>(rpcEntity);
             

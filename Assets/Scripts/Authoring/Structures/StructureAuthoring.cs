@@ -1,84 +1,171 @@
+using System.Collections.Generic;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Rendering;
 using UnityEngine;
-using Shared; // Shared.Data.Components...
+using Shared;
 
 namespace Authoring
 {
     public class StructureAuthoring : MonoBehaviour
     {
-        // 인스펙터에서 건물 종류를 고르기 위한 "베이킹 전용" Enum
-        // (실제 ECS 로직에서는 이 Enum을 쓰지 않고 태그를 씁니다)
+        // 인스펙터용 Enum (ECS 로직에는 안 들어가고, 베이킹 분기용으로만 사용)
         public enum AuthoringStructureType
         {
-            Wall,           // 단순 벽
-            Barracks,       // 유닛 생산
+            Wall,           // 벽
+            Barracks,       // 공격 유닛 생산
             Turret,         // 공격 타워
-            ResourceCenter  // 자원 반납
+            ResourceCenter  // 자원 반납, 일꾼 유닛 생산
         }
-
+        
         [Header("Identity")]
         public AuthoringStructureType structureType = AuthoringStructureType.Wall;
 
+        [Header("Unit Production Settings")]
+        public List<GameObject> producibleUnits; // 이 건물이 생산할 수 있는 유닛 프리팹 목록
+        
         [Header("Grid Size")]
         [Min(1)] public int width = 1;
         [Min(1)] public int length = 1;
         public float height = 1;
         
-        [Header("Production Info (Prefab Data)")]
+        [Header("Build Info (Cost & Time)")]
         public int cost = 100;
         public float buildTime = 10.0f;
-
+        
         [Header("Base Stats")]
         public float maxHealth = 500.0f;
         public float defense = 1.0f;
         public float visionRange = 10.0f;
-
+        
         [Header("Combat Stats (Turret Only)")]
         public float attackDamage = 0.0f;
         public float attackRange = 0.0f;
         public float attackSpeed = 0.0f;
-
+        
+        [Header("Self-Destruct")]
+        public float explosionRadius = 3.0f;
+        public float explosionDamage = 100.0f;
+        public float explosionDelay = 0.5f;
+        
         public class Baker : Baker<StructureAuthoring>
         {
             public override void Bake(StructureAuthoring authoring)
             {
-                // 건물도 파괴되거나, 건설 중 애니메이션, 네트워킹을 위해 Dynamic 권장
                 Entity entity = GetEntity(TransformUsageFlags.Dynamic);
 
                 // =======================================================================
-                // 1. [정체성] 태그 부착 (Enum 대신 태그 사용)
+                // 1. [정체성] 태그 및 역할 플래그 설정
                 // =======================================================================
-                AddComponent(entity, new StructureTag()); // "나는 건물이다" (공통)
+                AddComponent(entity, new StructureTag());
+                AddComponent(entity, new Team { teamId = 0 });
 
+                // 역할 플래그 (베이킹 로직 분기용)
+                bool canProduce  = false;
+                bool canAttack      = false;
+                bool canExplode     = false;
+                
                 switch (authoring.structureType)
                 {
                     case AuthoringStructureType.Wall:
                         AddComponent(entity, new WallTag());
+                        canExplode = true; 
                         break;
+                        
                     case AuthoringStructureType.Barracks:
-                        AddComponent(entity, new BarracksTag());
-                        // 배럭은 생산 대기열이 필요함
-                        AddComponent(entity, new ProductionQueue
-                        {
-                            ProducingPrefab = Entity.Null,
-                            Progress = 0,
-                            Duration = 0,
-                            IsActive = false
-                        });
+                        AddComponent(entity, new ProductionFacilityTag());
+                        canProduce = true;
                         break;
+                        
                     case AuthoringStructureType.Turret:
                         AddComponent(entity, new TurretTag());
+                        canAttack = true;
                         break;
+                        
                     case AuthoringStructureType.ResourceCenter:
-                        AddComponent(entity, new ResourceCenterTag());
+                        AddComponent(entity, new ProductionFacilityTag());
+                        canProduce = true;
                         break;
                 }
 
                 // =======================================================================
-                // 2. [맵/위치] 그리드 정보
+                // 2. [기능] 조건부 컴포넌트 부착 (옵션)
                 // =======================================================================
+                
+                // A. 유닛 생산 능력 (Barracks)
+                if (canProduce)
+                {
+                    // 생산 큐 상태
+                    AddComponent(entity, new ProductionQueue
+                    {
+                        ProducingUnitIndex = -1,
+                        Progress = 0,
+                        Duration = 0,
+                        IsActive = false
+                    });
+
+                    // 생산 목록 버퍼 생성 (ProductionOption)
+                    if (authoring.producibleUnits != null && authoring.producibleUnits.Count > 0)
+                    {
+                        var buffer = AddBuffer<AvailableUnit>(entity);
+                        foreach (var unitObj in authoring.producibleUnits)
+                        {
+                            if (unitObj == null) continue;
+                            
+                            buffer.Add(new AvailableUnit
+                            {
+                                PrefabEntity = GetEntity(unitObj, TransformUsageFlags.Dynamic)
+                            });
+                        }
+                    }
+                }
+                
+                // B. 전투 능력 (Turret)
+                if (canAttack)
+                {
+                    if (authoring.attackDamage > 0)
+                    {
+                        AddComponent(entity, new CombatStatus
+                        {
+                            AttackPower = authoring.attackDamage,
+                            AttackSpeed = authoring.attackSpeed
+                        });
+                        
+                        AddComponent(entity, new Reach
+                        {
+                            Value = authoring.attackRange,
+                        });
+                        
+                        AddComponent(entity, new Target
+                        {
+                            TargetEntity = Entity.Null,
+                        });
+                        
+                        // 발사체 발사 기능이 필요하다면 추가
+                        AddComponent<ProjectileFireInput>(entity);
+                    }
+                }
+
+                // C. 자폭 능력 (Wall)
+                if (canExplode)
+                {
+                    AddComponent(entity, new ExplosionData
+                    {
+                        Radius = authoring.explosionRadius,
+                        Damage = authoring.explosionDamage,
+                        Delay = authoring.explosionDelay
+                    });
+                    
+                    AddComponent(entity, new SelfDestructTag
+                    {
+                        RemainingTime = -1f // 대기 상태
+                    });
+                }
+                
+                // =======================================================================
+                // 3. [기본 스탯] 공통 데이터
+                // =======================================================================
+                
                 // 크기 (풋프린트)
                 AddComponent(entity, new StructureFootprint
                 {
@@ -87,20 +174,14 @@ namespace Authoring
                     Height = authoring.height
                 });
                 
-                // 설치될 그리드 좌표
-                AddComponent(entity, new GridPosition
-                {
-                    Position = int2.zero,
-                });
+                // 그리드 위치
+                AddComponent(entity, new GridPosition { Position = int2.zero });
 
-                // =======================================================================
-                // 3. [생산 정보] 건설 비용 및 시간 (Prefab Data)
-                // =======================================================================
-                // 유닛과 동일한 ProductionCost 사용 (통합됨)
+                // 건설 비용 및 시간
                 AddComponent(entity, new ProductionCost
                 {
                     Cost = authoring.cost,
-                    PopulationCost = 0
+                    PopulationCost = 0 // 건물은 인구수 소모 없음
                 });
 
                 // 건설 소요 시간
@@ -108,10 +189,7 @@ namespace Authoring
                 {
                     ProductionTime = authoring.buildTime
                 });
-
-                // =======================================================================
-                // 4. [기본 스탯] 초기값 주입
-                // =======================================================================
+                
                 // 체력
                 AddComponent(entity, new Health
                 {
@@ -131,45 +209,15 @@ namespace Authoring
                     Value = authoring.visionRange
                 });
                 
-                // 건물은 MovementSpeed를 붙이지 않음 (움직이지 않으므로)
-
                 // =======================================================================
-                // 5. [전투] 공격 타워인 경우
+                // 4. [상태 및 렌더링]
                 // =======================================================================
-                if (authoring.structureType == AuthoringStructureType.Turret)
-                {
-                    
-                    AddComponent(entity, new CombatStatus
-                    {
-                        AttackPower= authoring.attackDamage,
-                        AttackSpeed = authoring.attackSpeed
-                    });
-                    
-                    AddComponent(entity, new Reach
-                    {
-                        Value = authoring.attackRange,
-                    });
-                    
-                    AddComponent(entity, new Target
-                    {
-                        TargetEntity = Entity.Null,
-                    });
-                }
-
-                // =======================================================================
-                // 6. [상태] 상태 머신 및 팀 정보
-                // =======================================================================
-                // 상태 동기화용 (Idle, Constructing, Destroyed 등)
-                // 프리팹은 기본적으로 '완성품' 기준인 Idle로 둡니다.
-                // * 실제 건설 시스템이 Instantiate 할 때 UnderConstruction 태그를 붙입니다.
+                // 건물 상태 (Idle, Constructing, Destroyed 등)
                 AddComponent(entity, new StructureState
                 {
                     CurrentState = StructureContext.Idle
                 });
-
-                // 팀 ID
-                AddComponent(entity, new Team { teamId = 0 });
-
+                
                 // 팀 컬러링
                 AddComponent(entity, new URPMaterialPropertyBaseColor 
                 { 

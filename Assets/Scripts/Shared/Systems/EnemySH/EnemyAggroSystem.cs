@@ -10,7 +10,7 @@ namespace Shared.Systems
     {
         public void OnUpdate(ref SystemState state)
         {
-            // ÇÃ·¹ÀÌ¾î(Hero) Äõ¸®
+            // í”Œë ˆì´ì–´(Hero) ì¿¼ë¦¬
             var heroQuery = SystemAPI.QueryBuilder()
                 .WithAll<HeroTag, LocalTransform, Team>()
                 .Build();
@@ -24,7 +24,7 @@ namespace Shared.Systems
             var heroTeams =
                 heroQuery.ToComponentDataArray<Team>(state.WorldUpdateAllocator);
 
-            // ¸ğµç Enemy ¼øÈ¸
+            // ëª¨ë“  Enemy ìˆœíšŒ
             foreach (var (enemyTransform, target, enemyTeam)
                      in SystemAPI.Query<
                          RefRO<LocalTransform>,
@@ -36,7 +36,7 @@ namespace Shared.Systems
 
                 for (int i = 0; i < heroes.Length; i++)
                 {
-                    // °°Àº ÆÀ Á¦¿Ü
+                    // ê°™ì€ íŒ€ ì œì™¸
                     if (heroTeams[i].teamId == enemyTeam.ValueRO.teamId)
                         continue;
 

@@ -25,7 +25,7 @@ public partial struct EnemySpawnerSystem : ISystem
 
         state.EntityManager.SetComponentData(enemy, new LocalTransform
         {
-            Position = new float3(0, 0, 0),
+            Position = new float3(0, 0.5f, 0),
             Rotation = quaternion.identity,
             Scale = 1f
         });
