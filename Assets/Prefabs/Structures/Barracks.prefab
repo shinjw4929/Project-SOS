@@ -165,6 +165,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   structureType: 1
+  producibleUnits:
+  - {fileID: 5905964026690146530, guid: 0e27e05ade413924eafedc9d64c33da1, type: 3}
+  - {fileID: 4751367205981193261, guid: 047b80508dffac04ab41dd3cad0eead3, type: 3}
   width: 3
   length: 3
   height: 3
@@ -179,8 +182,6 @@ MonoBehaviour:
   explosionRadius: 3
   explosionDamage: 100
   explosionDelay: 0.5
-  producibleUnitPrefabs:
-  - {fileID: 5905964026690146530, guid: 0e27e05ade413924eafedc9d64c33da1, type: 3}
 --- !u!114 &5410318307187832568
 MonoBehaviour:
   m_ObjectHideFlags: 0

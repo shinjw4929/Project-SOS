@@ -18,17 +18,22 @@ namespace Server
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<EndSimulationEntityCommandBufferSystem.Singleton>();
+            state.RequireForUpdate<UnitCatalog>();
         }
 
         public void OnUpdate(ref SystemState state)
         {
+            // 전역 유닛 카탈로그 가져오기
+            var catalogEntity = SystemAPI.GetSingletonEntity<UnitCatalog>();
+            var unitCatalogBuffer = SystemAPI.GetBuffer<UnitCatalogElement>(catalogEntity);
+
             float deltaTime = SystemAPI.Time.DeltaTime;
             var ecb = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>()
                 .CreateCommandBuffer(state.WorldUnmanaged);
 
-            foreach (var (productionQueue, unitBuffer, transform, owner, entity) in
-                SystemAPI.Query<RefRW<ProductionQueue>, DynamicBuffer<UnitCatalogElement>, RefRO<LocalTransform>, RefRO<GhostOwner>>()
-                .WithAll<BarracksTag>()
+            foreach (var (productionQueue, transform, owner, entity) in
+                SystemAPI.Query<RefRW<ProductionQueue>, RefRO<LocalTransform>, RefRO<GhostOwner>>()
+                .WithAll<ProductionFacilityTag>()
                 .WithEntityAccess())
             {
                 if (!productionQueue.ValueRO.IsActive) continue;
@@ -41,12 +46,12 @@ namespace Server
                 {
                     int unitIndex = productionQueue.ValueRO.ProducingUnitIndex;
 
-                    // 인덱스로 프리팹 조회
-                    if (unitIndex >= 0 && unitIndex < unitBuffer.Length)
+                    // 전역 카탈로그에서 인덱스로 프리팹 조회
+                    if (unitIndex >= 0 && unitIndex < unitCatalogBuffer.Length)
                     {
-                        Entity prefab = unitBuffer[unitIndex].PrefabEntity;
+                        Entity prefab = unitCatalogBuffer[unitIndex].PrefabEntity;
 
-                        UnityEngine.Debug.Log($"[ProductionProgress] UnitIndex: {unitIndex}, BufferLength: {unitBuffer.Length}, Prefab: {prefab}");
+                        UnityEngine.Debug.Log($"[ProductionProgress] UnitIndex: {unitIndex}, BufferLength: {unitCatalogBuffer.Length}, Prefab: {prefab}");
 
                         // 프리팹 유효성 검사
                         if (prefab == Entity.Null)

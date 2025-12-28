@@ -2,12 +2,13 @@ using NUnit.Framework;
 using Unity.Entities;
 using Unity.NetCode;
 using Shared;
+using Client;
 
 namespace Client
 {
     /// <summary>
     /// 선택 상태 계산 시스템
-    /// - Selected 엔티티 순회 → CurrentSelection 싱글톤 업데이트
+    /// - Selected 엔티티 순회 → CurrentSelectionState 싱글톤 업데이트
     /// - UI 표시 및 건설모드 진입 조건 체크에 사용
     /// </summary>
     [UpdateInGroup(typeof(GhostInputSystemGroup))]
@@ -18,7 +19,7 @@ namespace Client
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<NetworkStreamInGame>();
-            state.RequireForUpdate<CurrentSelection>();
+            state.RequireForUpdate<CurrentSelectionState>();
             state.RequireForUpdate<NetworkId>();
         }
 
@@ -27,14 +28,13 @@ namespace Client
             if (!SystemAPI.TryGetSingleton<NetworkId>(out var myNetworkId)) return;
             int myTeamId = myNetworkId.Value;
 
-            ref var currentSelection = ref SystemAPI.GetSingletonRW<CurrentSelection>().ValueRW;
+            ref var CurrentSelectionState = ref SystemAPI.GetSingletonRW<CurrentSelectionState>().ValueRW;
 
             // 초기화
-            currentSelection.PrimaryEntity = Entity.Null;
-            currentSelection.SelectedCount = 0;
-            currentSelection.Category = SelectionCategory.None;
-            currentSelection.HasBuilder = false;
-            currentSelection.IsOwnedSelection = true;
+            CurrentSelectionState.PrimaryEntity = Entity.Null;
+            CurrentSelectionState.SelectedCount = 0;
+            CurrentSelectionState.Category = SelectionCategory.None;
+            CurrentSelectionState.IsOwnedSelection = true;
 
             bool hasUnits = false;
             bool hasStructures = false;
@@ -47,12 +47,12 @@ namespace Client
                 // Selected 컴포넌트가 비활성화된 경우 스킵
                 if (!state.EntityManager.IsComponentEnabled<Selected>(entity)) continue;
 
-                currentSelection.SelectedCount++;
+                CurrentSelectionState.SelectedCount++;
 
                 // 첫 번째 엔티티를 대표로 저장
                 if (isFirst)
                 {
-                    currentSelection.PrimaryEntity = entity;
+                    CurrentSelectionState.PrimaryEntity = entity;
                     isFirst = false;
                 }
 
@@ -60,11 +60,6 @@ namespace Client
                 if (state.EntityManager.HasComponent<UnitTag>(entity))
                 {
                     hasUnits = true;
-                    // 건설 가능 유닛인지 체크 (BuilderTag가 있다면)                                                              
-                    if (state.EntityManager.HasComponent<BuilderTag>(entity))                                                     
-                    {                                                                                                             
-                        currentSelection.HasBuilder = true;                                                                       
-                    }  
                 }
 
                 if (state.EntityManager.HasComponent<StructureTag>(entity))
@@ -78,7 +73,7 @@ namespace Client
                     var team = state.EntityManager.GetComponentData<Team>(entity);
                     if (team.teamId != myTeamId)
                     {
-                        currentSelection.IsOwnedSelection = false;
+                        CurrentSelectionState.IsOwnedSelection = false;
                     }
                 }
             }
@@ -90,16 +85,16 @@ namespace Client
             }
             else if (hasUnits)
             {
-                currentSelection.Category = SelectionCategory.Units;
+                CurrentSelectionState.Category = SelectionCategory.Units;
             }
             else if (hasStructures)
             {
-                currentSelection.Category = SelectionCategory.Structure;
+                CurrentSelectionState.Category = SelectionCategory.Structure;
             }
             else
             {
-                currentSelection.Category = SelectionCategory.None;
-                currentSelection.IsOwnedSelection = false;
+                CurrentSelectionState.Category = SelectionCategory.None;
+                CurrentSelectionState.IsOwnedSelection = false;
             }
         }
     }

@@ -8,25 +8,25 @@ public class ProjectileAuthoring : MonoBehaviour
         public override void Bake(ProjectileAuthoring authoring)
         {
             /*
-             * Projectile ÇÁ¸®ÆÕÀº ½ÇÁ¦·Î ¿òÁ÷ÀÌ¸ç È­¸é¿¡ ·»´õµÇ¾î¾ß ÇÏ¹Ç·Î
-             * Dynamic + Renderable ÇÃ·¡±×¸¦ ÇÔ²² »ç¿ëÇÕ´Ï´Ù.
+             * Projectile í”„ë¦¬íŒ¹ì€ ì‹¤ì œë¡œ ì›€ì§ì´ë©° í™”ë©´ì— ë Œë”ë˜ì–´ì•¼ í•˜ë¯€ë¡œ
+             * Dynamic + Renderable í”Œë˜ê·¸ë¥¼ í•¨ê»˜ ì‚¬ìš©í•©ë‹ˆë‹¤.
              *
-             * RenderableÀ» ¾È ³ÖÀ¸¸é Entities Graphics°¡ ·»´õ µ¥ÀÌÅÍ¸¦ º£ÀÌÅ·ÇÏÁö ¾Ê¾Æ
-             * ¿£Æ¼Æ¼´Â ¿òÁ÷ÀÌ´Âµ¥ È­¸é¿¡´Â ¾È º¸ÀÌ´Â »óÅÂ°¡ ¹ß»ıÇÒ ¼ö ÀÖ½À´Ï´Ù.
+             * Renderableì„ ì•ˆ ë„£ìœ¼ë©´ Entities Graphicsê°€ ë Œë” ë°ì´í„°ë¥¼ ë² ì´í‚¹í•˜ì§€ ì•Šì•„
+             * ì—”í‹°í‹°ëŠ” ì›€ì§ì´ëŠ”ë° í™”ë©´ì—ëŠ” ì•ˆ ë³´ì´ëŠ” ìƒíƒœê°€ ë°œìƒí•  ìˆ˜ ìˆìŠµë‹ˆë‹¤.
              */
             Entity entity = GetEntity(TransformUsageFlags.Dynamic | TransformUsageFlags.Renderable);
 
             /*
-             * ¹ß»çÃ¼ ±âº» ÄÄÆ÷³ÍÆ®
-             * ProjectileMove´Â ÀÌµ¿ ½Ã½ºÅÛÀÌ ÀĞ¾î¼­ LocalTransformÀ» °»½ÅÇÕ´Ï´Ù.
+             * ë°œì‚¬ì²´ ê¸°ë³¸ ì»´í¬ë„ŒíŠ¸
+             * ProjectileMoveëŠ” ì´ë™ ì‹œìŠ¤í…œì´ ì½ì–´ì„œ LocalTransformì„ ê°±ì‹ í•©ë‹ˆë‹¤.
              */
             AddComponent<Projectile>(entity);
             AddComponent<ProjectileMove>(entity);
 
             /*
-             * ÁÖÀÇ:
-             * ProjectilePrefabTag / ProjectilePrefabInitSystem ¹æ½ÄÀº »ç¿ëÇÏÁö ¾Ê½À´Ï´Ù.
-             * ÇÁ¸®ÆÕ ÂüÁ¶´Â ProjectilePrefabRef(ProjectilePrefabAuthoring)°¡ Singleton(ProjectilePrefab)À» Á¦°øÇÕ´Ï´Ù.
+             * ì£¼ì˜:
+             * ProjectilePrefabTag / ProjectilePrefabInitSystem ë°©ì‹ì€ ì‚¬ìš©í•˜ì§€ ì•ŠìŠµë‹ˆë‹¤.
+             * í”„ë¦¬íŒ¹ ì°¸ì¡°ëŠ” ProjectilePrefabRef(ProjectilePrefabAuthoring)ê°€ Singleton(ProjectilePrefab)ì„ ì œê³µí•©ë‹ˆë‹¤.
              */
         }
     }

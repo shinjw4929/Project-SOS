@@ -16,7 +16,7 @@ namespace Shared
         Command = 0,        // 유닛 선택 및 명령 하달 모드
         BuildMenu = 1,      // 건설 메뉴가 열린 상태 (유닛 Q)
         Construction = 2,   // 건물 배치/건설 모드
-        StructureMenu = 3,  // 건물 명령 메뉴 (건물 Q)
+        StructureActionMenu = 10,  // 건물 명령 메뉴 (건물 Q)
         Dead = 255,         // 사망 또는 게임 종료 상태 (조작 불능)
     }
 }

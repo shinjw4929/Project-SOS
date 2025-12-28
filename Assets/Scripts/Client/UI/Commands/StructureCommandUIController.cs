@@ -36,7 +36,7 @@ public class StructureCommandUIController : MonoBehaviour
 
     private World _clientWorld;
     private EntityManager _em;
-    private EntityQuery _currentSelectionQuery;
+    private EntityQuery _CurrentSelectionStateQuery;
     private EntityQuery _userStateQuery;
 
     private void Start()
@@ -53,14 +53,14 @@ public class StructureCommandUIController : MonoBehaviour
     {
         if (!TryInitClientWorld()) return;
         if (_userStateQuery.IsEmptyIgnoreFilter) return;
-        if (_currentSelectionQuery.IsEmptyIgnoreFilter)
+        if (_CurrentSelectionStateQuery.IsEmptyIgnoreFilter)
         {
             HideAllPanels();
             return;
         }
 
         var userState = _userStateQuery.GetSingleton<UserState>();
-        var selection = _currentSelectionQuery.GetSingleton<CurrentSelection>();
+        var selection = _CurrentSelectionStateQuery.GetSingleton<CurrentSelectionState>();
 
         // 건물이 아니거나 내 소유가 아니면 숨김
         if (selection.Category != SelectionCategory.Structure || !selection.IsOwnedSelection)
@@ -82,7 +82,7 @@ public class StructureCommandUIController : MonoBehaviour
             ShowCommandStateUI(primaryEntity);
         }
         // StructureMenu 상태: 건물별 명령 버튼 + 생산 진행도 (배럭인 경우)
-        else if (userState.CurrentState == UserContext.StructureMenu)
+        else if (userState.CurrentState == UserContext.StructureActionMenu)
         {
             ShowStructureMenuUI(primaryEntity);
         }
@@ -121,7 +121,7 @@ public class StructureCommandUIController : MonoBehaviour
             // 자폭 진행 중이면 슬라이더 표시
             UpdateSelfDestructProgress(primaryEntity);
         }
-        else if (_em.HasComponent<BarracksTag>(primaryEntity))
+        else if (_em.HasComponent<ProductionFacilityTag>(primaryEntity))
         {
             if (structureNameText) structureNameText.text = "Barracks";
             // 배럭이면 생산 진행도 표시
@@ -149,8 +149,8 @@ public class StructureCommandUIController : MonoBehaviour
         {
             ShowWallCommands();
         }
-        // 배럭인 경우
-        else if (_em.HasComponent<BarracksTag>(primaryEntity))
+        // 생산 시설인 경우
+        else if (_em.HasComponent<ProductionFacilityTag>(primaryEntity))
         {
             ShowBarracksCommands(primaryEntity);
         }
@@ -165,7 +165,7 @@ public class StructureCommandUIController : MonoBehaviour
         if (_userStateQuery.IsEmptyIgnoreFilter) return;
 
         ref var userState = ref _userStateQuery.GetSingletonRW<UserState>().ValueRW;
-        userState.CurrentState = UserContext.StructureMenu;
+        userState.CurrentState = UserContext.StructureActionMenu;
 
     }
 
@@ -177,7 +177,7 @@ public class StructureCommandUIController : MonoBehaviour
         if (barracksCommandsPanel) barracksCommandsPanel.SetActive(false);
 
         // 자폭 진행 중이면 슬라이더 표시 + 버튼 상태 업데이트
-        var selection = _currentSelectionQuery.GetSingleton<CurrentSelection>();
+        var selection = _CurrentSelectionStateQuery.GetSingleton<CurrentSelectionState>();
         var wallEntity = selection.PrimaryEntity;
         UpdateSelfDestructProgress(wallEntity, updateButton: true);
     }
@@ -288,9 +288,9 @@ public class StructureCommandUIController : MonoBehaviour
 
     private void OnSelfDestructClicked()
     {
-        if (_currentSelectionQuery.IsEmptyIgnoreFilter) return;
+        if (_CurrentSelectionStateQuery.IsEmptyIgnoreFilter) return;
 
-        var selection = _currentSelectionQuery.GetSingleton<CurrentSelection>();
+        var selection = _CurrentSelectionStateQuery.GetSingleton<CurrentSelectionState>();
         if (selection.PrimaryEntity == Entity.Null) return;
 
         var primaryEntity = selection.PrimaryEntity;
@@ -313,13 +313,13 @@ public class StructureCommandUIController : MonoBehaviour
 
     private void OnProduceUnitClicked(int unitIndex)
     {
-        if (_currentSelectionQuery.IsEmptyIgnoreFilter) return;
+        if (_CurrentSelectionStateQuery.IsEmptyIgnoreFilter) return;
 
-        var selection = _currentSelectionQuery.GetSingleton<CurrentSelection>();
+        var selection = _CurrentSelectionStateQuery.GetSingleton<CurrentSelectionState>();
         if (selection.PrimaryEntity == Entity.Null) return;
 
         var primaryEntity = selection.PrimaryEntity;
-        if (!_em.HasComponent<BarracksTag>(primaryEntity)) return;
+        if (!_em.HasComponent<ProductionFacilityTag>(primaryEntity)) return;
         if (!_em.HasComponent<GhostInstance>(primaryEntity)) return;
 
         // 버퍼 확인
@@ -370,7 +370,7 @@ public class StructureCommandUIController : MonoBehaviour
                 _clientWorld = world;
                 _em = world.EntityManager;
 
-                _currentSelectionQuery = _em.CreateEntityQuery(typeof(CurrentSelection));
+                _CurrentSelectionStateQuery = _em.CreateEntityQuery(typeof(CurrentSelectionState));
                 _userStateQuery = _em.CreateEntityQuery(typeof(UserState));
 
                 return true;

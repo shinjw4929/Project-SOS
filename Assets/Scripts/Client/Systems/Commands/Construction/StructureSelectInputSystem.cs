@@ -21,13 +21,7 @@ namespace Client
             state.RequireForUpdate<NetworkStreamInGame>();
             state.RequireForUpdate<UserState>();
             state.RequireForUpdate<StructureCatalog>();
-            state.RequireForUpdate<CurrentSelection>();
-
-            if (!SystemAPI.HasSingleton<StructurePreviewState>())
-            {
-                var entity = state.EntityManager.CreateEntity();
-                state.EntityManager.AddComponentData(entity, new StructurePreviewState());
-            }
+            state.RequireForUpdate<CurrentSelectionState>();
         }
 
         public void OnDestroy(ref SystemState state)
@@ -50,7 +44,7 @@ namespace Client
             ref var previewState = ref SystemAPI.GetSingletonRW<StructurePreviewState>().ValueRW;
             
             // 선택된 유닛 정보 가져오기
-            var selection = SystemAPI.GetSingleton<CurrentSelection>();
+            var selection = SystemAPI.GetSingleton<CurrentSelectionState>();
             // -----------------------------------------------------------------
             // 상태별 입력 처리
             // -----------------------------------------------------------------
@@ -61,7 +55,9 @@ namespace Client
                 if (keyboard.qKey.wasPressedThisFrame)
                 {
                     // 건설 유닛인지, 1개 유닛만 선택했는지, 내가 소유한 유닛인지 확인
-                    if (!selection.HasBuilder || selection.SelectedCount != 1 || !selection.IsOwnedSelection) return;
+                    bool isBuilder = selection.PrimaryEntity != Entity.Null &&
+                                     state.EntityManager.HasComponent<BuilderTag>(selection.PrimaryEntity);
+                    if (!isBuilder || selection.SelectedCount != 1 || !selection.IsOwnedSelection) return;
                     
                     // 건설 메뉴 상태로 진입 (아직 건물 선택 안 함)
                     if (state.EntityManager.HasBuffer<AvailableStructure>(selection.PrimaryEntity))
@@ -82,7 +78,7 @@ namespace Client
                 
                 if (targetLocalIndex != -1)
                 {
-                    // [변경] 태그 검색 대신 -> 유닛의 버퍼 조회 함수 호출
+                    // 유닛의 버퍼 조회 함수 호출
                     TrySelectStructureFromUnit(
                         ref userState, 
                         ref previewState, 
@@ -124,7 +120,7 @@ namespace Client
             // 2. 인덱스 유효성 검사
             if (localIndex < 0 || localIndex >= structureBuffer.Length)
             {
-                // 삑 소리 재생 or UI 피드백 (건설 불가)
+                // 예외 처리
                 return;
             }
 

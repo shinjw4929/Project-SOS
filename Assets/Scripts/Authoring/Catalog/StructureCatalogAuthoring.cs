@@ -16,7 +16,7 @@ namespace Authoring
             {
                 Entity entity = GetEntity(TransformUsageFlags.None);
                 
-                // [식별용] 싱글톤 태그 컴포넌트
+                // [식별용] 태그 컴포넌트
                 AddComponent(entity, new StructureCatalog());
 
                 // 버퍼 생성 및 프리팹 담기

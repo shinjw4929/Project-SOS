@@ -22,8 +22,7 @@ namespace Authoring
         public AuthoringUnitType unitType = AuthoringUnitType.Soldier;
         
         [Header("Builder Settings")]
-        // 이 유닛이 건설할 수 있는 건물 프리팹 목록
-        public List<GameObject> buildableStructures;
+        public List<GameObject> buildableStructures; // 이 유닛이 건설할 수 있는 건물 프리팹 목록
         
         [Header("Production Info (Prefab Data)")]
         public int cost = 100;
@@ -81,7 +80,7 @@ namespace Authoring
                 }
                 
                 // =======================================================================
-                // 2. [건설 능력] BuilderTag가 확실한 경우에만 버퍼 생성 (검사 강화)
+                // 2. [건설 유닛] 버퍼 생성
                 // =======================================================================
                 if (isBuilder && authoring.buildableStructures != null && authoring.buildableStructures.Count > 0)
                 {

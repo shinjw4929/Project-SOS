@@ -6,52 +6,52 @@ namespace Authoring
 {
     /*
      * ProjectileFireInputAuthoring
-     * - ¿ªÇÒ:
-     *   Æ¯Á¤ GameObject(º¸Åë ÇÃ·¹ÀÌ¾î/À¯´Ö ÇÁ¸®ÆÕ)¿¡ "¹ß»ç ÀÔ·Â µ¥ÀÌÅÍ(ProjectileFireInput)" ÄÄÆ÷³ÍÆ®¸¦
-     *   º£ÀÌÅ· ´Ü°è¿¡¼­ ºÙ¿©¼­, ·±Å¸ÀÓ¿¡ ÀÔ·Â ½Ã½ºÅÛÀÌ °ªÀ» ½á ³ÖÀ» ¼ö ÀÖ°Ô ÁØºñÇÑ´Ù.
+     * - ì—­í• :
+     *   íŠ¹ì • GameObject(ë³´í†µ í”Œë ˆì´ì–´/ìœ ë‹› í”„ë¦¬íŒ¹)ì— "ë°œì‚¬ ìž…ë ¥ ë°ì´í„°(ProjectileFireInput)" ì»´í¬ë„ŒíŠ¸ë¥¼
+     *   ë² ì´í‚¹ ë‹¨ê³„ì—ì„œ ë¶™ì—¬ì„œ, ëŸ°íƒ€ìž„ì— ìž…ë ¥ ì‹œìŠ¤í…œì´ ê°’ì„ ì¨ ë„£ì„ ìˆ˜ ìžˆê²Œ ì¤€ë¹„í•œë‹¤.
      *
-     * - ¿Ö ÇÊ¿äÇÑ°¡:
-     *   ECS/NetCode ±¸Á¶¿¡¼­ "ÀÔ·Â"Àº º¸Åë Ghost(¶Ç´Â ÀÔ·ÂÀ» µé°í ÀÖ´Â ¿£Æ¼Æ¼)¿¡ ÀúÀåµÇ°í,
-     *   Å¬¶óÀÌ¾ðÆ® ÀÔ·Â ½Ã½ºÅÛÀÌ ±× °ªÀ» °»½ÅÇÑ µÚ ¼­¹ö°¡ ±× ÀÔ·ÂÀ» Ã³¸®ÇÑ´Ù.
-     *   Áï, ProjectileFireInputÀÌ ¿£Æ¼Æ¼¿¡ Á¸ÀçÇØ¾ß ÀÔ·Â ½Ã½ºÅÛÀÌ ¾ÈÀüÇÏ°Ô Set/Get ÇÒ ¼ö ÀÖ´Ù.
+     * - ì™œ í•„ìš”í•œê°€:
+     *   ECS/NetCode êµ¬ì¡°ì—ì„œ "ìž…ë ¥"ì€ ë³´í†µ Ghost(ë˜ëŠ” ìž…ë ¥ì„ ë“¤ê³  ìžˆëŠ” ì—”í‹°í‹°)ì— ì €ìž¥ë˜ê³ ,
+     *   í´ë¼ì´ì–¸íŠ¸ ìž…ë ¥ ì‹œìŠ¤í…œì´ ê·¸ ê°’ì„ ê°±ì‹ í•œ ë’¤ ì„œë²„ê°€ ê·¸ ìž…ë ¥ì„ ì²˜ë¦¬í•œë‹¤.
+     *   ì¦‰, ProjectileFireInputì´ ì—”í‹°í‹°ì— ì¡´ìž¬í•´ì•¼ ìž…ë ¥ ì‹œìŠ¤í…œì´ ì•ˆì „í•˜ê²Œ Set/Get í•  ìˆ˜ ìžˆë‹¤.
      *
-     * - ÀÌ ÇÁ·ÎÁ§Æ®¿¡¼­ÀÇ »ç¿ë ½Ã³ª¸®¿À:
-     *   (A) CommandTarget ±â¹Ý ÀÔ·Â(¿¹Àü ±¸Á¶)
-     *     - ProjectileFireInputSystem °°Àº ½Ã½ºÅÛÀÌ CommandTarget.targetEntity¿¡
-     *       ProjectileFireInputÀ» ½á³Ö´Â ¹æ½ÄÀÌ¸é, ±× targetEntity(ÇÃ·¹ÀÌ¾î °í½ºÆ®)¿¡
-     *       ÀÌ ÄÄÆ÷³ÍÆ®°¡ ¹Ýµå½Ã Á¸ÀçÇØ¾ß ÇÑ´Ù.
+     * - ì´ í”„ë¡œì íŠ¸ì—ì„œì˜ ì‚¬ìš© ì‹œë‚˜ë¦¬ì˜¤:
+     *   (A) CommandTarget ê¸°ë°˜ ìž…ë ¥(ì˜ˆì „ êµ¬ì¡°)
+     *     - ProjectileFireInputSystem ê°™ì€ ì‹œìŠ¤í…œì´ CommandTarget.targetEntityì—
+     *       ProjectileFireInputì„ ì¨ë„£ëŠ” ë°©ì‹ì´ë©´, ê·¸ targetEntity(í”Œë ˆì´ì–´ ê³ ìŠ¤íŠ¸)ì—
+     *       ì´ ì»´í¬ë„ŒíŠ¸ê°€ ë°˜ë“œì‹œ ì¡´ìž¬í•´ì•¼ í•œë‹¤.
      *
-     *   (B) RPC ±â¹Ý ÀÔ·Â(ÇöÀç »ç¿ë ÁßÀÎ ±¸Á¶)
-     *     - Áö±ÝÀº FireProjectileClientSystemÀÌ RPC¸¦ º¸³»°í ¼­¹ö°¡ Ã³¸®ÇÏ¹Ç·Î
-     *       ProjectileFireInputÀ» ½ÇÁ¦·Î ¾È ¾µ ¼öµµ ÀÖ´Ù.
-     *     - ÇÏÁö¸¸ ÇâÈÄ "ÀÔ·Â ÄÄÆ÷³ÍÆ® ±â¹Ý"À¸·Î ´Ù½Ã °¥ °¡´É¼ºÀÌ ÀÖ°Å³ª,
-     *       ±âÁ¸ ÄÚµå°¡ ProjectileFireInput Á¸Àç¸¦ ÀüÁ¦·Î ÇÑ´Ù¸é ÀÌ AuthoringÀº À¯ÁöÇØµµ µÈ´Ù.
+     *   (B) RPC ê¸°ë°˜ ìž…ë ¥(í˜„ìž¬ ì‚¬ìš© ì¤‘ì¸ êµ¬ì¡°)
+     *     - ì§€ê¸ˆì€ FireProjectileClientSystemì´ RPCë¥¼ ë³´ë‚´ê³  ì„œë²„ê°€ ì²˜ë¦¬í•˜ë¯€ë¡œ
+     *       ProjectileFireInputì„ ì‹¤ì œë¡œ ì•ˆ ì“¸ ìˆ˜ë„ ìžˆë‹¤.
+     *     - í•˜ì§€ë§Œ í–¥í›„ "ìž…ë ¥ ì»´í¬ë„ŒíŠ¸ ê¸°ë°˜"ìœ¼ë¡œ ë‹¤ì‹œ ê°ˆ ê°€ëŠ¥ì„±ì´ ìžˆê±°ë‚˜,
+     *       ê¸°ì¡´ ì½”ë“œê°€ ProjectileFireInput ì¡´ìž¬ë¥¼ ì „ì œë¡œ í•œë‹¤ë©´ ì´ Authoringì€ ìœ ì§€í•´ë„ ëœë‹¤.
      *
-     * - ÁÖÀÇ:
-     *   ¿©±â¼­ GetEntity(TransformUsageFlags.Dynamic)¸¦ ¾²¸é
-     *   ÀÌ ÄÄÆ÷³ÍÆ®°¡ ºÙ´Â ¿£Æ¼Æ¼´Â ÀÌµ¿/È¸ÀüÀ» ÇÒ ¼ö ÀÖ´Â µ¿Àû Æ®·£½ºÆûÀ» °®°Ô µÈ´Ù.
-     *   ¸¸¾à ÀÌ AuthoringÀÌ ºÙ´Â ´ë»óÀÌ "ÀÔ·Â¸¸ µé°í ÀÖ´Â ¿£Æ¼Æ¼"¶ó¼­ Æ®·£½ºÆûÀÌ ÇÊ¿ä ¾ø´Ù¸é
-     *   TransformUsageFlags.NoneÀ¸·Î ¹Ù²Ù´Â °ÍÀÌ ´õ ±ò²ûÇÏ´Ù.
+     * - ì£¼ì˜:
+     *   ì—¬ê¸°ì„œ GetEntity(TransformUsageFlags.Dynamic)ë¥¼ ì“°ë©´
+     *   ì´ ì»´í¬ë„ŒíŠ¸ê°€ ë¶™ëŠ” ì—”í‹°í‹°ëŠ” ì´ë™/íšŒì „ì„ í•  ìˆ˜ ìžˆëŠ” ë™ì  íŠ¸ëžœìŠ¤í¼ì„ ê°–ê²Œ ëœë‹¤.
+     *   ë§Œì•½ ì´ Authoringì´ ë¶™ëŠ” ëŒ€ìƒì´ "ìž…ë ¥ë§Œ ë“¤ê³  ìžˆëŠ” ì—”í‹°í‹°"ë¼ì„œ íŠ¸ëžœìŠ¤í¼ì´ í•„ìš” ì—†ë‹¤ë©´
+     *   TransformUsageFlags.Noneìœ¼ë¡œ ë°”ê¾¸ëŠ” ê²ƒì´ ë” ê¹”ë”í•˜ë‹¤.
      */
     public class ProjectileFireInputAuthoring : MonoBehaviour
     {
         /*
          * Baker
-         * - ¿ªÇÒ:
-         *   ProjectileFireInputAuthoringÀÌ ºÙÀº GameObject¸¦ ECS ¿£Æ¼Æ¼·Î º¯È¯ÇÒ ¶§,
-         *   ProjectileFireInput ÄÄÆ÷³ÍÆ®¸¦ ±âº»°ªÀ¸·Î Ãß°¡ÇÑ´Ù.
+         * - ì—­í• :
+         *   ProjectileFireInputAuthoringì´ ë¶™ì€ GameObjectë¥¼ ECS ì—”í‹°í‹°ë¡œ ë³€í™˜í•  ë•Œ,
+         *   ProjectileFireInput ì»´í¬ë„ŒíŠ¸ë¥¼ ê¸°ë³¸ê°’ìœ¼ë¡œ ì¶”ê°€í•œë‹¤.
          */
         class Baker : Baker<ProjectileFireInputAuthoring>
         {
             public override void Bake(ProjectileFireInputAuthoring authoring)
             {
-                // AuthoringÀÌ ºÙÀº GameObject¸¦ ¿£Æ¼Æ¼·Î º¯È¯ÇÑ´Ù.
-                // DynamicÀ» »ç¿ëÇÏ¸é ¿£Æ¼Æ¼¿¡ µ¿Àû Æ®·£½ºÆûÀÌ Æ÷ÇÔµÉ ¼ö ÀÖ´Ù.
+                // Authoringì´ ë¶™ì€ GameObjectë¥¼ ì—”í‹°í‹°ë¡œ ë³€í™˜í•œë‹¤.
+                // Dynamicì„ ì‚¬ìš©í•˜ë©´ ì—”í‹°í‹°ì— ë™ì  íŠ¸ëžœìŠ¤í¼ì´ í¬í•¨ë  ìˆ˜ ìžˆë‹¤.
                 Entity entity = GetEntity(TransformUsageFlags.Dynamic);
 
-                // ¹ß»ç ÀÔ·Â ÄÄÆ÷³ÍÆ®¸¦ ±âº»°ªÀ¸·Î Ãß°¡ÇÑ´Ù.
-                // Fire´Â ÀÌ¹ø Æ½/ÇÁ·¹ÀÓ¿¡ ¹ß»çÇß´ÂÁö ¿©ºÎ °°Àº ÇÃ·¡±×·Î ¾²´Â °ªÀÌ°í,
-                // TargetPositionÀº ¸¶¿ì½º ¿ùµå ÁÂÇ¥ µî ¹ß»ç ¸ñÇ¥ ÁöÁ¡À¸·Î ¾²´Â °ªÀÌ´Ù.
+                // ë°œì‚¬ ìž…ë ¥ ì»´í¬ë„ŒíŠ¸ë¥¼ ê¸°ë³¸ê°’ìœ¼ë¡œ ì¶”ê°€í•œë‹¤.
+                // FireëŠ” ì´ë²ˆ í‹±/í”„ë ˆìž„ì— ë°œì‚¬í–ˆëŠ”ì§€ ì—¬ë¶€ ê°™ì€ í”Œëž˜ê·¸ë¡œ ì“°ëŠ” ê°’ì´ê³ ,
+                // TargetPositionì€ ë§ˆìš°ìŠ¤ ì›”ë“œ ì¢Œí‘œ ë“± ë°œì‚¬ ëª©í‘œ ì§€ì ìœ¼ë¡œ ì“°ëŠ” ê°’ì´ë‹¤.
                 AddComponent(entity, new ProjectileFireInput
                 {
                     Fire = 0,

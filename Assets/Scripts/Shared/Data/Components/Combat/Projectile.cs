@@ -2,24 +2,24 @@ using Unity.Entities;
 
 /*
  * Projectile
- * - ¿ªÇÒ:
- *   "ÀÌ ¿£Æ¼Æ¼´Â Åõ»çÃ¼´Ù"¸¦ Ç¥½ÃÇÏ´Â ÅÂ±× ÄÄÆ÷³ÍÆ®.
- *   µ¥ÀÌÅÍ°¡ ¾ø´Â IComponentData´Â º¸Åë ºÐ·ù/ÇÊÅÍ¸µ ¸ñÀûÀÇ ¸¶Ä¿·Î »ç¿ëÇÑ´Ù.
+ * - ì—­í• :
+ *   "ì´ ì—”í‹°í‹°ëŠ” íˆ¬ì‚¬ì²´ë‹¤"ë¥¼ í‘œì‹œí•˜ëŠ” íƒœê·¸ ì»´í¬ë„ŒíŠ¸.
+ *   ë°ì´í„°ê°€ ì—†ëŠ” IComponentDataëŠ” ë³´í†µ ë¶„ë¥˜/í•„í„°ë§ ëª©ì ì˜ ë§ˆì»¤ë¡œ ì‚¬ìš©í•œë‹¤.
  *
- * - ¿Ö ÇÊ¿äÇÑ°¡:
- *   ½Ã½ºÅÛ¿¡¼­ Åõ»çÃ¼¸¸ °ñ¶ó Ã³¸®ÇÏ°í ½ÍÀ» ¶§ WithAll<Projectile>() °°Àº ÇÊÅÍ·Î ½±°Ô °É·¯³¾ ¼ö ÀÖ´Ù.
- *   ¿¹:
- *     - ProjectileMoveServerSystem: Åõ»çÃ¼ ÀÌµ¿ Ã³¸®
- *     - ProjectileDespawnSystem: Åõ»çÃ¼ »èÁ¦ Á¶°Ç Ã³¸®
- *     - ÇâÈÄ Ãæµ¹/ÇÇÇØ Ã³¸® ½Ã½ºÅÛ: Åõ»çÃ¼¸¸ ´ë»óÀ¸·Î °Ë»ç
+ * - ì™œ í•„ìš”í•œê°€:
+ *   ì‹œìŠ¤í…œì—ì„œ íˆ¬ì‚¬ì²´ë§Œ ê³¨ë¼ ì²˜ë¦¬í•˜ê³  ì‹¶ì„ ë•Œ WithAll<Projectile>() ê°™ì€ í•„í„°ë¡œ ì‰½ê²Œ ê±¸ëŸ¬ë‚¼ ìˆ˜ ìžˆë‹¤.
+ *   ì˜ˆ:
+ *     - ProjectileMoveServerSystem: íˆ¬ì‚¬ì²´ ì´ë™ ì²˜ë¦¬
+ *     - ProjectileDespawnSystem: íˆ¬ì‚¬ì²´ ì‚­ì œ ì¡°ê±´ ì²˜ë¦¬
+ *     - í–¥í›„ ì¶©ëŒ/í”¼í•´ ì²˜ë¦¬ ì‹œìŠ¤í…œ: íˆ¬ì‚¬ì²´ë§Œ ëŒ€ìƒìœ¼ë¡œ ê²€ì‚¬
  *
- * - ¾îµð¿¡ ºÙ´Â°¡:
- *   Åõ»çÃ¼ ÇÁ¸®ÆÕ(Projectile ÇÁ¸®ÆÕ)ÀÇ º£ÀÌÄ¿(ProjectileAuthoring µî)¿¡¼­ AddComponent<Projectile>()·Î ºÙÀÎ´Ù.
- *   ¼­¹ö°¡ ecb.Instantiate(prefab)·Î »ý¼ºÇÏ¸é, ÇÁ¸®ÆÕ¿¡ ºÙ¾îÀÖ´ø Projectile ÅÂ±×µµ °°ÀÌ º¹Á¦µÈ´Ù.
+ * - ì–´ë””ì— ë¶™ëŠ”ê°€:
+ *   íˆ¬ì‚¬ì²´ í”„ë¦¬íŒ¹(Projectile í”„ë¦¬íŒ¹)ì˜ ë² ì´ì»¤(ProjectileAuthoring ë“±)ì—ì„œ AddComponent<Projectile>()ë¡œ ë¶™ì¸ë‹¤.
+ *   ì„œë²„ê°€ ecb.Instantiate(prefab)ë¡œ ìƒì„±í•˜ë©´, í”„ë¦¬íŒ¹ì— ë¶™ì–´ìžˆë˜ Projectile íƒœê·¸ë„ ê°™ì´ ë³µì œëœë‹¤.
  *
- * - ÁÖÀÇ:
- *   ÅÂ±×¶ó¼­ »óÅÂ°ªÀº ¾ø´Ù.
- *   ¼Óµµ/¹æÇâ/³²Àº°Å¸® °°Àº ½ÇÁ¦ µ¥ÀÌÅÍ´Â ProjectileMove °°Àº º°µµ ÄÄÆ÷³ÍÆ®°¡ ´ã´çÇÑ´Ù.
+ * - ì£¼ì˜:
+ *   íƒœê·¸ë¼ì„œ ìƒíƒœê°’ì€ ì—†ë‹¤.
+ *   ì†ë„/ë°©í–¥/ë‚¨ì€ê±°ë¦¬ ê°™ì€ ì‹¤ì œ ë°ì´í„°ëŠ” ProjectileMove ê°™ì€ ë³„ë„ ì»´í¬ë„ŒíŠ¸ê°€ ë‹´ë‹¹í•œë‹¤.
  */
 public struct Projectile : IComponentData
 {

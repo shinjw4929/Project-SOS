@@ -2,26 +2,26 @@ using Unity.Entities;
 
 /*
  * ProjectilePrefabRef
- * - ¿ªÇÒ:
- *   "Åõ»çÃ¼ ÇÁ¸®ÆÕ ¿£Æ¼Æ¼"¸¦ ´ã¾ÆµÎ´Â ECS ÄÄÆ÷³ÍÆ®.
- *   º¸Åë ¿ùµå¿¡ 1°³¸¸ Á¸ÀçÇÏ´Â ½Ì±ÛÅæ ÇüÅÂ·Î »ç¿ëÇÑ´Ù.
+ * - ì—­í• :
+ *   "íˆ¬ì‚¬ì²´ í”„ë¦¬íŒ¹ ì—”í‹°í‹°"ë¥¼ ë‹´ì•„ë‘ëŠ” ECS ì»´í¬ë„ŒíŠ¸.
+ *   ë³´í†µ ì›”ë“œì— 1ê°œë§Œ ì¡´ì¬í•˜ëŠ” ì‹±ê¸€í†¤ í˜•íƒœë¡œ ì‚¬ìš©í•œë‹¤.
  *
- * - ´©°¡ ¸¸µé°í ³Ö´Â°¡:
- *   ProjectilePrefabRefAuthoringÀÇ Baker°¡ º£ÀÌÅ· ´Ü°è¿¡¼­ »ı¼º/Ãß°¡ÇÑ´Ù.
- *   Áï, ÀÎ½ºÆåÅÍ¿¡¼­ ÁöÁ¤ÇÑ GameObject ÇÁ¸®ÆÕÀÌ Entity ÇÁ¸®ÆÕÀ¸·Î º¯È¯µÈ µÚ,
- *   ±× Entity°¡ Prefab ÇÊµå¿¡ ÀúÀåµÈ´Ù.
+ * - ëˆ„ê°€ ë§Œë“¤ê³  ë„£ëŠ”ê°€:
+ *   ProjectilePrefabRefAuthoringì˜ Bakerê°€ ë² ì´í‚¹ ë‹¨ê³„ì—ì„œ ìƒì„±/ì¶”ê°€í•œë‹¤.
+ *   ì¦‰, ì¸ìŠ¤í™í„°ì—ì„œ ì§€ì •í•œ GameObject í”„ë¦¬íŒ¹ì´ Entity í”„ë¦¬íŒ¹ìœ¼ë¡œ ë³€í™˜ëœ ë’¤,
+ *   ê·¸ Entityê°€ Prefab í•„ë“œì— ì €ì¥ëœë‹¤.
  *
- * - ´©°¡ »ç¿ëÇÏ´Â°¡:
- *   ¼­¹ö¿¡¼­ Åõ»çÃ¼¸¦ »ı¼ºÇÏ´Â ½Ã½ºÅÛ(FireProjectileServerSystem)ÀÌ
- *   SystemAPI.GetSingleton<ProjectilePrefabRef>().Prefab À¸·Î ÀĞ¾î¿Í¼­
- *   ecb.Instantiate(prefab) ¶Ç´Â EntityManager.Instantiate(prefab)¿¡ »ç¿ëÇÑ´Ù.
+ * - ëˆ„ê°€ ì‚¬ìš©í•˜ëŠ”ê°€:
+ *   ì„œë²„ì—ì„œ íˆ¬ì‚¬ì²´ë¥¼ ìƒì„±í•˜ëŠ” ì‹œìŠ¤í…œ(FireProjectileServerSystem)ì´
+ *   SystemAPI.GetSingleton<ProjectilePrefabRef>().Prefab ìœ¼ë¡œ ì½ì–´ì™€ì„œ
+ *   ecb.Instantiate(prefab) ë˜ëŠ” EntityManager.Instantiate(prefab)ì— ì‚¬ìš©í•œë‹¤.
  *
- * - ÁÖÀÇ:
- *   ÀÌ ÄÄÆ÷³ÍÆ®°¡ ¿ùµå¿¡ ¾øÀ¸¸é ¼­¹ö´Â ÇÁ¸®ÆÕÀ» ¸ğ¸£´Â »óÅÂ¶ó Åõ»çÃ¼¸¦ »ı¼ºÇÒ ¼ö ¾ø´Ù.
- *   ±×·¡¼­ º¸Åë ¼­¹ö ½Ã½ºÅÛ OnCreate¿¡¼­ RequireForUpdate<ProjectilePrefabRef>()¸¦ °É¾îµĞ´Ù.
+ * - ì£¼ì˜:
+ *   ì´ ì»´í¬ë„ŒíŠ¸ê°€ ì›”ë“œì— ì—†ìœ¼ë©´ ì„œë²„ëŠ” í”„ë¦¬íŒ¹ì„ ëª¨ë¥´ëŠ” ìƒíƒœë¼ íˆ¬ì‚¬ì²´ë¥¼ ìƒì„±í•  ìˆ˜ ì—†ë‹¤.
+ *   ê·¸ë˜ì„œ ë³´í†µ ì„œë²„ ì‹œìŠ¤í…œ OnCreateì—ì„œ RequireForUpdate<ProjectilePrefabRef>()ë¥¼ ê±¸ì–´ë‘”ë‹¤.
  */
 public struct ProjectilePrefabRef : IComponentData
 {
-    // Instantiate¿¡ »ç¿ëÇÒ Entity ÇÁ¸®ÆÕ(º£ÀÌÅ·µÈ ÇÁ¸®ÆÕ ¿£Æ¼Æ¼)
+    // Instantiateì— ì‚¬ìš©í•  Entity í”„ë¦¬íŒ¹(ë² ì´í‚¹ëœ í”„ë¦¬íŒ¹ ì—”í‹°í‹°)
     public Entity Prefab;
 }

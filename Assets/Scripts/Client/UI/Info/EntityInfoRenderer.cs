@@ -16,7 +16,7 @@ public class EntityInfoUIRenderer : MonoBehaviour
 
     private World _clientWorld;
     private EntityManager _clientEntityManager;
-    private EntityQuery _currentSelectionQuery;
+    private EntityQuery _CurrentSelectionStateQuery;
     private EntityQuery _networkIdQuery;
 
     private void Update()
@@ -24,21 +24,21 @@ public class EntityInfoUIRenderer : MonoBehaviour
         if (!TryInitClientWorld())
             return;
 
-        if (_currentSelectionQuery.IsEmptyIgnoreFilter)
+        if (_CurrentSelectionStateQuery.IsEmptyIgnoreFilter)
         {
             HidePanel();
             return;
         }
 
-        var currentSelection = _currentSelectionQuery.GetSingleton<CurrentSelection>();
+        var CurrentSelectionState = _CurrentSelectionStateQuery.GetSingleton<CurrentSelectionState>();
 
-        if (currentSelection.SelectedCount == 0)
+        if (CurrentSelectionState.SelectedCount == 0)
         {
             HidePanel();
             return;
         }
 
-        Entity selectedEntity = currentSelection.PrimaryEntity;
+        Entity selectedEntity = CurrentSelectionState.PrimaryEntity;
 
         if (!_clientEntityManager.Exists(selectedEntity))
         {
@@ -90,7 +90,7 @@ public class EntityInfoUIRenderer : MonoBehaviour
             {
                 _clientWorld = world;
                 _clientEntityManager = world.EntityManager;
-                _currentSelectionQuery = _clientEntityManager.CreateEntityQuery(typeof(CurrentSelection));
+                _CurrentSelectionStateQuery = _clientEntityManager.CreateEntityQuery(typeof(CurrentSelectionState));
                 _networkIdQuery = _clientEntityManager.CreateEntityQuery(typeof(NetworkId));
                 return true;
             }

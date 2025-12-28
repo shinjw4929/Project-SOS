@@ -21,19 +21,6 @@ namespace Client
         {
             state.RequireForUpdate<NetworkStreamInGame>();
             state.RequireForUpdate<UserState>();
-
-            // 싱글톤 생성 [SelectionState]
-            var entity = state.EntityManager.CreateEntity();
-            state.EntityManager.AddComponentData(entity, new SelectionState
-            {
-                Phase = SelectionPhase.Idle,
-                StartScreenPos = float2.zero,
-                CurrentScreenPos = float2.zero
-            });
-
-            // 싱글톤 생성 [CurrentSelection]
-            var selectionEntity = state.EntityManager.CreateEntity();
-            state.EntityManager.AddComponentData(selectionEntity, new CurrentSelection());
         }
 
         public void OnUpdate(ref SystemState state)

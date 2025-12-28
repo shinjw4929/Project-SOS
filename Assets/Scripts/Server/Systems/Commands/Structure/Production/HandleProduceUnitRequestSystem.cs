@@ -17,11 +17,16 @@ namespace Server
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<NetworkStreamInGame>();
+            state.RequireForUpdate<UnitCatalog>();
             state.RequireForUpdate<EndSimulationEntityCommandBufferSystem.Singleton>();
         }
 
         public void OnUpdate(ref SystemState state)
         {
+            // 프리팹 버퍼 가져오기
+            var refsEntity = SystemAPI.GetSingletonEntity<UnitCatalog>();
+            var prefabBuffer = SystemAPI.GetBuffer<UnitCatalogElement>(refsEntity);
+            
             var ecb = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>()
                 .CreateCommandBuffer(state.WorldUnmanaged);
 
@@ -29,7 +34,7 @@ namespace Server
                 SystemAPI.Query<RefRO<ReceiveRpcCommandRequest>, RefRO<ProduceUnitRequestRpc>>()
                 .WithEntityAccess())
             {
-                ProcessRequest(ref state, ecb, rpcReceive.ValueRO, rpc.ValueRO);
+                ProcessRequest(ref state, ecb, rpcReceive.ValueRO, rpc.ValueRO, prefabBuffer);
                 ecb.DestroyEntity(rpcEntity);
             }
         }
@@ -38,9 +43,10 @@ namespace Server
             ref SystemState state,
             EntityCommandBuffer ecb,
             ReceiveRpcCommandRequest rpcReceive,
-            ProduceUnitRequestRpc rpc)
+            ProduceUnitRequestRpc rpc,
+            DynamicBuffer<UnitCatalogElement> prefabBuffer)
         {
-            // 1. Ghost ID로 배럭 엔티티 찾기
+            // 1. Ghost ID로 생산 건물 엔티티 찾기
             Entity producerEntity = FindEntityByGhostId(ref state, rpc.StructureGhostId);
             if (producerEntity == Entity.Null)
             {
@@ -56,7 +62,7 @@ namespace Server
             }
 
             // 3. BarracksTag 및 ProductionQueue 확인
-            if (!state.EntityManager.HasComponent<BarracksTag>(producerEntity) ||
+            if (!state.EntityManager.HasComponent<ProductionFacilityTag>(producerEntity) ||
                 !state.EntityManager.HasComponent<ProductionQueue>(producerEntity))
             {
                 UnityEngine.Debug.LogWarning("[HandleProduceUnitRequest] Entity is not a valid barracks");
@@ -70,22 +76,15 @@ namespace Server
                 UnityEngine.Debug.Log("[HandleProduceUnitRequest] Already producing");
                 return;
             }
-
-            // 5. 생산 가능 유닛 버퍼에서 프리팹 찾기
-            if (!state.EntityManager.HasBuffer<UnitCatalogElement>(producerEntity))
-            {
-                UnityEngine.Debug.LogWarning("[HandleProduceUnitRequest] No ProducibleUnitElement buffer");
-                return;
-            }
-
-            var unitBuffer = state.EntityManager.GetBuffer<UnitCatalogElement>(producerEntity);
-            if (rpc.UnitIndex < 0 || rpc.UnitIndex >= unitBuffer.Length)
+            
+            // 5.RPC로 받은 Index를 사용하여 서버 월드의 프리팹 엔티티 찾기
+            if (rpc.UnitIndex < 0 || rpc.UnitIndex >= prefabBuffer.Length)
             {
                 UnityEngine.Debug.LogWarning($"[HandleProduceUnitRequest] Invalid UnitIndex: {rpc.UnitIndex}");
                 return;
             }
 
-            Entity unitPrefab = unitBuffer[rpc.UnitIndex].PrefabEntity;
+            Entity unitPrefab = prefabBuffer[rpc.UnitIndex].PrefabEntity;
             if (unitPrefab == Entity.Null)
             {
                 UnityEngine.Debug.LogWarning("[HandleProduceUnitRequest] Unit prefab is null");

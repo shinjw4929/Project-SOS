@@ -8,14 +8,14 @@ using Shared;
 namespace Client
 {
     /// <summary>
-    /// RTS 명령 입력 시스템
+    /// 사용자가 유닛에게 명령을 입력하는 시스템
     /// - 우클릭 → 이동 명령
     /// - (향후) A-클릭 → 공격 명령, S → 정지 명령 등
     /// </summary>
     [UpdateInGroup(typeof(GhostInputSystemGroup))]
     [UpdateAfter(typeof(SelectionStateSystem))]
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
-    public partial struct RTSCommandInputSystem : ISystem
+    public partial struct UnitCommandInputSystem : ISystem
     {
         public void OnCreate(ref SystemState state)
         {

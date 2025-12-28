@@ -42,7 +42,7 @@ namespace Server
 
             var gridSettings = SystemAPI.GetSingleton<GridSettings>();
             
-            // [추가] 프리팹 버퍼 가져오기
+            // 프리팹 버퍼 가져오기
             var refsEntity = SystemAPI.GetSingletonEntity<StructureCatalog>();
             var prefabBuffer = SystemAPI.GetBuffer<StructureCatalogElement>(refsEntity);
             

@@ -9,7 +9,7 @@ using Client;
 /// <summary>
 /// 커맨드 UI 컨트롤러
 /// - Build 버튼, 건물 선택 버튼 등 RTS 커맨드 UI 관리
-/// - CurrentSelection을 활용하여 건설 가능 여부 판단
+/// - CurrentSelectionState을 활용하여 건설 가능 여부 판단
 /// </summary>
 public class CommandUIController : MonoBehaviour
 {
@@ -24,7 +24,7 @@ public class CommandUIController : MonoBehaviour
 
     private World _clientWorld;
     private EntityManager _em;
-    private EntityQuery _currentSelectionQuery;
+    private EntityQuery _CurrentSelectionStateQuery;
     private EntityQuery _userStateQuery;
     private EntityQuery _selectionStateQuery;
     private EntityQuery _previewStateQuery;
@@ -70,7 +70,7 @@ public class CommandUIController : MonoBehaviour
                 HideAllPanels();
                 break;
 
-            case UserContext.StructureMenu:
+            case UserContext.StructureActionMenu:
                 // 건물 명령 메뉴 상태에서는 Build 관련 패널 숨김
                 HideAllPanels();
                 break;
@@ -142,7 +142,7 @@ public class CommandUIController : MonoBehaviour
             }
             else // Barracks
             {
-                if (_em.HasComponent<BarracksTag>(prefab)) return (prefab, i);
+                if (_em.HasComponent<ProductionFacilityTag>(prefab)) return (prefab, i);
             }
         }
         return (Entity.Null, -1);
@@ -150,19 +150,20 @@ public class CommandUIController : MonoBehaviour
 
     /// <summary>
     /// Build 버튼을 표시할 수 있는지 확인
-    /// - 건설 가능 유닛(HasBuilder)이 선택되어 있고, 내 소유여야 함
+    /// - 건설 가능 유닛(BuilderTag)이 선택되어 있고, 내 소유여야 함
     /// </summary>
     private bool CanShowBuildButton()
     {
-        if (_currentSelectionQuery.IsEmptyIgnoreFilter) return false;
+        if (_CurrentSelectionStateQuery.IsEmptyIgnoreFilter) return false;
 
-        var selection = _currentSelectionQuery.GetSingleton<CurrentSelection>();
+        var selection = _CurrentSelectionStateQuery.GetSingleton<CurrentSelectionState>();
 
         // 정확히 1개만 선택, 내 소유여야 함 (다중 선택 시 건설 명령 중복 방지)
         if (selection.SelectedCount != 1 || !selection.IsOwnedSelection) return false;
 
-        // 건설 가능 유닛이 있어야 함
-        return selection.HasBuilder;
+        // 건설 가능 유닛이 있어야 함 (PrimaryEntity가 BuilderTag를 가지고 있는지 직접 체크)
+        return selection.PrimaryEntity != Entity.Null &&
+               _em.HasComponent<BuilderTag>(selection.PrimaryEntity);
     }
 
     private void HideAllPanels()
@@ -182,7 +183,7 @@ public class CommandUIController : MonoBehaviour
                 _clientWorld = world;
                 _em = world.EntityManager;
 
-                _currentSelectionQuery = _em.CreateEntityQuery(typeof(CurrentSelection));
+                _CurrentSelectionStateQuery = _em.CreateEntityQuery(typeof(CurrentSelectionState));
                 _userStateQuery = _em.CreateEntityQuery(typeof(UserState));
                 _selectionStateQuery = _em.CreateEntityQuery(typeof(SelectionState));
                 _previewStateQuery = _em.CreateEntityQuery(typeof(StructurePreviewState));
