@@ -2,17 +2,15 @@ using Unity.Entities;
 using Unity.NetCode;
 using Unity.Transforms;
 using Unity.Mathematics;
+using Unity.Burst;
+using Unity.Collections;
 using Shared;
 
 namespace Server
 {
-    /// <summary>
-    /// 생산 진행도 업데이트 (서버만)
-    /// - Progress 증가
-    /// - 완료 시 유닛 스폰
-    /// </summary>
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
+    [BurstCompile]
     public partial struct ProductionProgressSystem : ISystem
     {
         public void OnCreate(ref SystemState state)
@@ -21,147 +19,95 @@ namespace Server
             state.RequireForUpdate<UnitCatalog>();
         }
 
+        [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
-            // 전역 유닛 카탈로그 가져오기
-            var catalogEntity = SystemAPI.GetSingletonEntity<UnitCatalog>();
-            var unitCatalogBuffer = SystemAPI.GetBuffer<UnitCatalogElement>(catalogEntity);
-
             float deltaTime = SystemAPI.Time.DeltaTime;
-            var ecb = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>()
-                .CreateCommandBuffer(state.WorldUnmanaged);
+            
+            // 유닛 카탈로그 버퍼 가져오기 (Job에 넘기기 위해 NativeArray로 복사하거나, Job에서 읽기 전용 접근)
+            var catalogEntity = SystemAPI.GetSingletonEntity<UnitCatalog>();
+            var catalogBuffer = SystemAPI.GetBuffer<UnitCatalogElement>(catalogEntity);
+            
+            // ECB (병렬 쓰기 가능)
+            var ecbSingleton = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>();
+            var ecb = ecbSingleton.CreateCommandBuffer(state.WorldUnmanaged).AsParallelWriter();
 
-            foreach (var (productionQueue, transform, owner, entity) in
-                SystemAPI.Query<RefRW<ProductionQueue>, RefRO<LocalTransform>, RefRO<GhostOwner>>()
-                .WithAll<ProductionFacilityTag>()
-                .WithEntityAccess())
+            // Job 스케줄링
+            new ProductionUpdateJob
             {
-                if (!productionQueue.ValueRO.IsActive) continue;
+                DeltaTime = deltaTime,
+                CatalogBuffer = catalogBuffer.AsNativeArray(), // 읽기 전용 NativeArray로 변환
+                Ecb = ecb
+            }.ScheduleParallel();
+        }
+    }
 
-                // Progress 업데이트
-                productionQueue.ValueRW.Progress += deltaTime;
+    [BurstCompile]
+    [WithAll(typeof(ProductionFacilityTag))] // 태그 필터링
+    public partial struct ProductionUpdateJob : IJobEntity
+    {
+        public float DeltaTime;
+        [ReadOnly] public NativeArray<UnitCatalogElement> CatalogBuffer;
+        public EntityCommandBuffer.ParallelWriter Ecb;
 
-                // 완료 체크
-                if (productionQueue.ValueRO.Progress >= productionQueue.ValueRO.Duration)
+        // 필요한 컴포넌트만 ref로 가져옴
+        private void Execute(
+            [EntityIndexInQuery] int sortKey, 
+            Entity entity, 
+            ref ProductionQueue queue, 
+            in LocalTransform transform, 
+            in GhostOwner owner)
+        {
+            if (!queue.IsActive) return;
+
+            // 1. 진행도 업데이트
+            queue.Progress += DeltaTime;
+
+            // 2. 완료 체크
+            if (queue.Progress >= queue.Duration)
+            {
+                int unitIndex = queue.ProducingUnitIndex;
+
+                if (unitIndex >= 0 && unitIndex < CatalogBuffer.Length)
                 {
-                    int unitIndex = productionQueue.ValueRO.ProducingUnitIndex;
+                    Entity prefab = CatalogBuffer[unitIndex].PrefabEntity;
 
-                    // 전역 카탈로그에서 인덱스로 프리팹 조회
-                    if (unitIndex >= 0 && unitIndex < unitCatalogBuffer.Length)
-                    {
-                        Entity prefab = unitCatalogBuffer[unitIndex].PrefabEntity;
-
-                        UnityEngine.Debug.Log($"[ProductionProgress] UnitIndex: {unitIndex}, BufferLength: {unitCatalogBuffer.Length}, Prefab: {prefab}");
-
-                        // 프리팹 유효성 검사
-                        if (prefab == Entity.Null)
-                        {
-                            UnityEngine.Debug.LogError($"[ProductionProgress] Prefab at index {unitIndex} is Entity.Null!");
-                            continue;
-                        }
-
-                        if (!state.EntityManager.Exists(prefab))
-                        {
-                            UnityEngine.Debug.LogError($"[ProductionProgress] Prefab {prefab} does not exist in EntityManager!");
-                            continue;
-                        }
-
-                        // Ghost 프리팹인지 확인
-                        bool hasGhostInstance = state.EntityManager.HasComponent<GhostInstance>(prefab);
-                        bool hasPrefabTag = state.EntityManager.HasComponent<Unity.Entities.Prefab>(prefab);
-                        UnityEngine.Debug.Log($"[ProductionProgress] Prefab check - HasGhostInstance: {hasGhostInstance}, HasPrefab: {hasPrefabTag}");
-
-                        // 유닛 스폰
-                        SpawnUnit(ref state, ecb,
-                            prefab,
-                            transform.ValueRO.Position,
-                            owner.ValueRO.NetworkId);
-                    }
-                    else
-                    {
-                        UnityEngine.Debug.LogWarning($"[ProductionProgress] Invalid unit index: {unitIndex}");
-                    }
-
-                    // Queue 초기화
-                    productionQueue.ValueRW = new ProductionQueue
-                    {
-                        ProducingUnitIndex = -1,
-                        Progress = 0,
-                        Duration = 0,
-                        IsActive = false
-                    };
-
-                    UnityEngine.Debug.Log("[ProductionProgress] Unit production completed!");
+                    // 유닛 스폰 명령 예약
+                    SpawnUnit(sortKey, prefab, transform.Position, owner.NetworkId);
                 }
+                
+                // Queue 초기화
+                queue = new ProductionQueue
+                {
+                    ProducingUnitIndex = -1,
+                    Progress = 0,
+                    Duration = 0,
+                    IsActive = false
+                };
             }
         }
 
-        private void SpawnUnit(
-            ref SystemState state,
-            EntityCommandBuffer ecb,
-            Entity prefab,
-            float3 barracksPosition,
-            int ownerId)
+        private void SpawnUnit(int sortKey, Entity prefab, float3 spawnPos, int ownerId)
         {
-            if (prefab == Entity.Null || !state.EntityManager.Exists(prefab))
-            {
-                UnityEngine.Debug.LogWarning("[ProductionProgress] Invalid prefab, cannot spawn unit");
-                return;
-            }
+            if (prefab == Entity.Null) return;
 
-            Entity newUnit = ecb.Instantiate(prefab);
+            // Instantiate
+            Entity newUnit = Ecb.Instantiate(sortKey, prefab);
 
-            // 배럭 근처에 스폰 (오프셋 적용)
-            float3 spawnPos = barracksPosition + new float3(2f, 0, 2f);
-
-            // 프리팹의 Transform을 복사해서 위치만 변경
-            if (state.EntityManager.HasComponent<LocalTransform>(prefab))
-            {
-                var transformData = state.EntityManager.GetComponentData<LocalTransform>(prefab);
-                transformData.Position = spawnPos;
-                ecb.SetComponent(newUnit, transformData);
-            }
-            else
-            {
-                ecb.SetComponent(newUnit, LocalTransform.FromPosition(spawnPos));
-            }
-
-            // 소유자 설정 (프리팹에 이미 있으면 Set, 없으면 Add)
-            if (state.EntityManager.HasComponent<GhostOwner>(prefab))
-            {
-                ecb.SetComponent(newUnit, new GhostOwner { NetworkId = ownerId });
-            }
-            else
-            {
-                ecb.AddComponent(newUnit, new GhostOwner { NetworkId = ownerId });
-            }
-
-            if (state.EntityManager.HasComponent<Team>(prefab))
-            {
-                ecb.SetComponent(newUnit, new Team { teamId = ownerId });
-            }
-            else
-            {
-                ecb.AddComponent(newUnit, new Team { teamId = ownerId });
-            }
-
-            // 이동 관련 컴포넌트 추가 (프리팹에 없을 경우)
-            if (!state.EntityManager.HasComponent<MoveTarget>(prefab))
-            {
-                ecb.AddComponent(newUnit, new MoveTarget { position = spawnPos, isValid = false });
-            }
-
-            if (!state.EntityManager.HasBuffer<RTSCommand>(prefab))
-            {
-                ecb.AddBuffer<RTSCommand>(newUnit);
-            }
-
-            if (!state.EntityManager.HasComponent<RTSInputState>(prefab))
-            {
-                ecb.AddComponent(newUnit, new RTSInputState { TargetPosition = float3.zero, HasTarget = false });
-            }
-
-            UnityEngine.Debug.Log($"[ProductionProgress] Spawned unit at {spawnPos} for owner {ownerId}");
+            // 위치 설정 (오프셋)
+            float3 finalPos = spawnPos + new float3(2f, 0, 2f);
+            
+            // Transform 설정 (SetComponent)
+            Ecb.SetComponent(sortKey, newUnit, LocalTransform.FromPosition(finalPos));
+            
+            // 소유권 설정
+            Ecb.SetComponent(sortKey, newUnit, new GhostOwner { NetworkId = ownerId });
+            Ecb.SetComponent(sortKey, newUnit, new Team { teamId = ownerId });
+            
+            // 필수 컴포넌트가 프리팹에 없는 경우를 대비한 안전장치 (필요 없다면 제거 가능)
+            // 성능을 위해 가능하면 프리팹 자체에 컴포넌트를 붙여두는 것이 좋음
+            Ecb.AddComponent(sortKey, newUnit, new MoveTarget { position = finalPos, isValid = false });
+            Ecb.AddComponent(sortKey, newUnit, new RTSInputState { TargetPosition = float3.zero, HasTarget = false });
         }
     }
 }

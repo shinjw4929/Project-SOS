@@ -3,29 +3,21 @@ using Unity.NetCode;
 using Unity.Collections;
 using UnityEngine.InputSystem;
 using Shared;
-using UnityEngine;
 
 namespace Client
 {
-    /// <summary>
-    /// 건물 명령 입력 처리
-    /// - Command + 건물 선택 + Q키 → StructureMenu 상태
-    /// - StructureMenu + ESC → Command 복귀
-    /// - StructureMenu + WallTag + R → 자폭 RPC
-    /// - StructureMenu + BarracksTag + Q/W → 생산 RPC
-    /// </summary>
     [UpdateInGroup(typeof(GhostInputSystemGroup))]
     [UpdateAfter(typeof(SelectionStateSystem))]
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
     public partial struct StructureCommandInputSystem : ISystem
     {
-        // [Entity -> int] 검색표
+        // [Entity -> int] 프리팹 -> 카탈로그 인덱스 매핑
         private NativeParallelHashMap<Entity, int> _prefabIndexMap;
         
         public void OnCreate(ref SystemState state)
         {
-            // 맵 초기화 (64개 맵핑)
             _prefabIndexMap = new NativeParallelHashMap<Entity, int>(64, Allocator.Persistent);
+            
             state.RequireForUpdate<NetworkStreamInGame>();
             state.RequireForUpdate<CurrentSelectionState>();
             state.RequireForUpdate<UnitCatalog>();
@@ -39,7 +31,7 @@ namespace Client
         
         public void OnUpdate(ref SystemState state)
         {
-            // 1. 해시맵 캐싱 (데이터가 로드되었고 맵이 비었을 때)
+            // 0. 초기화
             if (_prefabIndexMap.IsEmpty && SystemAPI.HasSingleton<UnitCatalog>())
             {
                 BuildIndexMap(ref state);
@@ -48,103 +40,126 @@ namespace Client
             var keyboard = Keyboard.current;
             if (keyboard == null) return;
 
+            // 1. 데이터 가져오기 (RefRW 사용)
             ref var userState = ref SystemAPI.GetSingletonRW<UserState>().ValueRW;
-            var currentSelectionState = SystemAPI.GetSingleton<CurrentSelectionState>();
+            var selection = SystemAPI.GetSingleton<CurrentSelectionState>();
 
-            
-            // Command 상태에서 건물 선택 + Q키 → StructureMenu
-            if (userState.CurrentState == UserContext.Command)
+            // 2. 상태별 분기 처리
+            switch (userState.CurrentState)
             {
-                if (keyboard.qKey.wasPressedThisFrame)
-                {
-                    if (currentSelectionState.Category == SelectionCategory.Structure &&
-                        currentSelectionState.IsOwnedSelection &&
-                        currentSelectionState.PrimaryEntity != Entity.Null)
-                    {
-                        // StructureMenu 상태로 전환
-                        userState.CurrentState = UserContext.StructureActionMenu;
-                    }
-                }
+                case UserContext.Command:
+                    HandleCommandState(keyboard, ref userState, selection);
+                    break;
+
+                case UserContext.StructureActionMenu:
+                    HandleMenuState(ref state, keyboard, ref userState, selection);
+                    break;
+            }
+        }
+
+        // [상태 1] Command 모드 -> 메뉴 진입
+        private void HandleCommandState(Keyboard keyboard, ref UserState userState, CurrentSelectionState selection)
+        {
+            // Q키 입력 확인
+            if (!keyboard.qKey.wasPressedThisFrame) return;
+
+            // 유효성 검사 (건물인가? 내 것인가? 선택된 것이 있는가?)
+            if (selection.Category != SelectionCategory.Structure ||
+                !selection.IsOwnedSelection ||
+                selection.PrimaryEntity == Entity.Null)
+            {
                 return;
             }
 
-            // StructureMenu 상태
-            if (userState.CurrentState == UserContext.StructureActionMenu)
+            // 상태 전환
+            userState.CurrentState = UserContext.StructureActionMenu;
+        }
+
+        // [상태 2] 메뉴 모드 -> 기능 수행
+        private void HandleMenuState(ref SystemState state, Keyboard keyboard, ref UserState userState, CurrentSelectionState selection)
+        {
+            // 1. 공통 탈출 조건 (ESC 키)
+            if (keyboard.escapeKey.wasPressedThisFrame)
             {
-                // ESC → Command 복귀
-                if (keyboard.escapeKey.wasPressedThisFrame)
+                userState.CurrentState = UserContext.Command;
+                return;
+            }
+
+            // 2. 선택 유효성 재검사 (메뉴 열린 상태에서 건물이 터졌을 수 있음)
+            if (selection.PrimaryEntity == Entity.Null || !state.EntityManager.Exists(selection.PrimaryEntity))
+            {
+                userState.CurrentState = UserContext.Command;
+                return;
+            }
+
+            Entity targetEntity = selection.PrimaryEntity;
+            var em = state.EntityManager;
+
+            // 3. 자폭 명령 (R키) - ExplosionData가 있는 경우만
+            if (keyboard.rKey.wasPressedThisFrame && em.HasComponent<ExplosionData>(targetEntity))
+            {
+                SendSelfDestructRpc(ref state, targetEntity);
+                userState.CurrentState = UserContext.Command; // 명령 후 복귀
+                return;
+            }
+
+            // 4. 유닛 생산 (Q/W키) - ProductionFacilityTag가 있는 경우만
+            if (em.HasComponent<ProductionFacilityTag>(targetEntity))
+            {
+                int localIndex = -1;
+                if (keyboard.qKey.wasPressedThisFrame) localIndex = 0;
+                else if (keyboard.wKey.wasPressedThisFrame) localIndex = 1;
+
+                if (localIndex != -1)
                 {
-                    userState.CurrentState = UserContext.Command;
-                    return;
-                }
-
-                // 선택이 해제되었거나 건물이 아니면 Command 복귀
-                if (currentSelectionState.Category != SelectionCategory.Structure ||
-                    !currentSelectionState.IsOwnedSelection ||
-                    currentSelectionState.PrimaryEntity == Entity.Null)
-                {
-                    userState.CurrentState = UserContext.Command;
-                    return;
-                }
-
-                var primaryEntity = currentSelectionState.PrimaryEntity;
-
-                bool canExplode = state.EntityManager.HasComponent<ExplosionData>(primaryEntity);
-                bool canProduce = state.EntityManager.HasComponent<ProductionFacilityTag>(primaryEntity);
-                
-
-                // 자폭 (R키)
-                if (canExplode && keyboard.rKey.wasPressedThisFrame)
-                {
-                    SendSelfDestructRpc(ref state, primaryEntity);
-
-                    // Command 상태로 복귀
-                    userState.CurrentState = UserContext.Command;
-                    return;
-                }
-
-                // 생산 (Q키 - 첫 번째 유닛, W키 - 두 번째 유닛)
-                if (canProduce)
-                {
-                    int targetLocalIndex = -1;
-                    if (keyboard.qKey.wasPressedThisFrame) targetLocalIndex = 0;
-                    else if (keyboard.wKey.wasPressedThisFrame) targetLocalIndex = 1;
-
-                    if (targetLocalIndex != -1)
+                    // 인덱스 변환 및 RPC 전송
+                    int globalIndex = TryGetGlobalUnitIndex(em, targetEntity, localIndex);
+                    
+                    if (globalIndex >= 0)
                     {
-                        int globalIndex = TrySelectUnitFromStructure(
-                            state.EntityManager,
-                            primaryEntity,
-                            targetLocalIndex
-                        );
-
-                        // 유효한 인덱스인 경우에만 RPC 전송
-                        if (globalIndex >= 0)
-                        {
-                            SendProduceUnitRpc(ref state, primaryEntity, globalIndex);
-                        }
-                        userState.CurrentState = UserContext.Command;
+                        SendProduceUnitRpc(ref state, targetEntity, globalIndex);
                         
-                        if (keyboard.escapeKey.wasPressedThisFrame)
-                        {
-                            // ESC : 메뉴 닫기 (Command로 복귀)
-                            userState.CurrentState = UserContext.Command;
-                        }
+                        // [기획 결정] 생산 명령 후 메뉴를 닫을 것인가?
+                        // 보통 RTS에서는 연속 생산을 위해 닫지 않지만, 
+                        // 여기서는 코드 흐름상 닫는 것으로 처리합니다. (필요 시 주석 처리)
+                        // userState.CurrentState = UserContext.Command; 
                     }
                 }
             }
         }
 
+        // --- Helper Methods ---
+
+        private int TryGetGlobalUnitIndex(EntityManager em, Entity facilityEntity, int localIndex)
+        {
+            // 버퍼 존재 확인
+            if (!em.HasBuffer<AvailableUnit>(facilityEntity)) return -1;
+
+            var buffer = em.GetBuffer<AvailableUnit>(facilityEntity);
+            if (localIndex < 0 || localIndex >= buffer.Length) return -1;
+
+            Entity prefabEntity = buffer[localIndex].PrefabEntity;
+
+            if (_prefabIndexMap.TryGetValue(prefabEntity, out int globalIndex))
+            {
+                return globalIndex;
+            }
+            
+            UnityEngine.Debug.LogWarning($"Prefab not found in Catalog: {prefabEntity}");
+            return -1;
+        }
+
         private void SendSelfDestructRpc(ref SystemState state, Entity entity)
         {
+            // GhostInstance 확인 (네트워크 객체인지)
             if (!state.EntityManager.HasComponent<GhostInstance>(entity)) return;
 
-            var ghostInstance = state.EntityManager.GetComponentData<GhostInstance>(entity);
-
+            var ghostId = state.EntityManager.GetComponentData<GhostInstance>(entity).ghostId;
             var rpcEntity = state.EntityManager.CreateEntity();
+            
             state.EntityManager.AddComponentData(rpcEntity, new SelfDestructRequestRpc
             {
-                TargetGhostId = ghostInstance.ghostId
+                TargetGhostId = ghostId
             });
             state.EntityManager.AddComponent<SendRpcCommandRequest>(rpcEntity);
         }
@@ -153,48 +168,15 @@ namespace Client
         {
             if (!state.EntityManager.HasComponent<GhostInstance>(entity)) return;
 
-            var ghostInstance = state.EntityManager.GetComponentData<GhostInstance>(entity);
-
+            var ghostId = state.EntityManager.GetComponentData<GhostInstance>(entity).ghostId;
             var rpcEntity = state.EntityManager.CreateEntity();
+            
             state.EntityManager.AddComponentData(rpcEntity, new ProduceUnitRequestRpc
             {
-                StructureGhostId = ghostInstance.ghostId,
+                StructureGhostId = ghostId,
                 UnitIndex = unitIndex
             });
             state.EntityManager.AddComponent<SendRpcCommandRequest>(rpcEntity);
-        }
-        
-        /// <summary>
-        /// 선택된 건물의 버퍼에서 N번째 유닛을 가져와 전역 인덱스로 변환
-        /// </summary>
-        private int TrySelectUnitFromStructure(
-            EntityManager entityManager, 
-            Entity productionFacilityEntity, 
-            int localIndex)
-        {
-            // 1. 건물의 생산 유닛 목록 버퍼 가져오기
-            var unitBuffer = entityManager.GetBuffer<AvailableUnit>(productionFacilityEntity);
-
-            // 2. 인덱스 유효성 검사
-            if (localIndex < 0 || localIndex >= unitBuffer.Length)
-            {
-                // 예외 처리
-                return - 1;
-            }
-
-            // 3. 짓고자 하는 프리팹 확인
-            Entity targetPrefab = unitBuffer[localIndex].PrefabEntity;
-
-            // 4. 프리팹이 전역 카탈로그의 몇 번째인지 해시맵 조회 (RPC용)
-            if (_prefabIndexMap.TryGetValue(targetPrefab, out int globalIndex))
-            {
-                return globalIndex;
-            }
-            else
-            {
-                UnityEngine.Debug.LogWarning($"Prefab {targetPrefab} not found in Global Catalog Map!");
-                return -1;
-            }
         }
         
         private void BuildIndexMap(ref SystemState state)
@@ -207,7 +189,6 @@ namespace Client
             {
                 if(buffer[i].PrefabEntity != Entity.Null)
                 {
-                    // 같은 프리팹이 중복되면 덮어씌워지지만, 카탈로그는 고유하다고 가정
                     _prefabIndexMap.TryAdd(buffer[i].PrefabEntity, i);
                 }
             }
