@@ -70,6 +70,11 @@ public class CommandUIController : MonoBehaviour
                 HideAllPanels();
                 break;
 
+            case UserContext.StructureMenu:
+                // 건물 명령 메뉴 상태에서는 Build 관련 패널 숨김
+                HideAllPanels();
+                break;
+
             default:
                 HideAllPanels();
                 break;
@@ -124,7 +129,7 @@ public class CommandUIController : MonoBehaviour
     private (Entity prefab, int index) FindPrefabByTag(bool isWall)
     {
         var refsEntity = _refsQuery.GetSingletonEntity();
-        var buffer = _em.GetBuffer<StructurePrefabElement>(refsEntity);
+        var buffer = _em.GetBuffer<StructureCatalogElement>(refsEntity);
 
         for (int i = 0; i < buffer.Length; i++)
         {
@@ -181,7 +186,7 @@ public class CommandUIController : MonoBehaviour
                 _userStateQuery = _em.CreateEntityQuery(typeof(UserState));
                 _selectionStateQuery = _em.CreateEntityQuery(typeof(SelectionState));
                 _previewStateQuery = _em.CreateEntityQuery(typeof(StructurePreviewState));
-                _refsQuery = _em.CreateEntityQuery(typeof(StructureEntitiesReferences));
+                _refsQuery = _em.CreateEntityQuery(typeof(StructureCatalog));
 
                 return true;
             }

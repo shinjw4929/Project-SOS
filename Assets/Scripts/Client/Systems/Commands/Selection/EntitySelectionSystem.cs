@@ -25,12 +25,28 @@ namespace Client
             state.RequireForUpdate<SelectionState>();
             state.RequireForUpdate<PhysicsWorldSingleton>();
             state.RequireForUpdate<EndSimulationEntityCommandBufferSystem.Singleton>();
+            state.RequireForUpdate<UserState>();
             state.RequireForUpdate<NetworkId>();
         }
 
         public void OnUpdate(ref SystemState state)
         {
             ref var selectionState = ref SystemAPI.GetSingletonRW<SelectionState>().ValueRW;
+
+            // ESC 키 → 선택 해제
+            var keyboard = Keyboard.current;
+            if (keyboard != null && keyboard.escapeKey.wasPressedThisFrame)
+            {
+                // Command 상태에서만 선택 해제 (StructureMenu 등에서는 다른 시스템이 처리)
+                var userState = SystemAPI.GetSingleton<UserState>();
+                if (userState.CurrentState == UserContext.Command)
+                {
+                    var ecb = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>()
+                        .CreateCommandBuffer(state.WorldUnmanaged);
+                    DeselectAll(ref state, ecb);
+                    return;
+                }
+            }
 
             // 이벤트 기반: PendingClick 또는 PendingBox일 때만 처리
             if (selectionState.Phase == SelectionPhase.PendingClick)
@@ -158,10 +174,6 @@ namespace Client
         /// </summary>
         private void SelectEntity(ref SystemState state, EntityCommandBuffer ecb, Entity entity)
         {
-            if (!state.EntityManager.HasComponent<Selected>(entity))
-            {
-                ecb.AddComponent<Selected>(entity);
-            }
             ecb.SetComponentEnabled<Selected>(entity, true);
         }
 

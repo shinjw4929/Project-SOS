@@ -1,3 +1,4 @@
+using NUnit.Framework;
 using Unity.Entities;
 using Unity.NetCode;
 using Shared;
@@ -85,7 +86,7 @@ namespace Client
             // 카테고리 결정
             if (hasUnits && hasStructures)
             {
-                currentSelection.Category = SelectionCategory.Mixed;
+                throw new System.Exception("예상 하지 못한 오류 발생: 유닛과 구조체가 동시에 선택될 수 없습니다.");
             }
             else if (hasUnits)
             {

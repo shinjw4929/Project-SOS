@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace Authoring
 {
-    // Selected 컴포넌트를 Player 프리팹에 추가하기 위한 Authoring
+    // Selected 컴포넌트를 프리팹에 추가하기 위한 Authoring
     public class SelectedAuthoring : MonoBehaviour
     {
         public class Baker : Baker<SelectedAuthoring>
