@@ -29,7 +29,7 @@ namespace Client
             if (mouse == null) return;
 
             var userState = SystemAPI.GetSingleton<UserState>();
-            if (userState.CurrentState != UserContext.Command) return;
+            if (userState.CurrentState == UserContext.Construction || userState.CurrentState == UserContext.Dead) return;
 
             ref var selectionState = ref SystemAPI.GetSingletonRW<SelectionState>().ValueRW;
             float2 mousePos = mouse.position.ReadValue();

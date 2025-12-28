@@ -13,15 +13,21 @@ namespace Server
     [BurstCompile]
     public partial struct ProductionProgressSystem : ISystem
     {
+        // 1. 시스템 필드에 Lookup 선언
+        [ReadOnly] private ComponentLookup<LocalTransform> _transformLookup;
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<EndSimulationEntityCommandBufferSystem.Singleton>();
             state.RequireForUpdate<UnitCatalog>();
+            // 2. Lookup 초기화 (읽기 전용)
+            _transformLookup = state.GetComponentLookup<LocalTransform>(isReadOnly: true);
         }
 
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
+            // 3. 매 프레임 Lookup 갱신 (필수!)
+            _transformLookup.Update(ref state);
             float deltaTime = SystemAPI.Time.DeltaTime;
             
             // 유닛 카탈로그 버퍼 가져오기 (Job에 넘기기 위해 NativeArray로 복사하거나, Job에서 읽기 전용 접근)
@@ -37,7 +43,8 @@ namespace Server
             {
                 DeltaTime = deltaTime,
                 CatalogBuffer = catalogBuffer.AsNativeArray(), // 읽기 전용 NativeArray로 변환
-                Ecb = ecb
+                Ecb = ecb,
+                TransformLookup = _transformLookup // 4. Job에 Lookup 전달
             }.ScheduleParallel();
         }
     }
@@ -49,6 +56,7 @@ namespace Server
         public float DeltaTime;
         [ReadOnly] public NativeArray<UnitCatalogElement> CatalogBuffer;
         public EntityCommandBuffer.ParallelWriter Ecb;
+        [ReadOnly] public ComponentLookup<LocalTransform> TransformLookup;
 
         // 필요한 컴포넌트만 ref로 가져옴
         private void Execute(
@@ -91,14 +99,30 @@ namespace Server
         {
             if (prefab == Entity.Null) return;
 
-            // Instantiate
+            // A. 유닛 생성
             Entity newUnit = Ecb.Instantiate(sortKey, prefab);
 
             // 위치 설정 (오프셋)
-            float3 finalPos = spawnPos + new float3(2f, 0, 2f);
+            float3 finalPos = spawnPos + new float3(2f, 0, -2f);
             
-            // Transform 설정 (SetComponent)
-            Ecb.SetComponent(sortKey, newUnit, LocalTransform.FromPosition(finalPos));
+            // B. 프리팹의 Transform 정보 가져오기
+            // TransformLookup.HasComponent(Entity)로 안전하게 확인
+            if (TransformLookup.HasComponent(prefab))
+            {
+                // 프리팹의 원본 Transform 복사 (여기에 Scale 값이 들어있음!)
+                LocalTransform prefabTransform = TransformLookup[prefab];
+                
+                // 위치만 변경
+                prefabTransform.Position = finalPos;
+                
+                // 적용
+                Ecb.SetComponent(sortKey, newUnit, prefabTransform);
+            }
+            else
+            {
+                // 프리팹에 Transform이 없는 경우 (예외 처리)
+                Ecb.SetComponent(sortKey, newUnit, LocalTransform.FromPosition(finalPos));
+            }
             
             // 소유권 설정
             Ecb.SetComponent(sortKey, newUnit, new GhostOwner { NetworkId = ownerId });

@@ -32,13 +32,12 @@ namespace Client
         public void OnUpdate(ref SystemState state)
         {
             ref var selectionState = ref SystemAPI.GetSingletonRW<SelectionState>().ValueRW;
-
+            ref var userState = ref SystemAPI.GetSingletonRW<UserState>().ValueRW;
             // ESC 키 → 선택 해제
             var keyboard = Keyboard.current;
             if (keyboard != null && keyboard.escapeKey.wasPressedThisFrame)
             {
                 // Command 상태에서만 선택 해제 (StructureMenu 등에서는 다른 시스템이 처리)
-                var userState = SystemAPI.GetSingleton<UserState>();
                 if (userState.CurrentState == UserContext.Command)
                 {
                     var ecb = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>()
@@ -51,11 +50,13 @@ namespace Client
             // 이벤트 기반: PendingClick 또는 PendingBox일 때만 처리
             if (selectionState.Phase == SelectionPhase.PendingClick)
             {
+                SetUserStateIdle(ref userState);
                 HandleSingleClick(ref state, ref selectionState);
                 selectionState.Phase = SelectionPhase.Idle;
             }
             else if (selectionState.Phase == SelectionPhase.PendingBox)
             {
+                SetUserStateIdle(ref userState);
                 HandleBoxSelection(ref state, ref selectionState);
                 selectionState.Phase = SelectionPhase.Idle;
             }
@@ -153,6 +154,11 @@ namespace Client
             }
         }
 
+        private void SetUserStateIdle(ref UserState userState)
+        {
+            userState.CurrentState = UserContext.Command;
+        }
+        
         /// <summary>
         /// 선택 가능한 부모 엔티티 찾기 (Collider가 자식일 경우)
         /// </summary>
