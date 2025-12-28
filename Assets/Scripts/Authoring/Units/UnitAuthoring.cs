@@ -3,6 +3,7 @@ using Unity.Mathematics;
 using Unity.Rendering;
 using UnityEngine;
 using Shared;
+using Unity.NetCode;
 
 namespace Authoring
 {
@@ -164,6 +165,9 @@ namespace Authoring
                 { 
                     Value = new float4(1, 1, 1, 1) 
                 });
+                //발사체
+                AddComponent<ProjectileFireInput>(entity);
+
             }
         }
     }
