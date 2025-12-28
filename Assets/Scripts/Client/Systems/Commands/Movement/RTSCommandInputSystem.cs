@@ -7,7 +7,13 @@ using Shared;
 
 namespace Client
 {
+    /// <summary>
+    /// RTS 명령 입력 시스템
+    /// - 우클릭 → 이동 명령
+    /// - (향후) A-클릭 → 공격 명령, S → 정지 명령 등
+    /// </summary>
     [UpdateInGroup(typeof(GhostInputSystemGroup))]
+    [UpdateAfter(typeof(SelectionStateSystem))]
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
     public partial struct RTSCommandInputSystem : ISystem
     {
@@ -15,44 +21,54 @@ namespace Client
         {
             state.RequireForUpdate<NetworkStreamInGame>();
             state.RequireForUpdate<NetworkId>();
+            state.RequireForUpdate<UserState>();
         }
 
         public void OnUpdate(ref SystemState state)
         {
-            // ------------------------------------------------------------
-            // 1. 마우스 입력 처리 (클릭 -> InputState 갱신)
-            // ------------------------------------------------------------
-            if (Mouse.current != null && Mouse.current.rightButton.wasPressedThisFrame && Camera.main != null)
+            var userState = SystemAPI.GetSingleton<UserState>();
+            if (userState.CurrentState == UserContext.Dead) return;
+
+            ProcessRightClickCommand(ref state);
+            SubmitCommands(ref state);
+        }
+
+        /// <summary>
+        /// 우클릭 입력 처리 → RTSInputState 갱신
+        /// </summary>
+        private void ProcessRightClickCommand(ref SystemState state)
+        {
+            var mouse = Mouse.current;
+            if (mouse == null || !mouse.rightButton.wasPressedThisFrame) return;
+            if (Camera.main == null) return;
+
+            float2 mousePos = mouse.position.ReadValue();
+            Ray ray = Camera.main.ScreenPointToRay(new Vector3(mousePos.x, mousePos.y, 0));
+
+            int groundMask = 1 << LayerMask.NameToLayer("Ground");
+
+            if (Physics.Raycast(ray, out RaycastHit hit, 1000f, groundMask))
             {
-                float2 mousePos = Mouse.current.position.ReadValue();
-                UnityEngine.Ray ray = Camera.main.ScreenPointToRay(new Vector3(mousePos.x, mousePos.y, 0));
-                
-                // Ground 레이어만 체크
-                int groundMask = 1 << LayerMask.NameToLayer("Ground");
+                float3 targetPos = hit.point;
 
-                if (UnityEngine.Physics.Raycast(ray, out UnityEngine.RaycastHit hit, 1000f, groundMask))
+                // 선택된 내 유닛들의 InputState 갱신
+                foreach (var inputState in SystemAPI.Query<RefRW<RTSInputState>>()
+                    .WithAll<Selected, GhostOwnerIsLocal>())
                 {
-                    float3 newTargetPos = hit.point;
-
-                    // 선택된 '내 유닛'들의 InputState를 즉시 갱신
-                    // (서버 데이터인 MoveTarget은 건드리지 않음 -> 롤백 방지)
-                    foreach (var (inputState, entity) in SystemAPI.Query<RefRW<RTSInputState>>()
-                        .WithAll<Selected, GhostOwnerIsLocal>() // 선택되고 + 내 것인 유닛
-                        .WithEntityAccess())
-                    {
-                        inputState.ValueRW.TargetPosition = newTargetPos;
-                        inputState.ValueRW.HasTarget = true;
-                    }
+                    inputState.ValueRW.TargetPosition = targetPos;
+                    inputState.ValueRW.HasTarget = true;
                 }
             }
+        }
 
-            // ------------------------------------------------------------
-            // 2. 명령 생성 (InputState -> RTSCommand)
-            // ------------------------------------------------------------
+        /// <summary>
+        /// RTSInputState → RTSCommand 버퍼에 명령 제출
+        /// </summary>
+        private void SubmitCommands(ref SystemState state)
+        {
             var networkTime = SystemAPI.GetSingleton<NetworkTime>();
             NetworkTick tick = networkTime.ServerTick;
 
-            // 모든 내 유닛에 대해, 현재 InputState를 명령서로 작성하여 제출
             foreach (var (inputState, inputBuffer) in SystemAPI.Query<RefRO<RTSInputState>, DynamicBuffer<RTSCommand>>()
                 .WithAll<GhostOwnerIsLocal>())
             {
@@ -60,11 +76,10 @@ namespace Client
                 {
                     Tick = tick,
                     TargetPosition = inputState.ValueRO.TargetPosition,
-                    // hasTarget이 true면 Move 명령, 아니면 None
+                    TargetGhostId = 0, // 향후 공격 명령에서 사용
                     CommandType = inputState.ValueRO.HasTarget ? RTSCommandType.Move : RTSCommandType.None
                 };
 
-                // 이전 틱의 명령과 다르더라도 무조건 현재 의도(InputState)를 보냄 -> 즉각 반응
                 inputBuffer.AddCommandData(command);
             }
         }

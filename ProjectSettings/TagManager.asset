@@ -8,15 +8,15 @@ TagManager:
   - Default
   - TransparentFX
   - Ignore Raycast
-  - 
+  - Ground
   - Water
   - UI
-  - Ground
-  - Unit
   - Structure
+  - Unit
   - Enemy
+  - FlyingUnit
   - Fog
-  - Player
+  - 
   - EnemyDamage
   - 
   - 

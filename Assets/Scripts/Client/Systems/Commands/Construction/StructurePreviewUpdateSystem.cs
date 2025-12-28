@@ -1,6 +1,8 @@
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Transforms;
+using Unity.Physics;
+using Unity.Collections;
 using Shared;
 
 namespace Client
@@ -14,6 +16,7 @@ namespace Client
             state.RequireForUpdate<UserState>();
             state.RequireForUpdate<StructurePreviewState>();
             state.RequireForUpdate<GridSettings>();
+            state.RequireForUpdate<PhysicsWorldSingleton>();
         }
 
         public void OnUpdate(ref SystemState state)
@@ -55,30 +58,43 @@ namespace Client
                     width, length, gridSettings.GridSize.x, gridSettings.GridSize.y);
             }
 
-            // 유닛 충돌 확인
-            bool hasUnitCollision = CheckUnitCollision(ref state, previewState.GridPosition.x, previewState.GridPosition.y,
+            // 유닛 충돌 확인 (Physics OverlapAabb)
+            var physicsWorld = SystemAPI.GetSingleton<PhysicsWorldSingleton>();
+            float3 buildingCenter = GridUtility.GridToWorld(previewState.GridPosition.x, previewState.GridPosition.y,
                 width, length, gridSettings);
+            float3 halfExtents = new float3(
+                width * gridSettings.CellSize * 0.5f,
+                1f, // Y축 높이
+                length * gridSettings.CellSize * 0.5f
+            );
+            bool hasUnitCollision = CheckUnitCollisionPhysics(physicsWorld, buildingCenter, halfExtents);
 
             previewState.IsValidPlacement = !isOccupied && !hasUnitCollision;
         }
 
-        private bool CheckUnitCollision(ref SystemState state, int gridX, int gridY, int width, int length, GridSettings gridSettings)
+        private bool CheckUnitCollisionPhysics(PhysicsWorldSingleton physicsWorld, float3 center, float3 halfExtents)
         {
-            // (충돌 로직은 기존과 동일)
-            float3 buildingCenter = GridUtility.GridToWorld(gridX, gridY, width, length, gridSettings);
-            float halfWidth = width * gridSettings.CellSize / 2f;
-            float halfLength = length * gridSettings.CellSize / 2f;
-
-            foreach (var (transform, _) in SystemAPI.Query<RefRO<LocalTransform>, RefRO<UnitTag>>())
+            // Structure(6) → Unit(7) + Enemy(8) 충돌 체크
+            var input = new OverlapAabbInput
             {
-                float3 unitPos = transform.ValueRO.Position;
-                if (unitPos.x >= buildingCenter.x - halfWidth && unitPos.x <= buildingCenter.x + halfWidth &&
-                    unitPos.z >= buildingCenter.z - halfLength && unitPos.z <= buildingCenter.z + halfLength)
+                Aabb = new Aabb
                 {
-                    return true;
+                    Min = center - halfExtents,
+                    Max = center + halfExtents
+                },
+                Filter = new CollisionFilter
+                {
+                    BelongsTo = 1u << 6,                      // Structure
+                    CollidesWith = (1u << 7) | (1u << 8),    // Unit + Enemy
+                    GroupIndex = 0
                 }
-            }
-            return false;
+            };
+
+            var hits = new NativeList<int>(Allocator.Temp);
+            bool hasCollision = physicsWorld.OverlapAabb(input, ref hits);
+            hits.Dispose();
+
+            return hasCollision;
         }
     }
 }

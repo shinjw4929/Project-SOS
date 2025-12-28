@@ -3,6 +3,7 @@ using Unity.Entities;
 using Unity.NetCode;
 using Unity.Transforms;
 using Unity.Mathematics;
+using Unity.Physics;
 using Shared;
 
 /*
@@ -18,6 +19,7 @@ public partial struct NetcodePlayerMovementSystem : ISystem
     public void OnCreate(ref SystemState state)
     {
         state.RequireForUpdate<NetworkTime>();
+        state.RequireForUpdate<PhysicsWorldSingleton>();
     }
 
     [BurstCompile]
@@ -25,8 +27,19 @@ public partial struct NetcodePlayerMovementSystem : ISystem
     {
         float deltaTime = SystemAPI.Time.DeltaTime;
         float arrivalThreshold = 0.5f;
+        float unitRadius = 0.5f; // 유닛 충돌 반지름
 
         var networkTime = SystemAPI.GetSingleton<NetworkTime>();
+        var physicsWorld = SystemAPI.GetSingleton<PhysicsWorldSingleton>();
+        var collisionWorld = physicsWorld.CollisionWorld;
+
+        // Unit(Layer 7) → Structure(Layer 6) 충돌 필터
+        var collisionFilter = new CollisionFilter
+        {
+            BelongsTo = 1u << 7,    // Unit
+            CollidesWith = 1u << 6, // Structure
+            GroupIndex = 0
+        };
 
         foreach ((
              RefRW<MoveTarget> moveTarget,
@@ -54,9 +67,9 @@ public partial struct NetcodePlayerMovementSystem : ISystem
             {
                 float3 currentPos = localTransform.ValueRO.Position;
                 float3 targetPos = moveTarget.ValueRO.position;
-                
+
                 // 목표 지점의 Y 현재 Y와 일치
-                targetPos.y = currentPos.y; 
+                targetPos.y = currentPos.y;
 
                 float distance = math.distance(currentPos, targetPos);
 
@@ -64,28 +77,85 @@ public partial struct NetcodePlayerMovementSystem : ISystem
                 if (distance < arrivalThreshold)
                 {
                     moveTarget.ValueRW.isValid = false;
-                    
+
                     // 도착 시 떨림 방지를 위해 위치 강제 고정
-                    localTransform.ValueRW.Position = targetPos; 
+                    localTransform.ValueRW.Position = targetPos;
                 }
                 else
                 {
-                    // 오버슈팅 방지 (이번 프레임 이동량이 남은 거리보다 크면 바로 도착 처리)
                     float moveStep = movementSpeed.ValueRO.Value * deltaTime;
-                    
+
                     if (distance <= moveStep)
                     {
-                         // 바로 도착 지점으로 이동 후 정지
                          localTransform.ValueRW.Position = targetPos;
                          moveTarget.ValueRW.isValid = false;
                     }
                     else
                     {
-                        // 이동
                         float3 direction = math.normalize(targetPos - currentPos);
-                        localTransform.ValueRW.Position += direction * moveStep;
-                        
-                        // 회전
+                        float3 desiredMovement = direction * moveStep;
+                        float3 finalMovement = desiredMovement;
+
+                        // 3. 충돌 감지 (RayCast)
+                        float castDistance = moveStep + unitRadius;
+                        var raycastInput = new RaycastInput
+                        {
+                            Start = currentPos,
+                            End = currentPos + direction * castDistance,
+                            Filter = collisionFilter
+                        };
+
+                        if (collisionWorld.CastRay(raycastInput, out RaycastHit hit))
+                        {
+                            float hitDistance = hit.Fraction * castDistance;
+
+                            // 유닛 반지름보다 가까우면 충돌
+                            if (hitDistance < unitRadius + moveStep)
+                            {
+                                // 충돌 시 슬라이딩 계산
+                                float3 hitNormal = hit.SurfaceNormal;
+                                hitNormal.y = 0; // 수평면에서만 슬라이딩
+                                hitNormal = math.normalizesafe(hitNormal);
+
+                                // 슬라이딩 방향 = 원래 방향에서 법선 방향 성분 제거
+                                float3 slideDirection = direction - math.dot(direction, hitNormal) * hitNormal;
+
+                                if (math.lengthsq(slideDirection) > 0.001f)
+                                {
+                                    slideDirection = math.normalize(slideDirection);
+                                    finalMovement = slideDirection * moveStep;
+
+                                    // 슬라이딩 방향으로 다시 충돌 체크
+                                    var slideRayInput = new RaycastInput
+                                    {
+                                        Start = currentPos,
+                                        End = currentPos + slideDirection * castDistance,
+                                        Filter = collisionFilter
+                                    };
+
+                                    if (collisionWorld.CastRay(slideRayInput, out RaycastHit slideHit))
+                                    {
+                                        float slideHitDist = slideHit.Fraction * castDistance;
+                                        if (slideHitDist < unitRadius + moveStep)
+                                        {
+                                            // 슬라이딩도 막힘 - 충돌 직전까지만 이동
+                                            float safeMove = math.max(0, slideHitDist - unitRadius);
+                                            finalMovement = slideDirection * safeMove;
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    // 슬라이딩 불가 (정면 충돌) - 이동 안함
+                                    finalMovement = float3.zero;
+                                }
+                            }
+                        }
+
+                        // 최종 이동 적용
+                        localTransform.ValueRW.Position += finalMovement;
+
+                        // 회전 (원래 방향으로)
                         if (math.lengthsq(direction) > 0.001f)
                         {
                             localTransform.ValueRW.Rotation = quaternion.LookRotationSafe(direction, math.up());

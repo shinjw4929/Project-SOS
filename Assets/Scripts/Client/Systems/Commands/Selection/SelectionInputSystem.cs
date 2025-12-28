@@ -1,31 +1,39 @@
 using Unity.Entities;
 using Unity.NetCode;
 using Unity.Mathematics;
-using UnityEngine;
 using UnityEngine.InputSystem;
 using Shared;
 
 namespace Client
 {
+    /// <summary>
+    /// 마우스 입력 → SelectionState 업데이트
+    /// - Phase 기반 상태 머신
+    /// - 드래그 임계값(5px) 기준으로 클릭/드래그 구분
+    /// </summary>
     [UpdateInGroup(typeof(GhostInputSystemGroup))]
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
     partial struct SelectionInputSystem : ISystem
     {
+        private const float DragThreshold = 5f;
+
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<NetworkStreamInGame>();
             state.RequireForUpdate<UserState>();
-            // 싱글톤 엔티티 생성
-            var selectionStateEntity = state.EntityManager.CreateEntity();
-            state.EntityManager.AddComponentData(selectionStateEntity, new SelectionState { Mode = SelectionMode.Idle });
 
-            var selectionBoxEntity = state.EntityManager.CreateEntity();
-            state.EntityManager.AddComponentData(selectionBoxEntity, new SelectionBox
+            // 싱글톤 생성 (통합된 SelectionState)
+            var entity = state.EntityManager.CreateEntity();
+            state.EntityManager.AddComponentData(entity, new SelectionState
             {
+                Phase = SelectionPhase.Idle,
                 StartScreenPos = float2.zero,
-                CurrentScreenPos = float2.zero,
-                IsDragging = false
+                CurrentScreenPos = float2.zero
             });
+
+            // CurrentSelection 싱글톤도 생성
+            var selectionEntity = state.EntityManager.CreateEntity();
+            state.EntityManager.AddComponentData(selectionEntity, new CurrentSelection());
         }
 
         public void OnUpdate(ref SystemState state)
@@ -34,44 +42,61 @@ namespace Client
             if (mouse == null) return;
 
             var userState = SystemAPI.GetSingleton<UserState>();
-            if(userState.CurrentState != UserContext.Command) return;
-            
-            bool leftClickPressed = mouse.leftButton.wasPressedThisFrame;
-            bool leftClickReleased = mouse.leftButton.wasReleasedThisFrame;
+            if (userState.CurrentState != UserContext.Command) return;
+
+            ref var selectionState = ref SystemAPI.GetSingletonRW<SelectionState>().ValueRW;
             float2 mousePos = mouse.position.ReadValue();
 
-            var selectionState = SystemAPI.GetSingletonRW<SelectionState>();
-            var selectionBox = SystemAPI.GetSingletonRW<SelectionBox>();
+            bool leftPressed = mouse.leftButton.wasPressedThisFrame;
+            bool leftReleased = mouse.leftButton.wasReleasedThisFrame;
 
-            if (leftClickPressed)
+            switch (selectionState.Phase)
             {
-                // 드래그 시작
-                selectionBox.ValueRW.StartScreenPos = mousePos;
-                selectionBox.ValueRW.CurrentScreenPos = mousePos;
-                selectionBox.ValueRW.IsDragging = true;
-                selectionState.ValueRW.Mode = SelectionMode.BoxDragging;
-            }
-            else if (leftClickReleased && selectionBox.ValueRO.IsDragging)
-            {
-                float2 delta = selectionBox.ValueRO.CurrentScreenPos - selectionBox.ValueRO.StartScreenPos;
-    
-                // 1. 거리가 짧으면 -> 단일 클릭 모드
-                if (math.length(delta) < 5f)
-                {
-                    selectionState.ValueRW.Mode = SelectionMode.SingleClick;
-                }
-                // 2. 거리가 길면(드래그면) -> 이제 볼일 다 봤으니 Idle
-                else
-                {
-                    selectionState.ValueRW.Mode = SelectionMode.Idle;
-                }
+                case SelectionPhase.Idle:
+                    if (leftPressed)
+                    {
+                        // 마우스 누름 → Pressing 상태로 전환
+                        selectionState.Phase = SelectionPhase.Pressing;
+                        selectionState.StartScreenPos = mousePos;
+                        selectionState.CurrentScreenPos = mousePos;
+                    }
+                    break;
 
-                selectionBox.ValueRW.IsDragging = false;
-            }
-            else if (selectionBox.ValueRO.IsDragging)
-            {
-                // 드래그 중 위치 갱신
-                selectionBox.ValueRW.CurrentScreenPos = mousePos;
+                case SelectionPhase.Pressing:
+                    if (leftReleased)
+                    {
+                        // 짧은 클릭 → PendingClick
+                        selectionState.Phase = SelectionPhase.PendingClick;
+                    }
+                    else
+                    {
+                        // 드래그 거리 체크
+                        selectionState.CurrentScreenPos = mousePos;
+                        float dragDistance = math.length(mousePos - selectionState.StartScreenPos);
+
+                        if (dragDistance >= DragThreshold)
+                        {
+                            // 드래그 임계값 초과 → Dragging 상태로
+                            selectionState.Phase = SelectionPhase.Dragging;
+                        }
+                    }
+                    break;
+
+                case SelectionPhase.Dragging:
+                    selectionState.CurrentScreenPos = mousePos;
+
+                    if (leftReleased)
+                    {
+                        // 드래그 완료 → PendingBox
+                        selectionState.Phase = SelectionPhase.PendingBox;
+                    }
+                    break;
+
+                case SelectionPhase.PendingClick:
+                case SelectionPhase.PendingBox:
+                    // EntitySelectionSystem에서 처리 후 Idle로 복귀
+                    // (여기서는 아무것도 하지 않음)
+                    break;
             }
         }
     }

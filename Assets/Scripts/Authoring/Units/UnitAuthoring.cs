@@ -52,10 +52,12 @@ namespace Authoring
                 {
                     case AuthoringUnitType.Hero:
                         AddComponent(entity, new HeroTag());
-                        AddComponent(entity, new WorkerTag()); // 영웅도 건설/채집 가능하면 추가
+                        AddComponent(entity, new WorkerTag());
+                        AddComponent(entity, new BuilderTag());
                         break;
                     case AuthoringUnitType.Worker:
                         AddComponent(entity, new WorkerTag());
+                        AddComponent(entity, new BuilderTag());
                         break;
                     case AuthoringUnitType.Soldier:
                         AddComponent(entity, new SoldierTag());

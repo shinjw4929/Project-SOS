@@ -3,71 +3,78 @@ using Unity.Entities;
 using Unity.Mathematics;
 using Client;
 
+/// <summary>
+/// 드래그 선택 박스 UI 렌더링
+/// - SelectionState의 Phase가 Dragging일 때 박스 표시
+/// </summary>
 public class SelectionBoxRenderer : MonoBehaviour
 {
     [Header("UI Reference")]
     [SerializeField] private RectTransform selectionBoxRect;
-    
-    // ECS 캐싱 변수
-    private EntityManager _clientEntityManager;
-    private EntityQuery _selectionBoxQuery;
-    private bool _isInitialized = false;
+    [SerializeField] private Canvas parentCanvas;
+
+    // ECS 캐싱
+    private EntityManager _entityManager;
+    private EntityQuery _selectionStateQuery;
+    private bool _isInitialized;
+
+    // Canvas 좌표 변환용
+    private RectTransform _canvasRect;
 
     private void Start()
     {
         if (selectionBoxRect != null)
         {
-            // 초기화: 박스 숨기기 및 피벗 설정
             selectionBoxRect.gameObject.SetActive(false);
-            selectionBoxRect.pivot = Vector2.zero; // 좌하단 기준
+            selectionBoxRect.pivot = Vector2.zero;
             selectionBoxRect.anchorMin = Vector2.zero;
             selectionBoxRect.anchorMax = Vector2.zero;
+        }
+
+        if (parentCanvas != null)
+        {
+            _canvasRect = parentCanvas.GetComponent<RectTransform>();
         }
     }
 
     private void Update()
     {
-        // 1. ECS 월드 연결 시도 (아직 연결 안 됐거나, 연결 끊긴 경우)
-        if (!_isInitialized || !_clientEntityManager.World.IsCreated)
+        if (!_isInitialized || !_entityManager.World.IsCreated)
         {
             if (!TryInitClientWorld()) return;
         }
 
-        // 2. 쿼리에 데이터(싱글톤)가 있는지 확인
-        if (_selectionBoxQuery.IsEmptyIgnoreFilter)
+        if (_selectionStateQuery.IsEmptyIgnoreFilter)
         {
-            if (selectionBoxRect.gameObject.activeSelf) selectionBoxRect.gameObject.SetActive(false);
+            HideBox();
             return;
         }
 
-        // 3. 데이터 읽기
-        var selectionBox = _selectionBoxQuery.GetSingleton<SelectionBox>();
+        var selectionState = _selectionStateQuery.GetSingleton<SelectionState>();
 
-        // 4. 드래그 상태에 따라 UI 갱신
-        if (selectionBox.IsDragging)
+        // Dragging 상태일 때만 박스 표시
+        if (selectionState.Phase == SelectionPhase.Dragging)
         {
-            if (!selectionBoxRect.gameObject.activeSelf) selectionBoxRect.gameObject.SetActive(true);
-            UpdateBoxRect(selectionBox.StartScreenPos, selectionBox.CurrentScreenPos);
+            ShowBox();
+            UpdateBoxRect(selectionState.StartScreenPos, selectionState.CurrentScreenPos);
         }
         else
         {
-            if (selectionBoxRect.gameObject.activeSelf) selectionBoxRect.gameObject.SetActive(false);
+            HideBox();
         }
     }
 
-    // Netcode 환경에서 안전하게 Client World를 찾는 로직
     private bool TryInitClientWorld()
     {
         foreach (var world in World.All)
         {
-            // ClientSystem 태그가 있거나, SelectionBox를 가진 월드를 탐색
             if (world == null || !world.IsCreated) continue;
 
-            var query = world.EntityManager.CreateEntityQuery(typeof(SelectionBox));
+            var query = world.EntityManager.CreateEntityQuery(typeof(SelectionState));
             if (!query.IsEmptyIgnoreFilter)
             {
-                _clientEntityManager = world.EntityManager;
-                _selectionBoxQuery = query;
+                _entityManager = world.EntityManager;
+                _selectionStateQuery = query;
                 _isInitialized = true;
                 return true;
             }
@@ -75,31 +82,57 @@ public class SelectionBoxRenderer : MonoBehaviour
         return false;
     }
 
+    private void ShowBox()
+    {
+        if (!selectionBoxRect.gameObject.activeSelf)
+            selectionBoxRect.gameObject.SetActive(true);
+    }
+
+    private void HideBox()
+    {
+        if (selectionBoxRect.gameObject.activeSelf)
+            selectionBoxRect.gameObject.SetActive(false);
+    }
+
     private void UpdateBoxRect(float2 start, float2 current)
     {
-        // 너비와 높이 계산
-        float width = current.x - start.x;
-        float height = current.y - start.y;
+        Vector2 startLocal = ScreenToCanvasPosition(new Vector2(start.x, start.y));
+        Vector2 currentLocal = ScreenToCanvasPosition(new Vector2(current.x, current.y));
 
-        // RectTransform은 음수 사이즈를 가질 수 없으므로 위치와 크기를 보정
-        // 예: 오른쪽 위에서 왼쪽 아래로 드래그할 때 처리
-        float x = start.x;
-        float y = start.y;
+        float width = currentLocal.x - startLocal.x;
+        float height = currentLocal.y - startLocal.y;
+        float x = startLocal.x;
+        float y = startLocal.y;
 
         if (width < 0)
         {
-            x = current.x;
-            width = -width; // 절대값
+            x = currentLocal.x;
+            width = -width;
         }
 
         if (height < 0)
         {
-            y = current.y;
-            height = -height; // 절대값
+            y = currentLocal.y;
+            height = -height;
         }
 
-        // UI에 적용
         selectionBoxRect.anchoredPosition = new Vector2(x, y);
         selectionBoxRect.sizeDelta = new Vector2(width, height);
+    }
+
+    private Vector2 ScreenToCanvasPosition(Vector2 screenPos)
+    {
+        if (_canvasRect == null) return screenPos;
+
+        RectTransformUtility.ScreenPointToLocalPointInRectangle(
+            _canvasRect,
+            screenPos,
+            parentCanvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : parentCanvas.worldCamera,
+            out Vector2 localPoint);
+
+        // Canvas pivot(0.5, 0.5)에 맞춰 조절 
+        Vector2 canvasSize = _canvasRect.rect.size;
+        Vector2 pivotOffset = _canvasRect.pivot * canvasSize;
+        return localPoint + pivotOffset;
     }
 }
