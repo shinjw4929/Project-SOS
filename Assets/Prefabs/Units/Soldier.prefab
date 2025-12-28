@@ -129,15 +129,16 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   unitType: 2
+  buildableStructures: []
   cost: 100
   populationCost: 1
-  trainingTime: 5
+  trainingTime: 3
   moveSpeed: 10
-  reach: 1
   maxHealth: 100
   defense: 0
   visionRange: 10
-  attackPower: 1
+  reach: 1
+  attackPower: 10
   attackSpeed: 1
 --- !u!114 &6436938495033817077
 MonoBehaviour:
