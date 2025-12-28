@@ -4,7 +4,7 @@ using Unity.Transforms;
 using Unity.Rendering; // [필수] DisableRendering이 여기 있음
 using Shared;
 
-[UpdateInGroup(typeof(PresentationSystemGroup))]
+[UpdateInGroup(typeof(SimulationSystemGroup))]
 [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
 [BurstCompile]
 public partial struct ClientDeathSystem : ISystem
