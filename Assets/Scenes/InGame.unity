@@ -2008,7 +2008,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2396e1bbc982c09498ce84df4e8cb2d4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  genericPreviewPrefab: {fileID: 0}
+  genericPreviewPrefab: {fileID: 2697124028170181865, guid: 118356b3d5301164d85e3ec67bda087e, type: 3}
   validMaterial: {fileID: 2100000, guid: 6e2240545e0539e4084192983d495fcf, type: 2}
   invalidMaterial: {fileID: 2100000, guid: 978d83858bfa56848862bcd163ced460, type: 2}
 --- !u!4 &1181322090
