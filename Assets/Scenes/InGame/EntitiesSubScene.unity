@@ -486,13 +486,17 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 2759198367364540584, guid: 4a23a605f66bc82488899b97f9f700df, type: 3}
+      propertyPath: targetCamera
+      value: 
+      objectReference: {fileID: 0}
     - target: {fileID: 3956927464421712395, guid: 4a23a605f66bc82488899b97f9f700df, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 3956927464421712395, guid: 4a23a605f66bc82488899b97f9f700df, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 0.5
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 3956927464421712395, guid: 4a23a605f66bc82488899b97f9f700df, type: 3}
       propertyPath: m_LocalPosition.z
@@ -526,6 +530,14 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 6738107840327746149, guid: 4a23a605f66bc82488899b97f9f700df, type: 3}
+      propertyPath: m_PresetInfoIsWorld
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 7349877756695361194, guid: 4a23a605f66bc82488899b97f9f700df, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 826e1c81b35b4bc458c8dea3652c3f4b, type: 2}
     - target: {fileID: 7816698049205446904, guid: 4a23a605f66bc82488899b97f9f700df, type: 3}
       propertyPath: m_Name
       value: Enemy_Initial
