@@ -4,65 +4,71 @@ using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using Shared;
-using Client;
 
 namespace Client
 {
-    /// <summary>
-    /// 건물 배치 입력을 처리하고 서버로 건설 요청 RPC를 전송
-    /// - 마우스 위치로 레이캐스트하여 그리드 좌표 계산
-    /// - 좌클릭 시 BuildRequestRpc 전송
-    /// </summary>
     [UpdateInGroup(typeof(GhostInputSystemGroup))]
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
-    public partial struct BuildingPlacementInputSystem : ISystem
+    public partial class StructurePlacementInputSystem : SystemBase
     {
-        // 레이캐스트 설정
-        private const string GROUND_LAYER_NAME = "Ground";
-        private const float RAYCAST_MAX_DISTANCE = 1000f;
+        private Camera _mainCamera;
+        private int _groundMask;
 
-        public void OnCreate(ref SystemState state)
+        protected override void OnCreate()
         {
-            state.RequireForUpdate<NetworkStreamInGame>();
-            state.RequireForUpdate<UserState>();
-            state.RequireForUpdate<GridSettings>();
+            RequireForUpdate<NetworkStreamInGame>();
+            RequireForUpdate<UserState>();
+            RequireForUpdate<GridSettings>();
+            _groundMask = 1 << LayerMask.NameToLayer("Ground");
         }
 
-        public void OnUpdate(ref SystemState state)
+        protected override void OnUpdate()
         {
             var userState = SystemAPI.GetSingleton<UserState>();
             if (userState.CurrentState != UserContext.Construction) return;
 
+            // 1. 카메라 캐싱 (매 프레임 FindObject 방지)
+            if (_mainCamera == null) 
+            {
+                _mainCamera = Camera.main;
+                if (_mainCamera == null) return;
+            }
+
             var mouse = Mouse.current;
-            if (mouse == null || Camera.main == null) return;
+            if (mouse == null) return;
 
             var gridSettings = SystemAPI.GetSingleton<GridSettings>();
             float2 mousePos = mouse.position.ReadValue();
+            Ray ray = _mainCamera.ScreenPointToRay(new Vector3(mousePos.x, mousePos.y, 0));
 
-            Ray ray = Camera.main.ScreenPointToRay(new Vector3(mousePos.x, mousePos.y, 0));
-            int groundMask = 1 << LayerMask.NameToLayer(GROUND_LAYER_NAME);
-
-            if (UnityEngine.Physics.Raycast(ray, out RaycastHit hit, RAYCAST_MAX_DISTANCE, groundMask))
+            if (UnityEngine.Physics.Raycast(ray, out RaycastHit hit, 1000f, _groundMask))
             {
-                float3 worldPos = hit.point;
-                int2 gridPos = GridUtility.WorldToGrid(worldPos, gridSettings);
-
+                int2 gridPos = GridUtility.WorldToGrid(hit.point, gridSettings);
+                
+                // RefRW로 접근하여 값 수정
                 ref var previewState = ref SystemAPI.GetSingletonRW<StructurePreviewState>().ValueRW;
-                previewState.GridPosition = new int2(gridPos.x, gridPos.y);
+                
+                // 값이 다를 때만 쓰기 (Cache Miss 방지 미세 최적화)
+                if (!previewState.GridPosition.Equals(gridPos))
+                    previewState.GridPosition = gridPos;
 
-                // 좌클릭 시 RPC 전송
                 if (mouse.leftButton.wasPressedThisFrame && previewState.IsValidPlacement)
                 {
-                    var rpcEntity = state.EntityManager.CreateEntity();
-                    state.EntityManager.AddComponentData(rpcEntity, new BuildRequestRpc
+                    // 2. ECB를 사용하여 안전하게 RPC 요청 생성
+                    var ecb = SystemAPI.GetSingleton<BeginSimulationEntityCommandBufferSystem.Singleton>()
+                        .CreateCommandBuffer(World.Unmanaged);
+
+                    var rpcEntity = ecb.CreateEntity();
+                    ecb.AddComponent(rpcEntity, new BuildRequestRpc
                     {
-                        // [변경] State에 저장해둔 인덱스를 보냄
                         StructureIndex = previewState.SelectedPrefabIndex,
                         GridPosition = gridPos
                     });
-                    state.EntityManager.AddComponent<SendRpcCommandRequest>(rpcEntity);
+                    ecb.AddComponent<SendRpcCommandRequest>(rpcEntity);
 
-                    SystemAPI.GetSingletonRW<UserState>().ValueRW.CurrentState = UserContext.Command;
+                    // 상태 변경 예약
+                    var userStateRw = SystemAPI.GetSingletonRW<UserState>();
+                    userStateRw.ValueRW.CurrentState = UserContext.Command;
                 }
             }
         }

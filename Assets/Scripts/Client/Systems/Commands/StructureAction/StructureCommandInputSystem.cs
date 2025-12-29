@@ -1,6 +1,5 @@
 using Unity.Entities;
 using Unity.NetCode;
-using Unity.Collections;
 using UnityEngine.InputSystem;
 using Shared;
 
@@ -11,32 +10,17 @@ namespace Client
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
     public partial struct StructureCommandInputSystem : ISystem
     {
-        // [Entity -> int] 프리팹 -> 카탈로그 인덱스 매핑
-        private NativeParallelHashMap<Entity, int> _prefabIndexMap;
-        
         public void OnCreate(ref SystemState state)
         {
-            _prefabIndexMap = new NativeParallelHashMap<Entity, int>(64, Allocator.Persistent);
-            
             state.RequireForUpdate<NetworkStreamInGame>();
             state.RequireForUpdate<CurrentSelectionState>();
             state.RequireForUpdate<UnitCatalog>();
             state.RequireForUpdate<UserState>();
+            state.RequireForUpdate<UnitPrefabIndexMap>();
         }
 
-        public void OnDestroy(ref SystemState state)
-        {
-            if (_prefabIndexMap.IsCreated) _prefabIndexMap.Dispose();
-        }
-        
         public void OnUpdate(ref SystemState state)
         {
-            // 0. 초기화
-            if (_prefabIndexMap.IsEmpty && SystemAPI.HasSingleton<UnitCatalog>())
-            {
-                BuildIndexMap(ref state);
-            }
-            
             var keyboard = Keyboard.current;
             if (keyboard == null) return;
 
@@ -113,7 +97,7 @@ namespace Client
                 if (localIndex != -1)
                 {
                     // 인덱스 변환 및 RPC 전송
-                    int globalIndex = TryGetGlobalUnitIndex(em, targetEntity, localIndex);
+                    int globalIndex = TryGetGlobalUnitIndex(ref state, em, targetEntity, localIndex);
                     
                     if (globalIndex >= 0)
                     {
@@ -130,7 +114,7 @@ namespace Client
 
         // --- Helper Methods ---
 
-        private int TryGetGlobalUnitIndex(EntityManager em, Entity facilityEntity, int localIndex)
+        private int TryGetGlobalUnitIndex(ref SystemState state, EntityManager em, Entity facilityEntity, int localIndex)
         {
             // 버퍼 존재 확인
             if (!em.HasBuffer<AvailableUnit>(facilityEntity)) return -1;
@@ -140,11 +124,14 @@ namespace Client
 
             Entity prefabEntity = buffer[localIndex].PrefabEntity;
 
-            if (_prefabIndexMap.TryGetValue(prefabEntity, out int globalIndex))
+            // 싱글톤에서 인덱스 맵 가져오기
+            var indexMap = SystemAPI.ManagedAPI.GetSingleton<UnitPrefabIndexMap>().Map;
+
+            if (indexMap.TryGetValue(prefabEntity, out int globalIndex))
             {
                 return globalIndex;
             }
-            
+
             UnityEngine.Debug.LogWarning($"Prefab not found in Catalog: {prefabEntity}");
             return -1;
         }
@@ -177,21 +164,6 @@ namespace Client
                 UnitIndex = unitIndex
             });
             state.EntityManager.AddComponent<SendRpcCommandRequest>(rpcEntity);
-        }
-        
-        private void BuildIndexMap(ref SystemState state)
-        {
-            var catalogEntity = SystemAPI.GetSingletonEntity<UnitCatalog>();
-            var buffer = SystemAPI.GetBuffer<UnitCatalogElement>(catalogEntity);
-
-            _prefabIndexMap.Clear();
-            for (int i = 0; i < buffer.Length; i++)
-            {
-                if(buffer[i].PrefabEntity != Entity.Null)
-                {
-                    _prefabIndexMap.TryAdd(buffer[i].PrefabEntity, i);
-                }
-            }
         }
     }
 }
