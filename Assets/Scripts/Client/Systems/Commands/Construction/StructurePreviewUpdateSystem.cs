@@ -38,8 +38,7 @@ namespace Client
                 previewState.IsValidPlacement = false;
                 return;
             }
-
-            // [변경] Metadata 대신 Footprint 사용
+            
             var footprint = state.EntityManager.GetComponentData<StructureFootprint>(prefab);
             int width = footprint.Width;
             int length = footprint.Length;
