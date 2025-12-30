@@ -1574,7 +1574,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 971728441}
-  - component: {fileID: 971728440}
+  - component: {fileID: 971728442}
   m_Layer: 0
   m_Name: EnemyHpUIManager
   m_TagString: Untagged
@@ -1582,21 +1582,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &971728440
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 971728439}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 94fdb9eb7d77b9944bd8a4cd42b6f83f, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  text3dPrefab: {fileID: 4477705279423593694, guid: 6f8bafa029afe224bbf18c30f0345c22, type: 3}
-  worldOffset: {x: 0, y: 2, z: 0}
-  uniformScale: 1
 --- !u!4 &971728441
 Transform:
   m_ObjectHideFlags: 0
@@ -1612,6 +1597,21 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &971728442
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 971728439}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d0d7cc47b426e4246bb9ac601c88aa8a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  text3dPrefab: {fileID: 4477705279423593694, guid: 6f8bafa029afe224bbf18c30f0345c22, type: 3}
+  heightOffset: 2
+  uniformScale: 0.5
 --- !u!1 &1090071752
 GameObject:
   m_ObjectHideFlags: 0
