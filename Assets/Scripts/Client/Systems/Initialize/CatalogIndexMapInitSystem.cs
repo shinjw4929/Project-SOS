@@ -6,6 +6,11 @@ namespace Client
     /// <summary>
     /// [Client 전용] 카탈로그 인덱스 맵 싱글톤 초기화
     /// StructureCatalog, UnitCatalog가 존재할 때 1회 실행
+    ///
+    /// [싱글톤 초기화 참고]
+    /// - 기본 싱글톤 (UserState, SelectionState 등): ClientBootstrapSystem에서 초기화
+    /// - Managed 싱글톤 (IndexMap 등): 이 시스템에서 초기화 (카탈로그 의존성 필요)
+    /// - 새로운 싱글톤 추가 시: 가능하면 ClientBootstrapSystem에 추가 권장
     /// </summary>
     [UpdateInGroup(typeof(InitializationSystemGroup))]
     [UpdateAfter(typeof(ClientBootstrapSystem))]

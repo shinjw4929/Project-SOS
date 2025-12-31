@@ -13,7 +13,8 @@ namespace Client
     public partial struct StructurePreviewUpdateSystem : ISystem
     {
         [ReadOnly] private ComponentLookup<StructureFootprint> _footprintLookup;
-
+        [ReadOnly] private BufferLookup<GridCell> _gridCellLookup;
+        
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<UserState>();
@@ -22,6 +23,7 @@ namespace Client
             state.RequireForUpdate<PhysicsWorldSingleton>();
             
             _footprintLookup = state.GetComponentLookup<StructureFootprint>(true);
+            _gridCellLookup = state.GetBufferLookup<GridCell>(true);
         }
 
         [BurstCompile]
@@ -39,13 +41,12 @@ namespace Client
 
             // 2. 프리팹 데이터 확인
             _footprintLookup.Update(ref state);
-            if (!_footprintLookup.HasComponent(previewState.SelectedPrefab))
+            if (!_footprintLookup.TryGetComponent(previewState.SelectedPrefab, out var footprint))
             {
                 previewState.IsValidPlacement = false;
                 return;
             }
-            
-            var footprint = _footprintLookup[previewState.SelectedPrefab];
+
             int width = footprint.Width;
             int length = footprint.Length;
 
@@ -54,14 +55,14 @@ namespace Client
             var gridEntity = SystemAPI.GetSingletonEntity<GridSettings>();
             bool isOccupied = false;
 
-            if (SystemAPI.HasBuffer<GridCell>(gridEntity))
+            _gridCellLookup.Update(ref state);
+            if (_gridCellLookup.TryGetBuffer(gridEntity, out var buffer))
             {
-                var buffer = SystemAPI.GetBuffer<GridCell>(gridEntity);
                 isOccupied = GridUtility.IsOccupied(buffer, previewState.GridPosition.x, previewState.GridPosition.y,
                     width, length, gridSettings.GridSize.x, gridSettings.GridSize.y);
             }
 
-            // 4. [수정됨] 유닛 물리 충돌 확인 (최신 API 적용)
+            // 4. 유닛 물리 충돌 확인 (최신 API 적용)
             var physicsWorld = SystemAPI.GetSingleton<PhysicsWorldSingleton>();
             float3 buildingCenter = GridUtility.GridToWorld(previewState.GridPosition.x, previewState.GridPosition.y,
                 width, length, gridSettings);

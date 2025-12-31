@@ -8,7 +8,7 @@ public class EnemyHealthUI : MonoBehaviour
 
     private void LateUpdate()
     {
-        if (enemyHealth == null || hpText == null) return;
+        if (!enemyHealth || !hpText) return; // Unity Object는 implicit bool 사용
         hpText.text = $"{enemyHealth.CurrentHp}/{enemyHealth.MaxHp}";
     }
 }

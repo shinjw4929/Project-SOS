@@ -5,12 +5,12 @@ public class BillboardToCamera : MonoBehaviour
     void LateUpdate()
     {
         Camera cam = Camera.main;
-        if (cam == null && Camera.allCamerasCount > 0)
+        if (!cam && Camera.allCamerasCount > 0) // Unity ObjectëŠ” implicit bool ì‚¬ìš©
             cam = Camera.allCameras[0];
 
-        if (cam == null) return;
+        if (!cam) return; // Unity ObjectëŠ” implicit bool ì‚¬ìš©
 
-        // Ç×»ó Ä«¸Þ¶ó¸¦ Á¤¸éÀ¸·Î º¸°Ô(µÚÁýÈû ¹æÁö Æ÷ÇÔ)
+        // ï¿½×»ï¿½ Ä«ï¿½Þ¶ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½(ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½)
         transform.LookAt(transform.position + cam.transform.rotation * Vector3.forward,
                          cam.transform.rotation * Vector3.up);
     }

@@ -23,7 +23,7 @@ public class SelectionBoxRenderer : MonoBehaviour
 
     private void Start()
     {
-        if (selectionBoxRect != null)
+        if (selectionBoxRect) // Unity Object는 implicit bool 사용
         {
             selectionBoxRect.gameObject.SetActive(false);
             selectionBoxRect.pivot = Vector2.zero;
@@ -31,7 +31,7 @@ public class SelectionBoxRenderer : MonoBehaviour
             selectionBoxRect.anchorMax = Vector2.zero;
         }
 
-        if (parentCanvas != null)
+        if (parentCanvas) // Unity Object는 implicit bool 사용
         {
             _canvasRect = parentCanvas.GetComponent<RectTransform>();
         }
@@ -68,7 +68,7 @@ public class SelectionBoxRenderer : MonoBehaviour
     {
         foreach (var world in World.All)
         {
-            if (world == null || !world.IsCreated) continue;
+            if (!world.IsCreated) continue;
 
             var query = world.EntityManager.CreateEntityQuery(typeof(SelectionState));
             if (!query.IsEmptyIgnoreFilter)
@@ -122,7 +122,7 @@ public class SelectionBoxRenderer : MonoBehaviour
 
     private Vector2 ScreenToCanvasPosition(Vector2 screenPos)
     {
-        if (_canvasRect == null) return screenPos;
+        if (!_canvasRect) return screenPos; // Unity Object는 implicit bool 사용
 
         RectTransformUtility.ScreenPointToLocalPointInRectangle(
             _canvasRect,

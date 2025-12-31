@@ -8,6 +8,7 @@ using Shared;
 namespace Client
 {
     [UpdateInGroup(typeof(GhostInputSystemGroup))]
+    [UpdateAfter(typeof(SelectionInputSystem))]
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
     public partial class StructurePlacementInputSystem : SystemBase
     {

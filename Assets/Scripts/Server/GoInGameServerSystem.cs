@@ -6,6 +6,7 @@ using Unity.Transforms;
 using UnityEngine;
 using Shared; // [필수] Player 컴포넌트(TeamId)를 수정하기 위해 필요
 
+[BurstCompile]
 [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
 partial struct GoInGameServerSystem : ISystem
 {

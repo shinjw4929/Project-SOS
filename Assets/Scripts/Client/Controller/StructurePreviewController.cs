@@ -22,7 +22,8 @@ public class StructurePreviewController : MonoBehaviour
 
     private void Update()
     {
-        // 1. 월드/쿼리 초기화 (한 번만)
+        // 1. 월드/쿼리 초기화 (한 번만) 
+        // 해당 로직에서는 null 비교 허용
         if (_clientWorld == null || !_clientWorld.IsCreated)
         {
             foreach (var world in World.All)
@@ -37,7 +38,8 @@ public class StructurePreviewController : MonoBehaviour
                     break;
                 }
             }
-            return;
+            // 여전히 World를 못 찾았으면 이번 프레임은 리턴
+            if (_clientWorld == null) return;
         }
 
         // 2. TryGetSingleton으로 존재 여부 확인 및 값 획득
@@ -52,7 +54,7 @@ public class StructurePreviewController : MonoBehaviour
         
         if (!shouldShow)
         {
-            if (_currentPreview != null) DestroyPreview();
+            if (_currentPreview) DestroyPreview(); // Unity Object는 implicit bool 사용
             return;
         }
 
@@ -72,7 +74,7 @@ public class StructurePreviewController : MonoBehaviour
         if (!_gridSettingsQuery.TryGetSingleton<GridSettings>(out var gridSettings)) return;
 
         // 프리뷰 객체 생성 (없을 때만)
-        if (_currentPreview == null)
+        if (!_currentPreview) // Unity Object는 implicit bool 사용
         {
             _currentPreview = Instantiate(genericPreviewPrefab);
             _previewRenderer = _currentPreview.GetComponentInChildren<Renderer>();

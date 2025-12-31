@@ -1,53 +1,53 @@
+using Unity.Burst;
 using Unity.Entities;
 using Unity.NetCode;
 
 /*
  * ProjectileDespawnSystem
- * - ½ÇÇà ¿ùµå: ServerSimulation
- * - ¿ªÇÒ:
- *   ProjectileMove.RemainingDistance°¡ 0 ÀÌÇÏ°¡ µÈ Åõ»çÃ¼¸¦ ¼­¹ö¿¡¼­ Á¦°ÅÇÑ´Ù.
+ * - ì‹¤í–‰ í™˜ê²½: ServerSimulation
+ * - ì—­í• :
+ *   ProjectileMove.RemainingDistanceê°€ 0 ì´í•˜ê°€ ëœ íˆ¬ì‚¬ì²´ë¥¼ ì„œë²„ì—ì„œ ì œê±°í•œë‹¤.
  *
- * - µ¿ÀÛ ¹æ½Ä:
- *   1) ProjectileMove¸¦ °¡Áø ¿£Æ¼Æ¼ Áß¿¡¼­
- *   2) Projectile ÅÂ±×°¡ ºÙ¾îÀÖ°í
- *   3) Prefab ÀÚÃ¼´Â Á¦¿ÜÇÑ(½ÇÁ¦ ÀÎ½ºÅÏ½º¸¸) ¿£Æ¼Æ¼¸¦ ´ë»óÀ¸·Î
- *   4) RemainingDistance°¡ 0 ÀÌÇÏÀÌ¸é DestroyEntity¸¦ ¿¹¾àÇÑ´Ù.
+ * - ë™ì‘ ìˆœì„œ:
+ *   1) ProjectileMoveë¥¼ ê°€ì§„ ì—”í‹°í‹° ì¤‘ì—ì„œ
+ *   2) Projectile íƒœê·¸ê°€ ë¶™ì–´ìˆê³ 
+ *   3) Prefab ìì²´ê°€ ì•„ë‹Œ(ì‹¤ì œ ì¸ìŠ¤í„´ìŠ¤ì¸) ì—”í‹°í‹°ë§Œ ì²˜ë¦¬í•´ì„œ
+ *   4) RemainingDistanceê°€ 0 ì´í•˜ì´ë©´ DestroyEntityë¡œ ì œê±°í•œë‹¤.
  *
- * - ÁÖÀÇ:
- *   Destroy/Instantiate °°Àº ±¸Á¶ º¯°æÀº Áï½Ã ½ÇÇàÇÏÁö ¾Ê°í ECB(CommandBuffer)¿¡ ±â·ÏÇÑ µÚ
- *   EndSimulation ±¸°£¿¡¼­ ÀÏ°ı ¹İ¿µÇÑ´Ù.
- *
- * - Áßº¹ ÁÖÀÇ:
- *   ¸¸¾à ÀÌµ¿ ½Ã½ºÅÛ(ProjectileMoveServerSystem)¿¡¼­µµ RemainingDistance <= 0ÀÏ ¶§ »èÁ¦¸¦ ÇÏ°í ÀÖ´Ù¸é
- *   ÀÌ ½Ã½ºÅÛÀº ±â´ÉÀÌ °ãÄ£´Ù. µÑ Áß ÇÏ³ª¸¸ À¯ÁöÇÏ´Â °Ô ¾ÈÀüÇÏ´Ù.
+ * - ì°¸ê³ :
+ *   Destroy/Instantiate ë“±ì€ ë©”ì¸ ìŠ¤ë ˆë“œì—ì„œ ì¦‰ì‹œ ì‹¤í–‰í•˜ì§€ ì•Šê³  ECB(CommandBuffer)ë¥¼ ì´ìš©í•´
+ *   EndSimulation ì‹œì ì—ì„œ ì¼ê´„ ë°˜ì˜í•œë‹¤.
  */
+[BurstCompile]
 [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
 public partial struct ProjectileDespawnSystem : ISystem
 {
+    [BurstCompile]
     public void OnCreate(ref SystemState state)
     {
-        // ECB ½Ì±ÛÅæÀÌ ÁØºñµÇÁö ¾ÊÀ¸¸é ÀÌ ½Ã½ºÅÛÀº µ¹Áö ¾Êµµ·Ï Á¦ÇÑÇÑ´Ù.
+        // ECB ï¿½Ì±ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Øºï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½Ã½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½Êµï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Ñ´ï¿½.
         state.RequireForUpdate<EndSimulationEntityCommandBufferSystem.Singleton>();
     }
 
+    [BurstCompile]
     public void OnUpdate(ref SystemState state)
     {
-        // EndSimulation ½ÃÁ¡¿¡ ¹İ¿µµÉ CommandBuffer¸¦ ¸¸µç´Ù.
+        // EndSimulation ì‹œì ì— ë°˜ì˜ë  CommandBufferë¥¼ ìƒì„±.
         var ecbSingleton = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>();
         var ecb = ecbSingleton.CreateCommandBuffer(state.WorldUnmanaged);
 
-        // ½ÇÁ¦ Åõ»çÃ¼ ÀÎ½ºÅÏ½º(ÇÁ¸®ÆÕ Á¦¿Ü) Áß RemainingDistance°¡ 0 ÀÌÇÏÀÎ ¿£Æ¼Æ¼¸¦ Ã£¾Æ Á¦°ÅÇÑ´Ù.
+        // ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½Ã¼ ï¿½Î½ï¿½ï¿½Ï½ï¿½(ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½) ï¿½ï¿½ RemainingDistanceï¿½ï¿½ 0 ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½Æ¼Æ¼ï¿½ï¿½ Ã£ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Ñ´ï¿½.
         foreach (var (move, entity) in
                  SystemAPI.Query<RefRO<ProjectileMove>>()
                           .WithAll<Projectile>()
                           .WithNone<Prefab>()
                           .WithEntityAccess())
         {
-            // ¾ÆÁ÷ ÀÌµ¿ °¡´ÉÇÑ °Å¸®°¡ ³²¾ÆÀÖÀ¸¸é À¯ÁöÇÑ´Ù.
+            // ï¿½ï¿½ï¿½ï¿½ ï¿½Ìµï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Å¸ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Ñ´ï¿½.
             if (move.ValueRO.RemainingDistance > 0f)
                 continue;
 
-            // RemainingDistance°¡ 0 ÀÌÇÏ°¡ µÇ¸é ¼­¹ö¿¡¼­ Åõ»çÃ¼ ¿£Æ¼Æ¼¸¦ Á¦°ÅÇÑ´Ù.
+            // RemainingDistanceï¿½ï¿½ 0 ï¿½ï¿½ï¿½Ï°ï¿½ ï¿½Ç¸ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½Ã¼ ï¿½ï¿½Æ¼Æ¼ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Ñ´ï¿½.
             ecb.DestroyEntity(entity);
         }
     }

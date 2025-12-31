@@ -7,7 +7,7 @@ public class ProjectileDamage : MonoBehaviour
     private void OnTriggerEnter(Collider other)
     {
         EnemyHealth enemy = other.GetComponentInParent<EnemyHealth>();
-        if (enemy == null) return;
+        if (!enemy) return; // Unity Object는 implicit bool 사용
 
         enemy.TakeDamage(damage);
         Destroy(gameObject);

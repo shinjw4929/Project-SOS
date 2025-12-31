@@ -1,3 +1,4 @@
+using Unity.Burst;
 using Unity.Entities;
 using Unity.NetCode;
 using Unity.Rendering;
@@ -7,15 +8,18 @@ using Shared; // UnitTag, StructureTag, Selected
 
 namespace Client
 {
+    [BurstCompile]
     [UpdateInGroup(typeof(PresentationSystemGroup))]
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
     public partial struct SelectionVisualizationSystem : ISystem
     {
+        [BurstCompile]
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<NetworkStreamInGame>();
         }
 
+        [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
             // 색상 변경 로직

@@ -1,62 +1,65 @@
+using Unity.Burst;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Transforms;
 
 /*
  * ProjectileMoveServerSystem
- * - ½ÇÇà ¿ùµå: ServerSimulation
- * - ¿ªÇÒ:
- *   ¼­¹ö¿¡¼­ Åõ»çÃ¼ÀÇ ÀÌµ¿À» ½ÇÁ¦·Î ÁøÇà½ÃÅ°´Â ½Ã½ºÅÛ.
+ * - ì‹¤í–‰ í™˜ê²½: ServerSimulation
+ * - ì—­í• :
+ *   ì„œë²„ì—ì„œ íˆ¬ì‚¬ì²´ì˜ ì´ë™ê³¼ ì†Œë©¸ì„ ê´€ë¦¬í•˜ëŠ” ì‹œìŠ¤í…œ.
  *
- * - Ã³¸® Èå¸§:
- *   1) ProjectileMove.Speed¿Í DeltaTimeÀ¸·Î ÀÌ¹ø ÇÁ·¹ÀÓ ÀÌµ¿°Å¸®(step)¸¦ °è»êÇÑ´Ù.
- *   2) stepÀÌ RemainingDistanceº¸´Ù Ä¿Áö¸é "³²Àº °Å¸®¸¸Å­¸¸" ÀÌµ¿ÇÏµµ·Ï stepÀ» ÁÙÀÎ´Ù.
- *      (³²Àº °Å¸®º¸´Ù ´õ ÀÌµ¿ÇØ¼­ À½¼ö°¡ µÇ´Â °Í, ¸¶Áö¸· ÇÁ·¹ÀÓ¿¡ Æ¢´Â °Í ¹æÁö)
- *   3) LocalTransform.PositionÀ» Direction * step ¸¸Å­ ÀÌµ¿ÇÑ´Ù.
- *   4) RemainingDistance¿¡¼­ stepÀ» »©¼­ "³²Àº ÀÌµ¿ °¡´É °Å¸®"¸¦ °»½ÅÇÑ´Ù.
- *   5) RemainingDistance°¡ 0 ÀÌÇÏ°¡ µÇ¸é ¼­¹ö¿¡¼­ Åõ»çÃ¼ ¿£Æ¼Æ¼¸¦ Á¦°Å(ECB ¿¹¾à)ÇÑ´Ù.
+ * - ì²˜ë¦¬ íë¦„:
+ *   1) ProjectileMove.Speedì™€ DeltaTimeìœ¼ë¡œ ì´ë²ˆ í”„ë ˆì„ ì´ë™ê±°ë¦¬(step)ë¥¼ ê³„ì‚°í•œë‹¤.
+ *   2) stepì´ RemainingDistanceë³´ë‹¤ í¬ë©´ "ë‚¨ì€ ê±°ë¦¬ë§Œí¼ë§Œ" ì´ë™í•˜ë„ë¡ stepì„ ì¤„ì¸ë‹¤.
+ *   3) LocalTransform.Positionì„ Direction * step ë§Œí¼ ì´ë™í•œë‹¤.
+ *   4) RemainingDistanceì—ì„œ stepì„ ë¹¼ì„œ "ë‚¨ì€ ì´ë™ ê°€ëŠ¥ ê±°ë¦¬"ë¥¼ ê°±ì‹ í•œë‹¤.
+ *   5) RemainingDistanceê°€ 0 ì´í•˜ê°€ ë˜ë©´ ì„œë²„ì—ì„œ íˆ¬ì‚¬ì²´ ì—”í‹°í‹°ë¥¼ ì œê±°(ECB ì‚¬ìš©)í•œë‹¤.
  *
- * - ÁÖÀÇ:
- *   DestroyEntity´Â ±¸Á¶ º¯°æÀÌ¹Ç·Î ECB(CommandBuffer)¿¡ ±â·ÏÇÏ°í EndSimulation¿¡¼­ ¹İ¿µÇÑ´Ù.
- *   ¶ÇÇÑ DirectionÀÌ Á¤±ÔÈ­µÇ¾î ÀÖ´Ù´Â ÀüÁ¦(±æÀÌ 1)°¡ ÀÖ¾î¾ß Speed°¡ ÀÇµµ´ë·Î ÀÛµ¿ÇÑ´Ù.
+ * - ì°¸ê³ :
+ *   DestroyEntityëŠ” êµ¬ì¡° ë³€ê²½ì´ë¯€ë¡œ ECB(CommandBuffer)ë¥¼ ì‚¬ìš©í•˜ê³  EndSimulationì—ì„œ ë°˜ì˜í•œë‹¤.
+ *   ë˜í•œ Directionì´ ì •ê·œí™”ë˜ì–´ ìˆë‹¤ëŠ” ê°€ì •(ê¸¸ì´ 1)ì´ ìˆì–´ì•¼ Speedê°€ ì˜ë„ëŒ€ë¡œ ì‘ë™í•œë‹¤.
  */
+[BurstCompile]
 [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
 public partial struct ProjectileMoveServerSystem : ISystem
 {
+    [BurstCompile]
     public void OnCreate(ref SystemState state)
     {
-        // ECB ½Ì±ÛÅæÀÌ ¾øÀ¸¸é ±¸Á¶ º¯°æ(»èÁ¦)À» ¾ÈÀüÇÏ°Ô Ã³¸®ÇÒ ¼ö ¾øÀ¸¹Ç·Î ¾÷µ¥ÀÌÆ®¸¦ ¸·´Â´Ù.
+        // ECB ï¿½Ì±ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½(ï¿½ï¿½ï¿½ï¿½)ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Ï°ï¿½ Ã³ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Ç·ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Æ®ï¿½ï¿½ ï¿½ï¿½ï¿½Â´ï¿½.
         state.RequireForUpdate<EndSimulationEntityCommandBufferSystem.Singleton>();
     }
 
+    [BurstCompile]
     public void OnUpdate(ref SystemState state)
     {
-        // ¼­¹ö ½Ã¹Ä·¹ÀÌ¼ÇÀÇ ÇÁ·¹ÀÓ ½Ã°£(ÃÊ)
+        // í˜„ì¬ ì‹œë®¬ë ˆì´ì…˜ì˜ ë¸íƒ€ ì‹œê°„(ì´ˆ)
         float dt = SystemAPI.Time.DeltaTime;
 
-        // EndSimulation ½ÃÁ¡¿¡ ¹İ¿µµÉ CommandBuffer¸¦ »ı¼ºÇÑ´Ù.
+        // EndSimulation ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½İ¿ï¿½ï¿½ï¿½ CommandBufferï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Ñ´ï¿½.
         var ecb = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>()
                            .CreateCommandBuffer(state.WorldUnmanaged);
 
-        // ½ÇÁ¦ ÀÎ½ºÅÏ½º¸¸ ´ë»óÀ¸·Î ÀÌµ¿ Ã³¸®ÇÑ´Ù(ÇÁ¸®ÆÕ ¿£Æ¼Æ¼´Â Á¦¿Ü).
+        // ï¿½ï¿½ï¿½ï¿½ ï¿½Î½ï¿½ï¿½Ï½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Ìµï¿½ Ã³ï¿½ï¿½ï¿½Ñ´ï¿½(ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½Æ¼Æ¼ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½).
         foreach (var (tr, move, e) in SystemAPI.Query<RefRW<LocalTransform>, RefRW<ProjectileMove>>()
                                               .WithNone<Prefab>()
                                               .WithEntityAccess())
         {
-            // ÀÌ¹ø ÇÁ·¹ÀÓ¿¡ ÀÌµ¿ÇÒ °Å¸® = ¼Óµµ * ½Ã°£
+            // ï¿½Ì¹ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Ó¿ï¿½ ï¿½Ìµï¿½ï¿½ï¿½ ï¿½Å¸ï¿½ = ï¿½Óµï¿½ * ï¿½Ã°ï¿½
             float step = move.ValueRO.Speed * dt;
 
-            // ³²Àº ÀÌµ¿ °¡´É °Å¸®º¸´Ù ´õ ÀÌµ¿ÇÏ·Á ÇÏ¸é ³²Àº °Å¸®¸¸Å­¸¸ ÀÌµ¿ÇÑ´Ù.
+            // ï¿½ï¿½ï¿½ï¿½ ï¿½Ìµï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½Å¸ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½Ìµï¿½ï¿½Ï·ï¿½ ï¿½Ï¸ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½Å¸ï¿½ï¿½ï¿½Å­ï¿½ï¿½ ï¿½Ìµï¿½ï¿½Ñ´ï¿½.
             if (step > move.ValueRO.RemainingDistance)
                 step = move.ValueRO.RemainingDistance;
 
-            // À§Ä¡ ÀÌµ¿
+            // ï¿½ï¿½Ä¡ ï¿½Ìµï¿½
             tr.ValueRW.Position += move.ValueRO.Direction * step;
 
-            // ³²Àº °Å¸® Â÷°¨
+            // ï¿½ï¿½ï¿½ï¿½ ï¿½Å¸ï¿½ ï¿½ï¿½ï¿½ï¿½
             move.ValueRW.RemainingDistance -= step;
 
-            // ³²Àº °Å¸®°¡ 0 ÀÌÇÏ°¡ µÇ¸é Åõ»çÃ¼ »èÁ¦¸¦ ¿¹¾àÇÑ´Ù.
+            // ï¿½ï¿½ï¿½ï¿½ ï¿½Å¸ï¿½ï¿½ï¿½ 0 ï¿½ï¿½ï¿½Ï°ï¿½ ï¿½Ç¸ï¿½ ï¿½ï¿½ï¿½ï¿½Ã¼ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Ñ´ï¿½.
             if (move.ValueRO.RemainingDistance <= 0f)
                 ecb.DestroyEntity(e);
         }

@@ -12,10 +12,10 @@ public class EnemyHpTextManager : MonoBehaviour
 {
     [SerializeField] private TextMeshPro text3dPrefab;
 
-    [Header("¿ÀÇÁ¼Â(·ÎÄÃ ±âÁØ)  x=ÁÂ/¿ì, y=À§/¾Æ·¡, z=¾Õ/µÚ")]
+    [Header("ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½(ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½)  x=ï¿½ï¿½/ï¿½ï¿½, y=ï¿½ï¿½/ï¿½Æ·ï¿½, z=ï¿½ï¿½/ï¿½ï¿½")]
     [SerializeField] private Vector3 localOffset = new Vector3(0f, 2.0f, 0f);
 
-    [Header("Å©±â")]
+    [Header("Å©ï¿½ï¿½")]
     [SerializeField] private float uniformScale = 1.0f;
 
     private World _world;
@@ -25,9 +25,9 @@ public class EnemyHpTextManager : MonoBehaviour
 
     void Awake()
     {
-        if (text3dPrefab == null)
+        if (!text3dPrefab) // Unity ObjectëŠ” implicit bool ì‚¬ìš©
         {
-            Debug.LogError("EnemyHpTextManager: text3dPrefab(EnemyHPText3D ÇÁ¸®ÆÕ)À» ³ÖÀ¸¼Å¾ß ÇÕ´Ï´Ù.");
+            Debug.LogError("EnemyHpTextManager: text3dPrefab í”„ë¦¬íŒ¹ì„ í• ë‹¹í•´ì•¼ í•©ë‹ˆë‹¤.");
             enabled = false;
         }
     }
@@ -47,14 +47,14 @@ public class EnemyHpTextManager : MonoBehaviour
     {
         foreach (var kv in _map)
         {
-            if (kv.Value != null) Destroy(kv.Value.gameObject);
+            if (kv.Value) Destroy(kv.Value.gameObject); // Unity ObjectëŠ” implicit bool ì‚¬ìš©
         }
         _map.Clear();
     }
 
     private void OnBeginCameraRendering(ScriptableRenderContext context, Camera cam)
     {
-        if (cam == null || cam != Camera.main) return;
+        if (!cam || cam != Camera.main) return; // Unity ObjectëŠ” implicit bool ì‚¬ìš©
 
         if (!EnsureClientWorldReady())
             return;
@@ -82,10 +82,10 @@ public class EnemyHpTextManager : MonoBehaviour
                 Entity e = entities[i];
                 alive.Add(e);
 
-                if (!_map.TryGetValue(e, out var tmp) || tmp == null)
+                if (!_map.TryGetValue(e, out var tmp) || !tmp) // Unity ObjectëŠ” implicit bool ì‚¬ìš©
                 {
                     tmp = Instantiate(text3dPrefab);
-                    if (tmp == null) continue;
+                    if (!tmp) continue; // Unity ObjectëŠ” implicit bool ì‚¬ìš©
                     _map[e] = tmp;
                 }
 
@@ -101,7 +101,7 @@ public class EnemyHpTextManager : MonoBehaviour
                 }
                 catch { continue; }
 
-                // LocalToWorld Çà·Ä¿¡¼­ Ãà/À§Ä¡ ÃßÃâ
+                // LocalToWorld ï¿½ï¿½Ä¿ï¿½ï¿½ï¿½ ï¿½ï¿½/ï¿½ï¿½Ä¡ ï¿½ï¿½ï¿½ï¿½
                 float4x4 m = ltw.Value;
                 float3 pos = m.c3.xyz;
                 float3 right = math.normalizesafe(m.c0.xyz, new float3(1, 0, 0));
@@ -116,19 +116,19 @@ public class EnemyHpTextManager : MonoBehaviour
 
                 tmp.transform.position = (Vector3)wpos;
 
-                // "UIÃ³·³ Á¤¸é" = Ä«¸Ş¶ó È¸Àü ±×´ë·Î
+                // "UIÃ³ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½" = Ä«ï¿½Ş¶ï¿½ È¸ï¿½ï¿½ ï¿½×´ï¿½ï¿½
                 tmp.transform.rotation = cam.transform.rotation;
 
                 tmp.text = $"{hp.Current}/{hp.Max}";
             }
 
-            // »ç¶óÁø ¿£Æ¼Æ¼ Á¤¸®
+            // ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½Æ¼Æ¼ ï¿½ï¿½ï¿½ï¿½
             var toRemove = new List<Entity>();
             foreach (var kv in _map)
             {
                 if (!alive.Contains(kv.Key))
                 {
-                    if (kv.Value != null) Destroy(kv.Value.gameObject);
+                    if (kv.Value) Destroy(kv.Value.gameObject); // Unity ObjectëŠ” implicit bool ì‚¬ìš©
                     toRemove.Add(kv.Key);
                 }
             }
@@ -139,27 +139,27 @@ public class EnemyHpTextManager : MonoBehaviour
 
     private bool EnsureClientWorldReady()
     {
-        // ¿ùµå°¡ ¾ø°Å³ª ¼­¹ö¿ùµå¸é ´Ù½Ã Àâ±â
-        if (_world == null || !_world.IsCreated || ((_world.Flags & WorldFlags.GameServer) != 0))
+        // ì›”ë“œê°€ ì—†ê±°ë‚˜ ìœ íš¨í•˜ì§€ ì•Šìœ¼ë©´ ë‹¤ì‹œ ë°”ì¸ë”©
+        if (!_world.IsCreated || ((_world.Flags & WorldFlags.GameServer) != 0))
         {
             TryBindClientWorld();
         }
 
-        if (_world == null || !_world.IsCreated)
+        if (!_world.IsCreated)
             return false;
 
-        // EntityManager´Â ¹öÀüº° IsCreated Ã¼Å© ¾øÀÌ try/catch
+        // EntityManagerï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ IsCreated Ã¼Å© ï¿½ï¿½ï¿½ï¿½ try/catch
         try { _em = _world.EntityManager; }
         catch { return false; }
 
-        // ÀÌ ¿ùµå¿¡ Àû Ã¼·Â µ¥ÀÌÅÍ°¡ ¾øÀ¸¸é ´Ù½Ã Ã£±â
+        // ï¿½ï¿½ ï¿½ï¿½ï¿½å¿¡ ï¿½ï¿½ Ã¼ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Í°ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Ù½ï¿½ Ã£ï¿½ï¿½
         try
         {
             using var testQ = _em.CreateEntityQuery(ComponentType.ReadOnly<EnemyHealthData>());
             if (testQ.CalculateEntityCount() == 0)
             {
                 TryBindClientWorld();
-                if (_world == null || !_world.IsCreated) return false;
+                if (!_world.IsCreated) return false;
                 _em = _world.EntityManager;
 
                 using var testQ2 = _em.CreateEntityQuery(ComponentType.ReadOnly<EnemyHealthData>());
@@ -175,16 +175,16 @@ public class EnemyHpTextManager : MonoBehaviour
     private void TryBindClientWorld()
     {
         _world = FindClientWorldThatHasEnemyHealth();
-        if (_world != null && _world.IsCreated)
+        if (_world.IsCreated)
         {
             try { _em = _world.EntityManager; } catch { }
         }
     }
 
-    // ÇÙ½É: "EnemyHealthData°¡ ÀÖ´Â ¿ùµå" Áß¿¡¼­ ¹İµå½Ã GameClient¸¦ ¿ì¼± ¼±ÅÃ
+    // ï¿½Ù½ï¿½: "EnemyHealthDataï¿½ï¿½ ï¿½Ö´ï¿½ ï¿½ï¿½ï¿½ï¿½" ï¿½ß¿ï¿½ï¿½ï¿½ ï¿½İµï¿½ï¿½ GameClientï¿½ï¿½ ï¿½ì¼± ï¿½ï¿½ï¿½ï¿½
     private static World FindClientWorldThatHasEnemyHealth()
     {
-        // 1) GameClient ¿ùµå Áß EnemyHealthData ÀÖ´Â °÷
+        // 1) GameClient ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ EnemyHealthData ï¿½Ö´ï¿½ ï¿½ï¿½
         foreach (var w in World.All)
         {
             if (!w.IsCreated) continue;
@@ -203,11 +203,11 @@ public class EnemyHpTextManager : MonoBehaviour
             catch { }
         }
 
-        // 2) ±×·¡µµ ¾øÀ¸¸é "Client" ÀÌ¸§ Æ÷ÇÔ ¿ùµå
+        // 2) ï¿½×·ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ "Client" ï¿½Ì¸ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
         foreach (var w in World.All)
         {
             if (!w.IsCreated) continue;
-            if (w.Name == null || !w.Name.Contains("Client")) continue;
+            if (string.IsNullOrEmpty(w.Name) || !w.Name.Contains("Client")) continue;
 
             EntityManager em;
             try { em = w.EntityManager; }
@@ -222,10 +222,10 @@ public class EnemyHpTextManager : MonoBehaviour
             catch { }
         }
 
-        // 3) ÃÖÈÄ fallback
-        if (World.DefaultGameObjectInjectionWorld != null && World.DefaultGameObjectInjectionWorld.IsCreated)
+        // 3) ìµœì¢… fallback
+        if (World.DefaultGameObjectInjectionWorld.IsCreated)
             return World.DefaultGameObjectInjectionWorld;
 
-        return null;
+        return default;
     }
 }

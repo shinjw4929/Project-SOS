@@ -7,7 +7,7 @@ using Unity.Transforms;
 using UnityEngine;
 
 [UpdateInGroup(typeof(PresentationSystemGroup))]
-[UpdateAfter(typeof(TransformSystemGroup))] // LocalToWorld °»½Å ÀÌÈÄ
+[UpdateAfter(typeof(TransformSystemGroup))] // LocalToWorld ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
 public partial class EnemyHpTextPresentationSystem : SystemBase
 {
     private readonly Dictionary<Entity, TextMeshPro> _map = new();
@@ -16,7 +16,7 @@ public partial class EnemyHpTextPresentationSystem : SystemBase
     {
         foreach (var kv in _map)
         {
-            if (kv.Value != null)
+            if (kv.Value) // Unity ObjectëŠ” implicit bool ì‚¬ìš©
                 Object.Destroy(kv.Value.gameObject);
         }
         _map.Clear();
@@ -24,17 +24,17 @@ public partial class EnemyHpTextPresentationSystem : SystemBase
 
     protected override void OnUpdate()
     {
-        // ¼­¹ö ¿ùµå °°Àº °÷¿¡¼­´Â UI ¸¸µé ÇÊ¿ä ¾øÀ½
+        // ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ UI ï¿½ï¿½ï¿½ï¿½ ï¿½Ê¿ï¿½ ï¿½ï¿½ï¿½ï¿½
         var flags = World.Flags;
         if ((flags & WorldFlags.GameServer) != 0)
             return;
 
         var bridge = EnemyHpUIBridge.Instance;
-        if (bridge == null || bridge.text3dPrefab == null)
+        if (!bridge || !bridge.text3dPrefab) // Unity ObjectëŠ” implicit bool ì‚¬ìš©
             return;
 
         var cam = Camera.main;
-        if (cam == null)
+        if (!cam) // Unity ObjectëŠ” implicit bool ì‚¬ìš©
             return;
 
         var em = EntityManager;
@@ -53,36 +53,36 @@ public partial class EnemyHpTextPresentationSystem : SystemBase
             Entity e = entities[i];
             alive.Add(e);
 
-            if (!_map.TryGetValue(e, out var tmp) || tmp == null)
+            if (!_map.TryGetValue(e, out var tmp) || !tmp) // Unity ObjectëŠ” implicit bool ì‚¬ìš©
             {
                 tmp = Object.Instantiate(bridge.text3dPrefab);
                 _map[e] = tmp;
             }
 
-            // À§Ä¡/Ã¼·Â
+            // ï¿½ï¿½Ä¡/Ã¼ï¿½ï¿½
             LocalToWorld ltw = em.GetComponentData<LocalToWorld>(e);
             EnemyHealthData hp = em.GetComponentData<EnemyHealthData>(e);
 
             Vector3 pos = (Vector3)ltw.Position + Vector3.up * bridge.heightOffset;
             tmp.transform.position = pos;
 
-            // **UIÃ³·³ Á¤¸é °íÁ¤**: Ä«¸Þ¶ó È¸Àü°ú ¿ÏÀüÈ÷ µ¿ÀÏ
+            // **UIÃ³ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½**: Ä«ï¿½Þ¶ï¿½ È¸ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
             tmp.transform.rotation = cam.transform.rotation;
 
-            // Å©±â
+            // Å©ï¿½ï¿½
             tmp.transform.localScale = Vector3.one * bridge.uniformScale;
 
-            // ÅØ½ºÆ®
+            // ï¿½Ø½ï¿½Æ®
             tmp.text = $"{hp.Current}/{hp.Max}";
         }
 
-        // »ç¶óÁø ¿£Æ¼Æ¼ Á¤¸®
+        // ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½Æ¼Æ¼ ï¿½ï¿½ï¿½ï¿½
         var toRemove = new List<Entity>();
         foreach (var kv in _map)
         {
             if (!alive.Contains(kv.Key))
             {
-                if (kv.Value != null) Object.Destroy(kv.Value.gameObject);
+                if (kv.Value) Object.Destroy(kv.Value.gameObject); // Unity ObjectëŠ” implicit bool ì‚¬ìš©
                 toRemove.Add(kv.Key);
             }
         }

@@ -1,3 +1,4 @@
+using Unity.Burst;
 using NUnit.Framework;
 using Unity.Entities;
 using Unity.NetCode;
@@ -11,11 +12,13 @@ namespace Client
     /// - Selected 엔티티 순회 → CurrentSelectionState 싱글톤 업데이트
     /// - UI 표시 및 건설모드 진입 조건 체크에 사용
     /// </summary>
+    [BurstCompile]
     [UpdateInGroup(typeof(GhostInputSystemGroup))]
     [UpdateAfter(typeof(EntitySelectionSystem))]
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
     public partial struct SelectionStateSystem : ISystem
     {
+        [BurstCompile]
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<NetworkStreamInGame>();

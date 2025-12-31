@@ -2037,7 +2037,7 @@ GameObject:
   - component: {fileID: 1181322090}
   - component: {fileID: 1181322089}
   m_Layer: 0
-  m_Name: BuildingPreviewController
+  m_Name: StructurePreviewController
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

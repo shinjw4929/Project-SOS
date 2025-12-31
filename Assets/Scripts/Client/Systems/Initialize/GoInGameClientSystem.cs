@@ -6,6 +6,7 @@ using Shared;
 
 namespace Client
 {
+    [BurstCompile]
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
     partial struct GoInGameClientSystem : ISystem
     {

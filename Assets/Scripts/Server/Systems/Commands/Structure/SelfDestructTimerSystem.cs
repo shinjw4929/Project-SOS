@@ -1,3 +1,4 @@
+using Unity.Burst;
 using Unity.Entities;
 using Unity.NetCode;
 using Unity.Transforms;
@@ -10,11 +11,13 @@ namespace Server
     /// 자폭 타이머 처리
     /// SelfDestructTag의 RemainingTime을 감소시키고, 0이 되면 폭발 실행
     /// </summary>
+    [BurstCompile]
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     [UpdateBefore(typeof(HandleSelfDestructRequestSystem))]
     [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
     public partial struct SelfDestructTimerSystem : ISystem
     {
+        [BurstCompile]
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<EndSimulationEntityCommandBufferSystem.Singleton>();

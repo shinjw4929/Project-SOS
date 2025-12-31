@@ -8,10 +8,20 @@ using Shared;
 namespace Client
 {
     /// <summary>
-    /// [Client 전용] 게임에 필요한 싱글톤 엔티티(UserState, Selection 등)를 일괄 생성합니다.
+    /// [Client 전용] 게임에 필요한 싱글톤 엔티티를 일괄 생성합니다.
+    ///
+    /// [싱글톤 초기화 중앙 집중]
+    /// 새로운 클라이언트 싱글톤 추가 시 이 시스템에서 초기화하세요.
+    /// - UserState: 유저 컨텍스트 상태
+    /// - StructurePreviewState: 건설 프리뷰 상태
+    /// - SelectionState: 선택 입력 상태
+    /// - CurrentSelectionState: 현재 선택 정보
+    ///
+    /// 예외: Managed 컴포넌트나 카탈로그 의존성이 있는 싱글톤은 CatalogIndexMapInitSystem에서 초기화
     /// </summary>
     
     //초기화 단계에서 가장 먼저 실행되도록 설정
+    [BurstCompile]
     [UpdateInGroup(typeof(InitializationSystemGroup), OrderFirst = true)]
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
     partial struct ClientBootstrapSystem : ISystem

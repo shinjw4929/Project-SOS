@@ -19,6 +19,7 @@ namespace Server
             state.RequireForUpdate<GridSettings>();
             state.RequireForUpdate<StructureCatalog>();
             state.RequireForUpdate<PhysicsWorldSingleton>();
+            state.RequireForUpdate<EndSimulationEntityCommandBufferSystem.Singleton>();
         }
 
         [BurstCompile]

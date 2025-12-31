@@ -1,3 +1,4 @@
+using Unity.Burst;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Transforms;
@@ -5,14 +6,17 @@ using Unity.Physics;
 using Shared;
 
 // Enemy를 LastKnownPosition 방향으로 이동시키는 시스템
+[BurstCompile]
 [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
 public partial struct EnemyMoveSystem : ISystem
 {
+    [BurstCompile]
     public void OnCreate(ref SystemState state)
     {
         state.RequireForUpdate<PhysicsWorldSingleton>();
     }
 
+    [BurstCompile]
     public void OnUpdate(ref SystemState state)
     {
         float dt = SystemAPI.Time.DeltaTime;

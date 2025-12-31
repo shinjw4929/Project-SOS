@@ -39,8 +39,8 @@ namespace Client
         private void ProcessRightClickCommand(ref SystemState state)
         {
             var mouse = Mouse.current;
-            if (mouse == null || !mouse.rightButton.wasPressedThisFrame) return;
-            if (Camera.main == null) return;
+            if (mouse == default || !mouse.rightButton.wasPressedThisFrame) return;
+            if (!Camera.main) return; // Unity Object는 implicit bool 사용
 
             float2 mousePos = mouse.position.ReadValue();
             Ray ray = Camera.main.ScreenPointToRay(new Vector3(mousePos.x, mousePos.y, 0));

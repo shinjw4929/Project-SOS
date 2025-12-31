@@ -1,3 +1,4 @@
+using Unity.Burst;
 using Unity.Entities;
 using Unity.NetCode;
 using Unity.Transforms;
@@ -12,10 +13,12 @@ namespace Server
     /// - 소유권 검증
     /// - SelfDestructTag 부착 (지연 폭발) 또는 즉시 폭발
     /// </summary>
+    [BurstCompile]
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
     public partial struct HandleSelfDestructRequestSystem : ISystem
     {
+        [BurstCompile]
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<NetworkStreamInGame>();

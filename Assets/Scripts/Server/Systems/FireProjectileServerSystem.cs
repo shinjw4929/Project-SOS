@@ -1,3 +1,4 @@
+using Unity.Burst;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.NetCode;
@@ -6,80 +7,82 @@ using UnityEngine;
 
 /*
  * FireProjectileServerSystem
- * - ½ÇÇà ¿ùµå: ServerSimulation
- * - ¿ªÇÒ:
- *   Å¬¶óÀÌ¾ğÆ®°¡ º¸³½ FireProjectileRpc¸¦ ¼­¹ö¿¡¼­ ¼ö½ÅÇØ¼­ Åõ»çÃ¼¸¦ »ı¼º(Instantiate)ÇÏ°í,
- *   Åõ»çÃ¼ÀÇ ÃÊ±â À§Ä¡(LocalTransform)¿Í ÀÌµ¿ µ¥ÀÌÅÍ(ProjectileMove)¸¦ ¼¼ÆÃÇÑ´Ù.
+ * - ì‹¤í–‰ í™˜ê²½: ServerSimulation
+ * - ì—­í• :
+ *   í´ë¼ì´ì–¸íŠ¸ê°€ ë³´ë‚¸ FireProjectileRpcë¥¼ ì„œë²„ì—ì„œ ì²˜ë¦¬í•´ì„œ íˆ¬ì‚¬ì²´ë¥¼ ìƒì„±(Instantiate)í•˜ê³ ,
+ *   íˆ¬ì‚¬ì²´ì˜ ì´ˆê¸° ìœ„ì¹˜(LocalTransform)ì™€ ì´ë™ ë°ì´í„°(ProjectileMove)ë¥¼ ì„¤ì •í•œë‹¤.
  *
- * - ÀÔ·Â(Å¬¶óÀÌ¾ğÆ® ¡æ ¼­¹ö):
+ * - ì…ë ¥(í´ë¼ì´ì–¸íŠ¸ì—ì„œ ì „ì†¡):
  *   FireProjectileRpc
- *     - Origin: ¹ß»ç ±âÁØ À§Ä¡(º¸Åë À¯´Ö À§Ä¡)
- *     - Target: F¸¦ ´©¸¥ ¼ø°£ÀÇ ¸¶¿ì½º ¿ùµå ÁÂÇ¥(¹Ù´Ú Æò¸é ±âÁØ)
+ *     - Origin: ë°œì‚¬ ì‹œì‘ ìœ„ì¹˜(ìœ ë‹› ìœ„ì¹˜)
+ *     - Target: Fí‚¤ ëˆ„ë¥¸ ìˆœê°„ì˜ ë§ˆìš°ìŠ¤ ì›”ë“œ ì¢Œí‘œ(ë°”ë‹¥ ê¸°ì¤€)
  *
- * - Ãâ·Â(¼­¹ö¿¡¼­ »ı¼ºÇÏ´Â °Í):
- *   Projectile ÇÁ¸®ÆÕ ¿£Æ¼Æ¼¸¦ Instantiate ÇØ¼­ ½ÇÁ¦ Åõ»çÃ¼ ¿£Æ¼Æ¼¸¦ ¸¸µç´Ù.
+ * - ì¶œë ¥(ì„œë²„ì—ì„œ ìƒì„±í•˜ëŠ” ê²ƒ):
+ *   Projectile í”„ë¦¬íŒ¹ ì—”í‹°í‹°ë¥¼ Instantiate í•´ì„œ ì‹¤ì œ íˆ¬ì‚¬ì²´ ì—”í‹°í‹°ë¥¼ ë§Œë“ ë‹¤.
  *
- * - °Å¸®/¼Óµµ Á¶Àı Æ÷ÀÎÆ®:
- *   ProjectileMove.Speed            : Åõ»çÃ¼ ¼Óµµ
- *   ProjectileMove.RemainingDistance: Åõ»çÃ¼°¡ ¾ÕÀ¸·Î ´õ ÀÌµ¿ÇÒ ¼ö ÀÖ´Â ÃÖ´ë °Å¸®
+ * - ê±°ë¦¬/ì†ë„ ê´€ë ¨ í¬ì¸íŠ¸:
+ *   ProjectileMove.Speed            : íˆ¬ì‚¬ì²´ ì†ë„
+ *   ProjectileMove.RemainingDistance: íˆ¬ì‚¬ì²´ê°€ ìƒì„±ëœ í›„ ì´ë™í•  ìˆ˜ ìˆëŠ” ìµœëŒ€ ê±°ë¦¬
  *
- * - ±¸Á¶ º¯°æ ÁÖÀÇ:
- *   Instantiate/DestroyEntity´Â ECB¿¡ ±â·ÏÇÏ°í EndSimulation¿¡¼­ ¹İ¿µÇÑ´Ù.
+ * - êµ¬ì¡° ë³€ê²½ ì°¸ê³ :
+ *   Instantiate/DestroyEntityëŠ” ECBë¥¼ ì‚¬ìš©í•˜ê³  EndSimulationì—ì„œ ë°˜ì˜í•œë‹¤.
  */
+[BurstCompile]
 [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
 public partial struct FireProjectileServerSystem : ISystem
 {
+    [BurstCompile]
     public void OnCreate(ref SystemState state)
     {
-        // ¼­¹ö¿¡¼­ Åõ»çÃ¼ ÇÁ¸®ÆÕ ÂüÁ¶(½Ì±ÛÅæ)°¡ ÁØºñµÇÁö ¾ÊÀ¸¸é ½Ã½ºÅÛÀ» µ¹¸®Áö ¾Ê´Â´Ù.
+        // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½Ã¼ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½(ï¿½Ì±ï¿½ï¿½ï¿½)ï¿½ï¿½ ï¿½Øºï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Ã½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Ê´Â´ï¿½.
         state.RequireForUpdate<ProjectilePrefabRef>();
 
-        // ECB ½Ì±ÛÅæÀÌ ÀÖ¾î¾ß Instantiate/Destroy¸¦ ¾ÈÀüÇÏ°Ô ¿¹¾àÇÒ ¼ö ÀÖ´Ù.
+        // ECB ï¿½Ì±ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Ö¾ï¿½ï¿½ Instantiate/Destroyï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Ï°ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½Ö´ï¿½.
         state.RequireForUpdate<EndSimulationEntityCommandBufferSystem.Singleton>();
     }
 
     public void OnUpdate(ref SystemState state)
     {
-        // EndSimulation ½ÃÁ¡¿¡ ¹İ¿µµÉ CommandBuffer¸¦ »ı¼ºÇÑ´Ù.
+        // EndSimulation ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½İ¿ï¿½ï¿½ï¿½ CommandBufferï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Ñ´ï¿½.
         var ecb = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>()
                            .CreateCommandBuffer(state.WorldUnmanaged);
 
-        // ¼­¹ö°¡ µé°í ÀÖ´Â Åõ»çÃ¼ ÇÁ¸®ÆÕ ¿£Æ¼Æ¼¸¦ °¡Á®¿Â´Ù.
+        // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ ï¿½Ö´ï¿½ ï¿½ï¿½ï¿½ï¿½Ã¼ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½Æ¼Æ¼ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Â´ï¿½.
         Entity prefab = SystemAPI.GetSingleton<ProjectilePrefabRef>().Prefab;
 
-        // Å¬¶óÀÌ¾ğÆ®°¡ º¸³½ RPC(¹ß»ç ¿äÃ»)¸¦ Ã³¸®ÇÑ´Ù.
-        // ReceiveRpcCommandRequest´Â "ÀÌ ¿£Æ¼Æ¼°¡ RPC ¼ö½Å¿ëÀÌ´Ù"¸¦ ³ªÅ¸³»´Â NetCode ±¸¼º¿ä¼Ò´Ù.
+        // Å¬ï¿½ï¿½ï¿½Ì¾ï¿½Æ®ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ RPC(ï¿½ß»ï¿½ ï¿½ï¿½Ã»)ï¿½ï¿½ Ã³ï¿½ï¿½ï¿½Ñ´ï¿½.
+        // ReceiveRpcCommandRequestï¿½ï¿½ "ï¿½ï¿½ ï¿½ï¿½Æ¼Æ¼ï¿½ï¿½ RPC ï¿½ï¿½ï¿½Å¿ï¿½ï¿½Ì´ï¿½"ï¿½ï¿½ ï¿½ï¿½Å¸ï¿½ï¿½ï¿½ï¿½ NetCode ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ò´ï¿½.
         foreach (var (rpc, req, e) in SystemAPI.Query<RefRO<FireProjectileRpc>, RefRO<ReceiveRpcCommandRequest>>()
                                               .WithEntityAccess())
         {
-            // RPC¿¡ Æ÷ÇÔµÈ ¹ß»ç ¿øÁ¡°ú ¸ñÇ¥ ÁöÁ¡
+            // RPCï¿½ï¿½ ï¿½ï¿½ï¿½Ôµï¿½ ï¿½ß»ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½Ç¥ ï¿½ï¿½ï¿½ï¿½
             float3 origin = rpc.ValueRO.Origin;
             float3 target = rpc.ValueRO.Target;
 
-            // ¹ß»ç ¹æÇâ °è»ê: (Target - Origin)À» Á¤±ÔÈ­
-            // normalizesafe´Â ±æÀÌ°¡ 0¿¡ °¡±î¿ì¸é 0 º¤ÅÍ°¡ ³ª¿Ã ¼ö ÀÖÀ¸¹Ç·Î ¾Æ·¡¿¡¼­ º¸Á¤ÇÑ´Ù.
+            // ï¿½ß»ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½: (Target - Origin)ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½È­
+            // normalizesafeï¿½ï¿½ ï¿½ï¿½ï¿½Ì°ï¿½ 0ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ 0 ï¿½ï¿½ï¿½Í°ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Ç·ï¿½ ï¿½Æ·ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Ñ´ï¿½.
             float3 dir = math.normalizesafe(target - origin);
 
-            // ¹æÇâÀÌ °ÅÀÇ 0ÀÌ¸é ±âº» ¹æÇâÀ» ÁØ´Ù(0º¤ÅÍ ¹æÁö)
+            // ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ 0ï¿½Ì¸ï¿½ ï¿½âº» ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Ø´ï¿½(0ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½)
             if (math.lengthsq(dir) < 0.0001f)
                 dir = new float3(0, 0, 1);
 
-            // ½ºÆù À§Ä¡ º¸Á¤:
-            // - dir ¹æÇâÀ¸·Î »ìÂ¦ ¾ÕÀ¸·Î(À¯´Ö ¸ö ¾Õ)
-            // - y¸¦ ¾à°£ ¿Ã·Á ¹Ù´Ú¿¡ ¹ÚÈ÷´Â ¹®Á¦¸¦ ¿ÏÈ­
+            // ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½Ä¡ ï¿½ï¿½ï¿½ï¿½:
+            // - dir ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½Â¦ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½(ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½)
+            // - yï¿½ï¿½ ï¿½à°£ ï¿½Ã·ï¿½ ï¿½Ù´Ú¿ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½È­
             float3 spawnPos = origin + dir * 1.0f;
             spawnPos.y = origin.y + 0.5f;
 
-            // Åõ»çÃ¼ ÀÎ½ºÅÏ½º »ı¼º(ÇÁ¸®ÆÕ ¡æ ½ÇÁ¦ ¿£Æ¼Æ¼)
+            // ï¿½ï¿½ï¿½ï¿½Ã¼ ï¿½Î½ï¿½ï¿½Ï½ï¿½ ï¿½ï¿½ï¿½ï¿½(ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½Æ¼Æ¼)
             Entity proj = ecb.Instantiate(prefab);
 
-            // À§Ä¡(LocalTransform) ÃÊ±âÈ­
+            // ï¿½ï¿½Ä¡(LocalTransform) ï¿½Ê±ï¿½È­
             ecb.SetComponent(proj, LocalTransform.FromPosition(spawnPos));
 
-            // ÀÌµ¿ µ¥ÀÌÅÍ ¼¼ÆÃ:
-            // - Direction: ³¯¾Æ°¥ ¹æÇâ
-            // - Speed: ÃÊ´ç ÀÌµ¿ °Å¸®
-            // - RemainingDistance: ¾ÕÀ¸·Î ´õ ÀÌµ¿ °¡´ÉÇÑ ÃÖ´ë °Å¸®(0 ÀÌÇÏ°¡ µÇ¸é »èÁ¦ ´ë»ó)
+            // ï¿½Ìµï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½:
+            // - Direction: ï¿½ï¿½ï¿½Æ°ï¿½ ï¿½ï¿½ï¿½ï¿½
+            // - Speed: ï¿½Ê´ï¿½ ï¿½Ìµï¿½ ï¿½Å¸ï¿½
+            // - RemainingDistance: ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½Ìµï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Ö´ï¿½ ï¿½Å¸ï¿½(0 ï¿½ï¿½ï¿½Ï°ï¿½ ï¿½Ç¸ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½)
             ecb.SetComponent(proj, new ProjectileMove
             {
                 Direction = dir,
@@ -87,10 +90,10 @@ public partial struct FireProjectileServerSystem : ISystem
                 RemainingDistance = 30f
             });
 
-            // RPC ¿£Æ¼Æ¼´Â 1È¸ Ã³¸® ÈÄ Á¦°ÅÇÑ´Ù(°è¼Ó ³²¾ÆÀÖÀ¸¸é ¸Å ÇÁ·¹ÀÓ ÀçÃ³¸® À§Çè).
+            // RPC ï¿½ï¿½Æ¼Æ¼ï¿½ï¿½ 1È¸ Ã³ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Ñ´ï¿½(ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½Ã³ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½).
             ecb.DestroyEntity(e);
 
-            // ¼­¹ö ·Î±×: ½ÇÁ¦ ½ºÆùÀÌ ¹ß»ıÇß´ÂÁö È®ÀÎ¿ë
+            // ï¿½ï¿½ï¿½ï¿½ ï¿½Î±ï¿½: ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ß»ï¿½ï¿½ß´ï¿½ï¿½ï¿½ È®ï¿½Î¿ï¿½
             Debug.Log("FireProjectileServerSystem: projectile spawned.");
         }
     }

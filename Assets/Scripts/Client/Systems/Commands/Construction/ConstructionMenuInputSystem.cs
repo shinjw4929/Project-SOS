@@ -24,12 +24,12 @@ namespace Client
             var keyboard = Keyboard.current;
             if (keyboard == null) return;
 
-            // 1. 싱글톤 참조 가져오기 (RefRW로 접근하여 수정 가능하게 함)
+            // 1. 싱글톤 참조 가져오기
             ref var userState = ref SystemAPI.GetSingletonRW<UserState>().ValueRW;
             ref var previewState = ref SystemAPI.GetSingletonRW<StructurePreviewState>().ValueRW;
             var selectionState = SystemAPI.GetSingleton<CurrentSelectionState>();
 
-            // 2. 상태별 입력 처리 (Switch문으로 가독성 향상)
+            // 2. 상태별 입력 처리
             switch (userState.CurrentState)
             {
                 case UserContext.Command:
@@ -56,7 +56,7 @@ namespace Client
                 selectionState.SelectedCount != 1 || 
                 !selectionState.IsOwnedSelection) return;
 
-            // 엔티티가 실제로 존재하는지 확인 (안전장치)
+            // 엔티티가 실제로 존재하는지 확인
             if (!state.EntityManager.Exists(selectionState.PrimaryEntity)) return;
 
             // BuilderTag 확인

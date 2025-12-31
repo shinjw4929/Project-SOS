@@ -26,7 +26,7 @@ namespace Client
         public void OnUpdate(ref SystemState state)
         {
             var mouse = Mouse.current;
-            if (mouse == null) return;
+            if (mouse == default) return;
 
             var userState = SystemAPI.GetSingleton<UserState>();
             if (userState.CurrentState == UserContext.Construction || userState.CurrentState == UserContext.Dead) return;

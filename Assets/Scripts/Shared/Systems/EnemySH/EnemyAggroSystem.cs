@@ -1,3 +1,4 @@
+using Unity.Burst;
 using Unity.Entities;
 using Unity.Transforms;
 using Unity.Mathematics;
@@ -5,9 +6,11 @@ using Shared;
 
 namespace Shared.Systems
 {
+    [BurstCompile]
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     public partial struct EnemyAggroSystem : ISystem
     {
+        [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
             // 플레이어(Hero) 쿼리

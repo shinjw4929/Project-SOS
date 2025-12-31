@@ -40,7 +40,7 @@ public partial struct FireProjectileClientSystem : ISystem
             return;
 
         // 카메라가 없으면 마우스 → 월드 좌표 변환을 할 수 없다.
-        if (Camera.main == null)
+        if (!Camera.main) // Unity Object는 implicit bool 사용
             return;
 
         // 1) InGame 상태의 연결 엔티티를 찾는다.
