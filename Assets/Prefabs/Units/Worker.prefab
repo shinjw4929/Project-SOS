@@ -148,7 +148,7 @@ MonoBehaviour:
   buildRange: 5
   cost: 100
   populationCost: 1
-  trainingTime: 5
+  trainingTime: 2
   moveSpeed: 15
   maxHealth: 100
   defense: 0

@@ -143,7 +143,7 @@ namespace Client
         /// Y축은 무시하고 수평 거리만 계산합니다.
         /// </summary>
         [BurstCompile]
-        private static float CalculateDistanceToAABB(float3 point, float3 aabbMin, float3 aabbMax)
+        private static float CalculateDistanceToAABB(in float3 point, in float3 aabbMin, in float3 aabbMax)
         {
             // XZ 평면에서 AABB 최근접점 계산
             float closestX = math.clamp(point.x, aabbMin.x, aabbMax.x);
