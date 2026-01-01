@@ -103,7 +103,8 @@ namespace Client
                 int localIndex = -1;
                 if (keyboard.qKey.wasPressedThisFrame) localIndex = 0;
                 else if (keyboard.wKey.wasPressedThisFrame) localIndex = 1;
-
+                else if (keyboard.eKey.wasPressedThisFrame) localIndex = 2;
+                
                 if (localIndex != -1)
                 {
                     int globalIndex = TryGetGlobalUnitIndex(targetEntity, localIndex);
