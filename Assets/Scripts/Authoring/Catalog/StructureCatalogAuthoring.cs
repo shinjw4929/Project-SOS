@@ -14,6 +14,9 @@ namespace Authoring
         {
             public override void Bake(StructureCatalogAuthoring authoring)
             {
+                // =======================================================
+                // 1. 서버/시뮬레이션용 데이터
+                // =======================================================
                 Entity entity = GetEntity(TransformUsageFlags.None);
                 
                 // [식별용] 태그 컴포넌트
@@ -28,6 +31,14 @@ namespace Authoring
                     Entity prefabEntity = prefabObj != null ? GetEntity(prefabObj, TransformUsageFlags.Dynamic) : Entity.Null;
                     buffer.Add(new StructureCatalogElement { PrefabEntity = prefabEntity });
                 }
+                
+                // =======================================================
+                // 2.GameObject 프리팹 담은 Managed Component
+                // =======================================================
+                AddComponentObject(entity, new StructurePrefabStore
+                {
+                    Prefabs = authoring.prefabs.ToArray()
+                });
             }
         }
     }
