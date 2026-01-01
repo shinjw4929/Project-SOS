@@ -64,7 +64,8 @@ namespace Server
             Entity entity, 
             ref ProductionQueue queue, 
             in LocalTransform transform, 
-            in GhostOwner owner)
+            in GhostOwner owner,
+            in StructureFootprint footprint)
         {
             if (!queue.IsActive) return;
 
@@ -79,9 +80,18 @@ namespace Server
                 if (unitIndex >= 0 && unitIndex < CatalogBuffer.Length)
                 {
                     Entity prefab = CatalogBuffer[unitIndex].PrefabEntity;
-
+                    
+                    
+                    float xOffset = (footprint.Width * 0.5f) + 1.0f;
+                    float zOffset = (footprint.Length * 0.5f) + 1.0f;
+                    float3 spawnPos = new float3(
+                        transform.Position.x + xOffset, 
+                        0f, 
+                        transform.Position.z - zOffset
+                    );
+                    
                     // 유닛 스폰 명령 예약
-                    SpawnUnit(sortKey, prefab, transform.Position, owner.NetworkId);
+                    SpawnUnit(sortKey, prefab, spawnPos, owner.NetworkId);
                 }
                 
                 // Queue 초기화
@@ -101,9 +111,6 @@ namespace Server
 
             // A. 유닛 생성
             Entity newUnit = Ecb.Instantiate(sortKey, prefab);
-
-            // 위치 설정 (오프셋)
-            float3 finalPos = spawnPos + new float3(2f, 0, -2f);
             
             // B. 프리팹의 Transform 정보 가져오기
             // TransformLookup.HasComponent(Entity)로 안전하게 확인
@@ -113,7 +120,7 @@ namespace Server
                 LocalTransform prefabTransform = TransformLookup[prefab];
                 
                 // 위치만 변경
-                prefabTransform.Position = finalPos;
+                prefabTransform.Position += spawnPos;
                 
                 // 적용
                 Ecb.SetComponent(sortKey, newUnit, prefabTransform);
@@ -121,7 +128,7 @@ namespace Server
             else
             {
                 // 프리팹에 Transform이 없는 경우 (예외 처리)
-                Ecb.SetComponent(sortKey, newUnit, LocalTransform.FromPosition(finalPos));
+                Ecb.SetComponent(sortKey, newUnit, LocalTransform.FromPosition(spawnPos));
             }
             
             // 소유권 설정
@@ -130,7 +137,7 @@ namespace Server
             
             // 필수 컴포넌트가 프리팹에 없는 경우를 대비한 안전장치 (필요 없다면 제거 가능)
             // 성능을 위해 가능하면 프리팹 자체에 컴포넌트를 붙여두는 것이 좋음
-            Ecb.AddComponent(sortKey, newUnit, new MoveTarget { position = finalPos, isValid = false });
+            Ecb.AddComponent(sortKey, newUnit, new MoveTarget { position = spawnPos, isValid = false });
             Ecb.AddComponent(sortKey, newUnit, new RTSInputState { TargetPosition = float3.zero, HasTarget = false });
         }
     }

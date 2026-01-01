@@ -17,17 +17,27 @@ namespace Client
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
     public partial struct UnitCommandInputSystem : ISystem
     {
+        private ComponentLookup<PendingBuildRequest> _pendingBuildLookup;
+        private ComponentLookup<UnitState> _unitStateLookup;
+
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<NetworkStreamInGame>();
             state.RequireForUpdate<NetworkId>();
             state.RequireForUpdate<UserState>();
+            state.RequireForUpdate<BeginSimulationEntityCommandBufferSystem.Singleton>();
+
+            _pendingBuildLookup = state.GetComponentLookup<PendingBuildRequest>(true);
+            _unitStateLookup = state.GetComponentLookup<UnitState>(true);
         }
 
         public void OnUpdate(ref SystemState state)
         {
             var userState = SystemAPI.GetSingleton<UserState>();
             if (userState.CurrentState == UserContext.Dead) return;
+
+            _pendingBuildLookup.Update(ref state);
+            _unitStateLookup.Update(ref state);
 
             ProcessRightClickCommand(ref state);
             SubmitCommands(ref state);
@@ -51,12 +61,35 @@ namespace Client
             {
                 float3 targetPos = hit.point;
 
+                var ecb = SystemAPI.GetSingleton<BeginSimulationEntityCommandBufferSystem.Singleton>()
+                    .CreateCommandBuffer(state.WorldUnmanaged);
+
                 // 선택된 내 유닛들의 InputState 갱신
-                foreach (var inputState in SystemAPI.Query<RefRW<RTSInputState>>()
-                    .WithAll<Selected, GhostOwnerIsLocal>())
+                foreach (var (inputState, entity) in SystemAPI.Query<RefRW<RTSInputState>>()
+                    .WithAll<Selected, GhostOwnerIsLocal>()
+                    .WithEntityAccess())
                 {
                     inputState.ValueRW.TargetPosition = targetPos;
                     inputState.ValueRW.HasTarget = true;
+
+                    // PendingBuildRequest가 있으면 취소 (이동 후 건설 취소)
+                    if (_pendingBuildLookup.HasComponent(entity))
+                    {
+                        ecb.RemoveComponent<PendingBuildRequest>(entity);
+                    }
+
+                    // MovingToBuild 상태이면 Moving으로 변경
+                    if (_unitStateLookup.HasComponent(entity))
+                    {
+                        var currentState = _unitStateLookup[entity].CurrentState;
+                        if (currentState == UnitContext.MovingToBuild)
+                        {
+                            ecb.SetComponent(entity, new UnitState
+                            {
+                                CurrentState = UnitContext.Moving
+                            });
+                        }
+                    }
                 }
             }
         }

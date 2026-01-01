@@ -3,6 +3,7 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Physics;
+using Unity.Transforms;
 using Shared;
 
 namespace Client
@@ -14,16 +15,21 @@ namespace Client
     {
         [ReadOnly] private ComponentLookup<StructureFootprint> _footprintLookup;
         [ReadOnly] private BufferLookup<GridCell> _gridCellLookup;
-        
+        [ReadOnly] private ComponentLookup<LocalTransform> _transformLookup;
+        [ReadOnly] private ComponentLookup<BuildRange> _buildRangeLookup;
+
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<UserState>();
             state.RequireForUpdate<StructurePreviewState>();
             state.RequireForUpdate<GridSettings>();
             state.RequireForUpdate<PhysicsWorldSingleton>();
-            
+            state.RequireForUpdate<CurrentSelectionState>();
+
             _footprintLookup = state.GetComponentLookup<StructureFootprint>(true);
             _gridCellLookup = state.GetBufferLookup<GridCell>(true);
+            _transformLookup = state.GetComponentLookup<LocalTransform>(true);
+            _buildRangeLookup = state.GetComponentLookup<BuildRange>(true);
         }
 
         [BurstCompile]
@@ -36,6 +42,7 @@ namespace Client
             if (userState.CurrentState != UserContext.Construction || previewState.SelectedPrefab == Entity.Null)
             {
                 previewState.IsValidPlacement = false;
+                previewState.Status = PlacementStatus.Invalid;
                 return;
             }
 
@@ -44,6 +51,7 @@ namespace Client
             if (!_footprintLookup.TryGetComponent(previewState.SelectedPrefab, out var footprint))
             {
                 previewState.IsValidPlacement = false;
+                previewState.Status = PlacementStatus.Invalid;
                 return;
             }
 
@@ -62,20 +70,90 @@ namespace Client
                     width, length, gridSettings.GridSize.x, gridSettings.GridSize.y);
             }
 
-            // 4. 유닛 물리 충돌 확인 (최신 API 적용)
+            // 4. 유닛 물리 충돌 확인
             var physicsWorld = SystemAPI.GetSingleton<PhysicsWorldSingleton>();
             float3 buildingCenter = GridUtility.GridToWorld(previewState.GridPosition.x, previewState.GridPosition.y,
                 width, length, gridSettings);
-            
+
             float3 halfExtents = new float3(
                 width * gridSettings.CellSize * 0.5f,
-                1f, 
+                1f,
                 length * gridSettings.CellSize * 0.5f
             );
 
             bool hasUnitCollision = CheckCollision(ref physicsWorld, buildingCenter, halfExtents);
 
-            previewState.IsValidPlacement = !isOccupied && !hasUnitCollision;
+            // 5. 기본 유효성 판단 (그리드 점유 + 유닛 충돌)
+            bool isValidPlacement = !isOccupied && !hasUnitCollision;
+            previewState.IsValidPlacement = isValidPlacement;
+
+            // 6. 사거리 계산 (유효한 배치일 때만)
+            if (!isValidPlacement)
+            {
+                previewState.Status = PlacementStatus.Invalid;
+                previewState.DistanceToBuilder = float.MaxValue;
+                return;
+            }
+
+            // 7. PrimaryEntity의 위치와 BuildRange 조회
+            var selectionState = SystemAPI.GetSingleton<CurrentSelectionState>();
+            Entity builderEntity = selectionState.PrimaryEntity;
+
+            _transformLookup.Update(ref state);
+            _buildRangeLookup.Update(ref state);
+
+            // Builder 엔티티가 유효하고 위치 정보가 있는지 확인
+            if (builderEntity == Entity.Null || !_transformLookup.HasComponent(builderEntity))
+            {
+                // Builder 정보 없으면 사거리 내로 간주 (기본 동작)
+                previewState.Status = PlacementStatus.ValidInRange;
+                previewState.DistanceToBuilder = 0f;
+                return;
+            }
+
+            float3 builderPos = _transformLookup[builderEntity].Position;
+
+            // BuildRange 컴포넌트가 있는지 확인
+            float buildRange = float.MaxValue; // 기본값: 무한대 (제한 없음)
+            if (_buildRangeLookup.HasComponent(builderEntity))
+            {
+                buildRange = _buildRangeLookup[builderEntity].Value;
+            }
+
+            // 8. AABB 최근접점까지의 거리 계산
+            float3 aabbMin = buildingCenter - halfExtents;
+            float3 aabbMax = buildingCenter + halfExtents;
+            float distance = CalculateDistanceToAABB(builderPos, aabbMin, aabbMax);
+
+            previewState.DistanceToBuilder = distance;
+
+            // 9. 사거리 내/외 판단
+            if (distance <= buildRange)
+            {
+                previewState.Status = PlacementStatus.ValidInRange;
+            }
+            else
+            {
+                previewState.Status = PlacementStatus.ValidOutOfRange;
+            }
+        }
+
+        /// <summary>
+        /// 점(point)에서 AABB까지의 XZ 평면 거리를 계산합니다.
+        /// Y축은 무시하고 수평 거리만 계산합니다.
+        /// </summary>
+        [BurstCompile]
+        private static float CalculateDistanceToAABB(in float3 point, in float3 aabbMin, in float3 aabbMax)
+        {
+            // XZ 평면에서 AABB 최근접점 계산
+            float closestX = math.clamp(point.x, aabbMin.x, aabbMax.x);
+            float closestZ = math.clamp(point.z, aabbMin.z, aabbMax.z);
+
+            // 수평 거리 계산
+            float dx = point.x - closestX;
+            float dz = point.z - closestZ;
+
+            return math.sqrt(dx * dx + dz * dz);
         }
 
         [BurstCompile]
@@ -90,24 +168,18 @@ namespace Client
                 },
                 Filter = new CollisionFilter
                 {
-                    BelongsTo = 1u << 6,                      
-                    CollidesWith = (1u << 7) | (1u << 8),     
+                    BelongsTo = 1u << 6,
+                    CollidesWith = (1u << 7) | (1u << 8),
                     GroupIndex = 0
                 }
             };
 
-            // [변경 사항]
-            // Unity Physics 1.x에서는 ICollector 대신 NativeList<int>를 직접 받습니다.
-            // Allocator.Temp는 매우 빠르므로 프레임 드랍 걱정은 안 하셔도 됩니다.
             var hits = new NativeList<int>(Allocator.Temp);
-            
-            // OverlapAabb는 bool을 반환하여 히트 여부를 알려줍니다. (버전에 따라 반환값이 없을 수도 있어 Length 체크가 가장 안전합니다)
             physicsWorld.PhysicsWorld.CollisionWorld.OverlapAabb(input, ref hits);
-            
+
             bool hasHit = hits.Length > 0;
-            
-            hits.Dispose(); // Temp 할당 해제
-            
+            hits.Dispose();
+
             return hasHit;
         }
     }

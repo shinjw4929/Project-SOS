@@ -19,7 +19,7 @@ GameObject:
   - component: {fileID: -3200572469814136834}
   - component: {fileID: 3272844813672822570}
   m_Layer: 7
-  m_Name: Soldier
+  m_Name: Swordsman
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -130,6 +130,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   unitType: 2
   buildableStructures: []
+  buildRange: 0
   cost: 100
   populationCost: 1
   trainingTime: 3
@@ -138,7 +139,7 @@ MonoBehaviour:
   defense: 0
   visionRange: 10
   reach: 1
-  attackPower: 10
+  attackPower: 20
   attackSpeed: 1
 --- !u!114 &6436938495033817077
 MonoBehaviour:
@@ -193,7 +194,7 @@ MonoBehaviour:
   OptimizationMode: 0
   Importance: 1
   MaxSendRate: 0
-  prefabId: 0e27e05ade413924eafedc9d64c33da1
+  prefabId: 651b861b56245724fb3a19b935eb52be
   HasOwner: 1
   SupportAutoCommandTarget: 1
   TrackInterpolationDelay: 0
