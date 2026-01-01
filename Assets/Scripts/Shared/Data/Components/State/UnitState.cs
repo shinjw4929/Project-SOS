@@ -12,6 +12,7 @@ namespace Shared
         Chasing = 3,        // 적 추격 중
         Gathering = 10,      // 자원 채집 중 (이동 -> 채집 -> 반납 사이클)
         Constructing = 11,   // 건설 중 (일꾼이 건물 짓는 모션)
+        MovingToBuild = 12,  // 건설 위치로 이동 중 (사거리 밖 건설 명령)
         Disabled = 20,
         Dying = 254,
         Dead = 255          // 사망

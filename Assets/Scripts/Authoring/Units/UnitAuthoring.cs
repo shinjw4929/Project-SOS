@@ -23,6 +23,7 @@ namespace Authoring
         
         [Header("Builder Settings")]
         public List<GameObject> buildableStructures; // 이 유닛이 건설할 수 있는 건물 프리팹 목록
+        public float buildRange = 5.0f; // 건설 사거리
         
         [Header("Production Info (Prefab Data)")]
         public int cost = 100;
@@ -80,22 +81,31 @@ namespace Authoring
                 }
                 
                 // =======================================================================
-                // 2. [건설 유닛] 버퍼 생성
+                // 2. [건설 유닛] 버퍼 및 사거리 설정
                 // =======================================================================
-                if (isBuilder && authoring.buildableStructures != null && authoring.buildableStructures.Count > 0)
+                if (isBuilder)
                 {
-                    // 버퍼 생성
-                    var buffer = AddBuffer<AvailableStructure>(entity);
-                    
-                    foreach (var structureObj in authoring.buildableStructures)
+                    // 건설 사거리 추가
+                    AddComponent(entity, new BuildRange
                     {
-                        if (structureObj == null) continue;
-                        
-                        // GameObject -> Entity 변환 후 버퍼에 추가
-                        buffer.Add(new AvailableStructure
+                        Value = authoring.buildRange
+                    });
+
+                    // 건설 가능 건물 버퍼 생성
+                    if (authoring.buildableStructures != null && authoring.buildableStructures.Count > 0)
+                    {
+                        var buffer = AddBuffer<AvailableStructure>(entity);
+
+                        foreach (var structureObj in authoring.buildableStructures)
                         {
-                            PrefabEntity = GetEntity(structureObj, TransformUsageFlags.Dynamic)
-                        });
+                            if (structureObj == null) continue;
+
+                            // GameObject -> Entity 변환 후 버퍼에 추가
+                            buffer.Add(new AvailableStructure
+                            {
+                                PrefabEntity = GetEntity(structureObj, TransformUsageFlags.Dynamic)
+                            });
+                        }
                     }
                 }
                 

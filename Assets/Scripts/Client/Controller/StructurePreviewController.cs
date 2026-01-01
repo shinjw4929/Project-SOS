@@ -9,8 +9,9 @@ using Material = UnityEngine.Material;
 
 public class StructurePreviewController : MonoBehaviour
 {
-    [SerializeField] private Material validMaterial;
-    [SerializeField] private Material invalidMaterial;
+    [SerializeField] private Material validMaterial;      // 초록색: 사거리 내 건설 가능
+    [SerializeField] private Material invalidMaterial;    // 빨간색: 건설 불가
+    [SerializeField] private Material outOfRangeMaterial; // 노란색: 사거리 밖 (이동 후 건설)
 
     // 캐싱된 컴포넌트들
     private GameObject _currentPreview;
@@ -160,8 +161,21 @@ public class StructurePreviewController : MonoBehaviour
         // C. 위치 및 머티리얼 적용
         _previewTransform.position = pos; // 캐시된 Transform 사용
 
-        Material targetMat = previewState.IsValidPlacement ? validMaterial : invalidMaterial;
-        
+        // 3단계 색상 로직: PlacementStatus 기반
+        Material targetMat;
+        switch (previewState.Status)
+        {
+            case PlacementStatus.ValidInRange:
+                targetMat = validMaterial;      // 초록색
+                break;
+            case PlacementStatus.ValidOutOfRange:
+                targetMat = outOfRangeMaterial; // 노란색
+                break;
+            default: // PlacementStatus.Invalid
+                targetMat = invalidMaterial;    // 빨간색
+                break;
+        }
+
         // 머티리얼 교체 체크 (SharedMaterial 비교가 빠름)
         if (_previewRenderer && _previewRenderer.sharedMaterial != targetMat)
         {
