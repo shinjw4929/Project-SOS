@@ -18,7 +18,7 @@ GameObject:
   - component: {fileID: 8364120396669651066}
   - component: {fileID: -3915132150347008814}
   - component: {fileID: 576986460176096770}
-  m_Layer: 0
+  m_Layer: 7
   m_Name: Worker
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -33,13 +33,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 3179942793388120451}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0.7071068, w: 0.7071068}
-  m_LocalPosition: {x: 0, y: 0.5, z: 0}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0.3, z: 0}
   m_LocalScale: {x: 1, y: 0.6, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 90}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!33 &4768385064167393140
 MeshFilter:
   m_ObjectHideFlags: 0
