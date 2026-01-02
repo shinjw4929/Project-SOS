@@ -1,100 +1,131 @@
-using Unity.Burst;
+using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.NetCode;
 using Unity.Transforms;
-using UnityEngine;
 
-/*
- * FireProjectileServerSystem
- * - 실행 환경: ServerSimulation
- * - 역할:
- *   클라이언트가 보낸 FireProjectileRpc를 서버에서 처리해서 투사체를 생성(Instantiate)하고,
- *   투사체의 초기 위치(LocalTransform)와 이동 데이터(ProjectileMove)를 설정한다.
- *
- * - 입력(클라이언트에서 전송):
- *   FireProjectileRpc
- *     - Origin: 발사 시작 위치(유닛 위치)
- *     - Target: F키 누른 순간의 마우스 월드 좌표(바닥 기준)
- *
- * - 출력(서버에서 생성하는 것):
- *   Projectile 프리팹 엔티티를 Instantiate 해서 실제 투사체 엔티티를 만든다.
- *
- * - 거리/속도 관련 포인트:
- *   ProjectileMove.Speed            : 투사체 속도
- *   ProjectileMove.RemainingDistance: 투사체가 생성된 후 이동할 수 있는 최대 거리
- *
- * - 구조 변경 참고:
- *   Instantiate/DestroyEntity는 ECB를 사용하고 EndSimulation에서 반영한다.
- */
-[BurstCompile]
 [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
+[UpdateInGroup(typeof(SimulationSystemGroup), OrderLast = true)]
 public partial struct FireProjectileServerSystem : ISystem
 {
-    [BurstCompile]
+    private EntityQuery _rpcQuery;
+    private EntityQuery _prefabRefQuery;
+
     public void OnCreate(ref SystemState state)
     {
-        // �������� ����ü ������ ����(�̱���)�� �غ���� ������ �ý����� ������ �ʴ´�.
-        state.RequireForUpdate<ProjectilePrefabRef>();
+        _rpcQuery = state.GetEntityQuery(
+            ComponentType.ReadOnly<ReceiveRpcCommandRequest>(),
+            ComponentType.ReadOnly<FireProjectileRpc>());
 
-        // ECB �̱����� �־�� Instantiate/Destroy�� �����ϰ� ������ �� �ִ�.
-        state.RequireForUpdate<EndSimulationEntityCommandBufferSystem.Singleton>();
+        _prefabRefQuery = state.GetEntityQuery(
+            ComponentType.ReadOnly<ProjectilePrefabRef>());
     }
 
     public void OnUpdate(ref SystemState state)
     {
-        // EndSimulation ������ �ݿ��� CommandBuffer�� �����Ѵ�.
-        var ecb = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>()
-                           .CreateCommandBuffer(state.WorldUnmanaged);
+        var em = state.EntityManager;
 
-        // ������ ��� �ִ� ����ü ������ ��ƼƼ�� �����´�.
-        Entity prefab = SystemAPI.GetSingleton<ProjectilePrefabRef>().Prefab;
+        using var rpcEntities = _rpcQuery.ToEntityArray(Allocator.Temp);
+        if (rpcEntities.Length == 0)
+            return;
 
-        // Ŭ���̾�Ʈ�� ���� RPC(�߻� ��û)�� ó���Ѵ�.
-        // ReceiveRpcCommandRequest�� "�� ��ƼƼ�� RPC ���ſ��̴�"�� ��Ÿ���� NetCode ������Ҵ�.
-        foreach (var (rpc, req, e) in SystemAPI.Query<RefRO<FireProjectileRpc>, RefRO<ReceiveRpcCommandRequest>>()
-                                              .WithEntityAccess())
+        // Projectile prefab 확보
+        Entity projectilePrefab = Entity.Null;
+        using (var prefEnts = _prefabRefQuery.ToEntityArray(Allocator.Temp))
         {
-            // RPC�� ���Ե� �߻� ������ ��ǥ ����
-            float3 origin = rpc.ValueRO.Origin;
-            float3 target = rpc.ValueRO.Target;
+            if (prefEnts.Length > 0)
+                projectilePrefab = em.GetComponentData<ProjectilePrefabRef>(prefEnts[0]).Prefab;
+        }
 
-            // �߻� ���� ���: (Target - Origin)�� ����ȭ
-            // normalizesafe�� ���̰� 0�� ������ 0 ���Ͱ� ���� �� �����Ƿ� �Ʒ����� �����Ѵ�.
-            float3 dir = math.normalizesafe(target - origin);
+        // 프리팹이 없으면 RPC만 소비
+        if (projectilePrefab == Entity.Null || !em.Exists(projectilePrefab))
+        {
+            for (int i = 0; i < rpcEntities.Length; i++)
+                em.DestroyEntity(rpcEntities[i]);
+            return;
+        }
 
-            // ������ ���� 0�̸� �⺻ ������ �ش�(0���� ����)
-            if (math.lengthsq(dir) < 0.0001f)
-                dir = new float3(0, 0, 1);
+        var ltLookup = SystemAPI.GetComponentLookup<LocalTransform>(true);
+        var prefabLookup = SystemAPI.GetComponentLookup<ProjectilePrefabRef>(true);
 
-            // ���� ��ġ ����:
-            // - dir �������� ��¦ ������(���� �� ��)
-            // - y�� �ణ �÷� �ٴڿ� ������ ������ ��ȭ
-            float3 spawnPos = origin + dir * 1.0f;
-            spawnPos.y = origin.y + 0.5f;
+        for (int i = 0; i < rpcEntities.Length; i++)
+        {
+            var rpcEntity = rpcEntities[i];
+            var req = em.GetComponentData<ReceiveRpcCommandRequest>(rpcEntity);
+            var rpc = em.GetComponentData<FireProjectileRpc>(rpcEntity);
 
-            // ����ü �ν��Ͻ� ����(������ �� ���� ��ƼƼ)
-            Entity proj = ecb.Instantiate(prefab);
+            var conn = req.SourceConnection;
 
-            // ��ġ(LocalTransform) �ʱ�ȭ
-            ecb.SetComponent(proj, LocalTransform.FromPosition(spawnPos));
+            // shooter 찾기 (CommandTarget 우선, 없으면 NetworkId -> GhostOwner)
+            Entity shooter = Entity.Null;
 
-            // �̵� ������ ����:
-            // - Direction: ���ư� ����
-            // - Speed: �ʴ� �̵� �Ÿ�
-            // - RemainingDistance: ������ �� �̵� ������ �ִ� �Ÿ�(0 ���ϰ� �Ǹ� ���� ���)
-            ecb.SetComponent(proj, new ProjectileMove
+            if (em.HasComponent<CommandTarget>(conn))
             {
-                Direction = dir,
-                Speed = 20f,
-                RemainingDistance = 30f
-            });
+                var ct = em.GetComponentData<CommandTarget>(conn);
+                if (ct.targetEntity != Entity.Null && em.Exists(ct.targetEntity))
+                    shooter = ct.targetEntity;
+            }
 
-            // RPC ��ƼƼ�� 1ȸ ó�� �� �����Ѵ�(��� ���������� �� ������ ��ó�� ����).
-            ecb.DestroyEntity(e);
+            if (shooter == Entity.Null && em.HasComponent<NetworkId>(conn))
+            {
+                int nid = em.GetComponentData<NetworkId>(conn).Value;
 
-            // ���� �α�: ���� ������ �߻��ߴ��� Ȯ�ο�
-            Debug.Log("FireProjectileServerSystem: projectile spawned.");
+                foreach (var (owner, ent) in SystemAPI.Query<RefRO<GhostOwner>>().WithEntityAccess())
+                {
+                    if (owner.ValueRO.NetworkId != nid) continue;
+                    if (!ltLookup.HasComponent(ent)) continue;
+
+                    // ProjectilePrefabRef 가진 엔티티(플레이어) 우선
+                    if (prefabLookup.HasComponent(ent))
+                    {
+                        shooter = ent;
+                        break;
+                    }
+
+                    if (shooter == Entity.Null)
+                        shooter = ent;
+                }
+            }
+
+            // shooter 못 찾으면 RPC만 소비
+            if (shooter == Entity.Null || !ltLookup.HasComponent(shooter))
+            {
+                em.DestroyEntity(rpcEntity);
+                continue;
+            }
+
+            var shooterTf = ltLookup[shooter];
+
+            // ✅ 마우스 월드좌표로 방향 계산
+            float3 dir = math.normalizesafe(rpc.TargetPosition - shooterTf.Position, math.forward(shooterTf.Rotation));
+
+            // 스폰 위치(가까이 쏘는 건 그대로 유지)
+            float3 spawnPos = shooterTf.Position + dir * 0.6f;
+
+            // 회전도 dir 바라보게
+            quaternion rot = quaternion.LookRotationSafe(dir, math.up());
+
+            var proj = em.Instantiate(projectilePrefab);
+
+            // 위치/회전 세팅
+            var projTf = LocalTransform.FromPositionRotationScale(spawnPos, rot, 1f);
+            if (em.HasComponent<LocalTransform>(proj)) em.SetComponentData(proj, projTf);
+            else em.AddComponentData(proj, projTf);
+
+            // ✅ 이동값 세팅 (안 움직이는 문제 + 즉시 despawn 방지)
+            if (em.HasComponent<ProjectileMove>(proj))
+            {
+                var mv = em.GetComponentData<ProjectileMove>(proj);
+
+                mv.Direction = dir;               // 마우스 방향으로 이동
+                if (mv.Speed <= 0f) mv.Speed = 20f; // 프리팹 Speed가 0이면 최소 보정
+                if (mv.RemainingDistance <= 0f) mv.RemainingDistance = 30f; // 0이면 DespawnSystem이 즉시 삭제
+
+                em.SetComponentData(proj, mv);
+            }
+
+            // RPC 소비
+            em.DestroyEntity(rpcEntity);
         }
     }
 }

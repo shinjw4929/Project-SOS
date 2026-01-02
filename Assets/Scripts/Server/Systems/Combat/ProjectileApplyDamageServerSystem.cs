@@ -9,12 +9,11 @@ using Unity.Physics.Systems;
 [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
 [UpdateInGroup(typeof(FixedStepSimulationSystemGroup))]
 [UpdateAfter(typeof(PhysicsSimulationGroup))]
-public partial struct ProjectileDamageSystem : ISystem
+public partial struct ProjectileApplyDamageServerSystem : ISystem
 {
     public void OnCreate(ref SystemState state)
     {
         state.RequireForUpdate<SimulationSingleton>();
-        state.RequireForUpdate<EndSimulationEntityCommandBufferSystem.Singleton>();
     }
 
     public void OnUpdate(ref SystemState state)
@@ -25,8 +24,7 @@ public partial struct ProjectileDamageSystem : ISystem
         var projLookup = SystemAPI.GetComponentLookup<Projectile>(true);
         var dmgLookup = SystemAPI.GetComponentLookup<ProjectileDamageData>(true);
 
-        var ecb = SystemAPI.GetSingletonRW<EndSimulationEntityCommandBufferSystem.Singleton>()
-            .ValueRW.CreateCommandBuffer(state.WorldUnmanaged);
+        var ecb = new EntityCommandBuffer(Allocator.TempJob);
 
         var processed = new NativeParallelHashSet<Entity>(1024, Allocator.TempJob);
 
@@ -42,6 +40,8 @@ public partial struct ProjectileDamageSystem : ISystem
         state.Dependency = job.Schedule(sim, state.Dependency);
         state.Dependency.Complete();
 
+        ecb.Playback(state.EntityManager);
+        ecb.Dispose();
         processed.Dispose();
     }
 
@@ -67,10 +67,11 @@ public partial struct ProjectileDamageSystem : ISystem
             var proj = aProj ? a : b;
             var other = aProj ? b : a;
 
+            // EnemyHealthData 가진 애만 맞으면 깎음
             if (!HpLookup.HasComponent(other)) return;
             if (!DmgLookup.HasComponent(proj)) return;
 
-            // 같은 프레임 다중 히트 방지
+            // 같은 프레임 다중 트리거 방지
             if (!Processed.Add(proj)) return;
 
             var hp = HpLookup[other];
@@ -79,9 +80,10 @@ public partial struct ProjectileDamageSystem : ISystem
 
             hp.Current -= dmg;
             if (hp.Current < 0) hp.Current = 0;
+
             HpLookup[other] = hp;
 
-            // 맞으면 투사체만 제거
+            // 투사체만 제거 (적 제거는 여기서 안 함)
             ECB.DestroyEntity(proj);
         }
     }
