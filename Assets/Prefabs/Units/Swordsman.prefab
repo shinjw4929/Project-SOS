@@ -19,7 +19,7 @@ GameObject:
   - component: {fileID: -3200572469814136834}
   - component: {fileID: 3272844813672822570}
   - component: {fileID: -994233781190505702}
-  m_Layer: 7
+  m_Layer: 11
   m_Name: Swordsman
   m_TagString: Untagged
   m_Icon: {fileID: 0}

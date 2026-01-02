@@ -4,7 +4,8 @@
       "WebFetch(domain:docs.unity3d.com)",
       "Bash(tree:*)",
       "Bash(dir:*)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(find:*)"
     ]
   }
 }

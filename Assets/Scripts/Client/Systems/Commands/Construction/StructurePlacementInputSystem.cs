@@ -22,7 +22,7 @@ namespace Client
             RequireForUpdate<UserState>();
             RequireForUpdate<GridSettings>();
             RequireForUpdate<CurrentSelectionState>();
-            _groundMask = 1 << LayerMask.NameToLayer("Ground");
+            _groundMask = 1 << 3; // 3: Ground
         }
 
         protected override void OnUpdate()

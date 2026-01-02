@@ -17,7 +17,7 @@ GameObject:
   - component: {fileID: 5531017108672036001}
   - component: {fileID: -4148315799516365006}
   - component: {fileID: 4845662913614543231}
-  m_Layer: 0
+  m_Layer: 7
   m_Name: ResourceCenter
   m_TagString: Untagged
   m_Icon: {fileID: 0}

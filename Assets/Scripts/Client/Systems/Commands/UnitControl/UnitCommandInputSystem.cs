@@ -56,7 +56,7 @@ namespace Client
             float2 mousePos = mouse.position.ReadValue();
             Ray ray = Camera.main.ScreenPointToRay(new Vector3(mousePos.x, mousePos.y, 0));
 
-            int groundMask = 1 << LayerMask.NameToLayer("Ground");
+            int groundMask = 1 << 3; // Ground
 
             if (Physics.Raycast(ray, out RaycastHit hit, 1000f, groundMask))
             {

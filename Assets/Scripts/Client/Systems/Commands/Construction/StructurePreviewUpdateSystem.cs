@@ -168,8 +168,8 @@ namespace Client
                 },
                 Filter = new CollisionFilter
                 {
-                    BelongsTo = 1u << 6,
-                    CollidesWith = (1u << 7) | (1u << 8),
+                    BelongsTo = 1u << 7, // Structure Layer
+                    CollidesWith = (1u << 11) | (1u << 12), // Unit | Enemy
                     GroupIndex = 0
                 }
             };

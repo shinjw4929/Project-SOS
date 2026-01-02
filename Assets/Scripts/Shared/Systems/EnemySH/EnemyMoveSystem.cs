@@ -25,11 +25,11 @@ public partial struct EnemyMoveSystem : ISystem
         var physicsWorld = SystemAPI.GetSingleton<PhysicsWorldSingleton>();
         var collisionWorld = physicsWorld.CollisionWorld;
 
-        // Enemy(Layer 8) → Structure(Layer 6) 충돌 필터
+        // Enemy(Layer 12) → Structure(Layer 7) 충돌 필터
         var collisionFilter = new CollisionFilter
         {
-            BelongsTo = 1u << 8,    // Enemy
-            CollidesWith = 1u << 6, // Structure
+            BelongsTo = 1u << 12,    // Enemy
+            CollidesWith = 1u << 7, // Structure
             GroupIndex = 0
         };
 

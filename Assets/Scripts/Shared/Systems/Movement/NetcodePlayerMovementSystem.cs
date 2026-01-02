@@ -35,13 +35,15 @@ namespace Shared
             var physicsWorld = SystemAPI.GetSingleton<PhysicsWorldSingleton>();
             var collisionWorld = physicsWorld.CollisionWorld;
 
+            // 7: Structure
+            // 11: Unit
             var structureCollisionFilter = new CollisionFilter
             {
-                BelongsTo = 1u << 7, CollidesWith = 1u << 6, GroupIndex = 0
+                BelongsTo = 1u << 11, CollidesWith = 1u << 7, GroupIndex = 0
             };
             var unitCollisionFilter = new CollisionFilter
             {
-                BelongsTo = 1u << 7, CollidesWith = 1u << 7, GroupIndex = 0
+                BelongsTo = 1u << 11, CollidesWith = 1u << 11, GroupIndex = 0
             };
 
             foreach ((
