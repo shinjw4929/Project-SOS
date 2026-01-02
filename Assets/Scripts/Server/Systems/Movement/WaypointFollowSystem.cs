@@ -6,19 +6,12 @@ using Shared;
 
 namespace Server
 {
-    /// <summary>
-    /// 웨이포인트 추적 시스템 (서버 전용)
-    /// - 현재 웨이포인트에 도착하면 다음 웨이포인트로 MoveTarget 업데이트
-    /// - PathfindingSystem 이후, NetcodePlayerMovementSystem 이전에 실행
-    /// </summary>
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     [UpdateAfter(typeof(PathfindingSystem))]
     [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
     [BurstCompile]
     public partial struct WaypointFollowSystem : ISystem
     {
-        private const float WaypointArrivalThreshold = 0.8f;
-
         [BurstCompile]
         public void OnCreate(ref SystemState state)
         {
@@ -27,45 +20,55 @@ namespace Server
 
         public void OnUpdate(ref SystemState state)
         {
-            foreach (var (pathState, pathBuffer, moveTarget, transform, entity) in
+            foreach (var (pathState, pathBuffer, moveTarget, transform) in
                 SystemAPI.Query<RefRW<PathfindingState>, DynamicBuffer<PathWaypoint>, RefRW<MoveTarget>, RefRO<LocalTransform>>()
-                    .WithAll<UnitTag>()
-                    .WithEntityAccess())
+                    .WithAll<UnitTag>())
             {
-                // 유효한 경로가 없으면 스킵
-                if (pathState.ValueRO.TotalWaypoints == 0 || !moveTarget.ValueRO.isValid)
+                if (pathState.ValueRO.TotalWaypoints == 0 || pathBuffer.IsEmpty)
                     continue;
 
-                float3 currentPos = transform.ValueRO.Position;
                 int currentIndex = pathState.ValueRO.CurrentWaypointIndex;
-
-                // 버퍼 범위 체크
-                if (currentIndex >= pathBuffer.Length)
-                    continue;
-
-                float3 currentWaypoint = pathBuffer[currentIndex].Position;
-
-                // Y축 무시하고 거리 계산
-                float3 toWaypoint = currentWaypoint - currentPos;
-                toWaypoint.y = 0;
-                float distance = math.length(toWaypoint);
-
-                // 현재 웨이포인트에 도착했는지 확인
-                if (distance < WaypointArrivalThreshold)
+                
+                // 1. 유닛이 클라이언트 예측으로 이미 타겟을 다음 웨이포인트로 바꿨는지 확인
+                // (MoveTarget.position이 현재 인덱스의 위치와 다르면, 유닛이 이미 코너를 돌았다는 뜻)
+                if (currentIndex < pathBuffer.Length)
                 {
-                    int nextIndex = currentIndex + 1;
+                    float3 bufferPos = pathBuffer[currentIndex].Position;
+                    float3 currentTargetPos = moveTarget.ValueRO.position;
+                    
+                    // 오차 범위(float 정밀도) 내에서 다른지 체크
+                    if (math.distancesq(bufferPos, currentTargetPos) > 0.1f)
+                    {
+                        // 유닛이 이미 다음거로 넘어갔음 -> 서버 인덱스 증가
+                        currentIndex++;
+                        pathState.ValueRW.CurrentWaypointIndex = (byte)currentIndex;
+                    }
+                }
 
-                    if (nextIndex < pathState.ValueRO.TotalWaypoints && nextIndex < pathBuffer.Length)
-                    {
-                        // 다음 웨이포인트로 이동
-                        pathState.ValueRW.CurrentWaypointIndex = (byte)nextIndex;
-                        moveTarget.ValueRW.position = pathBuffer[nextIndex].Position;
-                    }
-                    else
-                    {
-                        // 마지막 웨이포인트 도착 - 이동 완료
-                        // MoveTarget.isValid는 NetcodePlayerMovementSystem에서 처리
-                    }
+                // 범위 체크
+                if (currentIndex >= pathBuffer.Length)
+                {
+                    // 도착 완료 상태
+                    // MoveTarget.isValid는 MovementSystem에서 끄도록 둠
+                    continue; 
+                }
+
+                // 2. 현재 상태에 맞춰 MoveTarget 데이터 갱신 (Look-ahead)
+                // 현재 목표가 올바른지 확인 및 재설정
+                moveTarget.ValueRW.position = pathBuffer[currentIndex].Position;
+                moveTarget.ValueRW.isValid = true;
+
+                // [핵심] 다음 웨이포인트 미리 넣어주기
+                int nextIndex = currentIndex + 1;
+                if (nextIndex < pathBuffer.Length)
+                {
+                    moveTarget.ValueRW.NextPosition = pathBuffer[nextIndex].Position;
+                    moveTarget.ValueRW.HasNextPosition = true;
+                }
+                else
+                {
+                    // 다음 경로 없음 (마지막 구간)
+                    moveTarget.ValueRW.HasNextPosition = false;
                 }
             }
         }

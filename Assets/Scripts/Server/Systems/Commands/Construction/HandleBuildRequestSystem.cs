@@ -4,55 +4,74 @@ using Unity.NetCode;
 using Unity.Transforms;
 using Unity.Mathematics;
 using Unity.Physics;
-using Unity.Burst; // Burst 추가
+using Unity.Burst;
 using Shared;
 
 namespace Server
 {
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
-    [BurstCompile] // 시스템 전체 Burst 컴파일
+    [BurstCompile]
     public partial struct HandleBuildRequestSystem : ISystem
     {
+        // 1. 컴포넌트 데이터에 빠르게 접근하기 위한 Lookup 필드 선언
+        [ReadOnly] private ComponentLookup<StructureFootprint> _footprintLookup;
+        [ReadOnly] private ComponentLookup<LocalTransform> _transformLookup;
+        [ReadOnly] private ComponentLookup<NetworkId> _networkIdLookup;
+        [ReadOnly] private ComponentLookup<ProductionInfo> _productionInfoLookup;
+        [ReadOnly] private ComponentLookup<NeedsNavMeshObstacle> _needsNavMeshLookup; // Enableable 컴포넌트 체크용
+
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<GridSettings>();
             state.RequireForUpdate<StructureCatalog>();
             state.RequireForUpdate<PhysicsWorldSingleton>();
             state.RequireForUpdate<EndSimulationEntityCommandBufferSystem.Singleton>();
+
+            // Lookup 초기화 (ReadOnly 설정으로 안전성 및 성능 확보)
+            _footprintLookup = state.GetComponentLookup<StructureFootprint>(true);
+            _transformLookup = state.GetComponentLookup<LocalTransform>(true);
+            _networkIdLookup = state.GetComponentLookup<NetworkId>(true);
+            _productionInfoLookup = state.GetComponentLookup<ProductionInfo>(true);
+            _needsNavMeshLookup = state.GetComponentLookup<NeedsNavMeshObstacle>(true);
         }
 
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
-            // 필수 싱글톤 검증 (HasSingleton 대신 TryGetSingletonEntity 사용이 더 빠름)
+            // 필수 싱글톤 확인
             if (!SystemAPI.TryGetSingletonEntity<GridSettings>(out var gridEntity) || 
                 !SystemAPI.TryGetSingletonEntity<StructureCatalog>(out var catalogEntity))
             {
                 return;
             }
 
-            // 데이터 준비
+            // 2. Lookup 갱신 (프레임마다 필수)
+            _footprintLookup.Update(ref state);
+            _transformLookup.Update(ref state);
+            _networkIdLookup.Update(ref state);
+            _productionInfoLookup.Update(ref state);
+            _needsNavMeshLookup.Update(ref state);
+
             var gridSettings = SystemAPI.GetComponent<GridSettings>(gridEntity);
             var prefabBuffer = SystemAPI.GetBuffer<StructureCatalogElement>(catalogEntity);
             var physicsWorld = SystemAPI.GetSingleton<PhysicsWorldSingleton>();
             
-            // 그리드 버퍼가 없을 경우 대비
             DynamicBuffer<GridCell> gridBuffer = default;
             if (SystemAPI.HasBuffer<GridCell>(gridEntity))
             {
                 gridBuffer = SystemAPI.GetBuffer<GridCell>(gridEntity);
             }
 
-            var ecb = new EntityCommandBuffer(Allocator.Temp);
+            // 3. 시스템 ECB 사용 (직접 생성보다 메모리 관리 및 병합 시점이 명확함)
+            var ecbSingleton = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>();
+            var ecb = ecbSingleton.CreateCommandBuffer(state.WorldUnmanaged);
 
-            // [최적화] foreach 대신 쿼리 처리
+            // 4. 쿼리 순회
             foreach (var (rpcReceive, rpc, rpcEntity) in SystemAPI.Query<RefRO<ReceiveRpcCommandRequest>, RefRO<BuildRequestRpc>>()
                          .WithEntityAccess())
             {
-                // 함수 호출 인자 최적화
                 ProcessBuildRequest(
-                    ref state, 
                     ecb, 
                     rpcReceive.ValueRO, 
                     rpc.ValueRO, 
@@ -63,14 +82,10 @@ namespace Server
                     physicsWorld
                 );
             }
-
-            ecb.Playback(state.EntityManager);
-            ecb.Dispose();
         }
 
-        [BurstCompile] // 내부 로직도 Burst로 최적화
+        // ref SystemState 제거 -> EntityManager 접근을 차단하고 Lookup 사용
         private void ProcessBuildRequest(
-            ref SystemState state,
             EntityCommandBuffer ecb,
             ReceiveRpcCommandRequest rpcReceive,
             BuildRequestRpc rpc,
@@ -80,7 +95,7 @@ namespace Server
             DynamicBuffer<StructureCatalogElement> prefabBuffer,
             PhysicsWorldSingleton physicsWorld)
         {
-            // 1. 유효성 검사 (빠른 실패)
+            // 유효성 검사
             int index = rpc.StructureIndex;
             if (index < 0 || index >= prefabBuffer.Length)
             {
@@ -95,21 +110,20 @@ namespace Server
                 return;
             }
 
-            // 2. 컴포넌트 조회 (HasComponent 대신 TryGetComponent 권장, 여기선 로직상 Has 체크)
-            if (!state.EntityManager.HasComponent<StructureFootprint>(structurePrefab))
+            // Lookup을 통한 데이터 조회 (EntityManager 접근보다 훨씬 빠름)
+            if (!_footprintLookup.HasComponent(structurePrefab))
             {
                 ecb.DestroyEntity(rpcEntity);
                 return;
             }
 
-            var footprint = state.EntityManager.GetComponentData<StructureFootprint>(structurePrefab);
+            var footprint = _footprintLookup[structurePrefab];
             int width = footprint.Width;
             int length = footprint.Length;
 
-            // 3. [최적화] Grid 검사 (Buffer 접근 최소화)
+            // Grid 검사
             if (gridBuffer.IsCreated)
             {
-                // GridUtility가 Burst 호환이어야 함
                 if (GridUtility.IsOccupied(gridBuffer, rpc.GridPosition.x, rpc.GridPosition.y, width, length,
                     gridSettings.GridSize.x, gridSettings.GridSize.y))
                 {
@@ -118,7 +132,7 @@ namespace Server
                 }
             }
 
-            // 4. [최적화] 물리 검사 (PhysicsWorld 접근)
+            // 물리 검사
             float3 buildingCenter = GridUtility.GridToWorld(rpc.GridPosition.x, rpc.GridPosition.y, width, length, gridSettings);
             float3 halfExtents = new float3(width * gridSettings.CellSize * 0.5f, 1f, length * gridSettings.CellSize * 0.5f);
             
@@ -128,36 +142,34 @@ namespace Server
                 return;
             }
 
-            // 5. 생성 로직
-            CreateBuildingEntity(ref state, ecb, structurePrefab, rpc, width, length, gridSettings, rpcReceive.SourceConnection);
+            // 생성 로직 호출
+            CreateBuildingEntity(ecb, structurePrefab, rpc, width, length, gridSettings, buildingCenter, rpcReceive.SourceConnection);
 
             ecb.DestroyEntity(rpcEntity);
         }
 
         private void CreateBuildingEntity(
-            ref SystemState state,
             EntityCommandBuffer ecb,
             Entity prefab,
             BuildRequestRpc rpc,
             int width,
             int length,
             GridSettings gridSettings,
+            float3 worldPos, // 계산된 위치를 인자로 받음
             Entity connectionEntity)
         {
             Entity newStructure = ecb.Instantiate(prefab);
 
-            float3 worldPos = GridUtility.GridToWorld(rpc.GridPosition.x, rpc.GridPosition.y, width, length, gridSettings);
-            
-            // 높이 보정
-            if (state.EntityManager.HasComponent<StructureFootprint>(prefab))
+            // 높이 보정 (Lookup 사용)
+            if (_footprintLookup.HasComponent(prefab))
             {
-                worldPos.y += state.EntityManager.GetComponentData<StructureFootprint>(prefab).Height * 0.5f; 
+                worldPos.y += _footprintLookup[prefab].Height * 0.5f; 
             }
 
-            // Transform 설정
-            if (state.EntityManager.HasComponent<LocalTransform>(prefab))
+            // Transform 설정 (Lookup 사용)
+            if (_transformLookup.HasComponent(prefab))
             {
-                var transform = state.EntityManager.GetComponentData<LocalTransform>(prefab);
+                var transform = _transformLookup[prefab];
                 transform.Position = worldPos;
                 ecb.SetComponent(newStructure, transform);
             }
@@ -168,17 +180,18 @@ namespace Server
 
             ecb.SetComponent(newStructure, new GridPosition { Position = rpc.GridPosition });
 
-            // 소유자 설정 (NetworkId 컴포넌트 조회 최적화)
-            if (state.EntityManager.HasComponent<NetworkId>(connectionEntity))
+            // 소유자 설정 (Lookup 사용)
+            if (_networkIdLookup.HasComponent(connectionEntity))
             {
-                int ownerId = state.EntityManager.GetComponentData<NetworkId>(connectionEntity).Value;
+                int ownerId = _networkIdLookup[connectionEntity].Value;
                 ecb.AddComponent(newStructure, new GhostOwner { NetworkId = ownerId });
                 ecb.SetComponent(newStructure, new Team { teamId = ownerId });
             }
 
-            if (state.EntityManager.HasComponent<ProductionInfo>(prefab))
+            // 생산 정보 설정 (Lookup 사용)
+            if (_productionInfoLookup.HasComponent(prefab))
             {
-                var info = state.EntityManager.GetComponentData<ProductionInfo>(prefab);
+                var info = _productionInfoLookup[prefab];
                 ecb.AddComponent(newStructure, new UnderConstructionTag
                 {
                     Progress = 0f,
@@ -186,14 +199,14 @@ namespace Server
                 });
             }
 
-            // NavMeshObstacle 생성 요청 (건물이 생성되면 경로 탐색 장애물로 등록)
-            if (state.EntityManager.HasComponent<NeedsNavMeshObstacle>(prefab))
+            // NavMeshObstacle 태그 (Enableable Component Lookup 사용)
+            if (_needsNavMeshLookup.HasComponent(prefab))
             {
                 ecb.SetComponentEnabled<NeedsNavMeshObstacle>(newStructure, true);
             }
         }
         
-        [BurstCompile]
+        // 정적 메서드나 Burst로 컴파일된 멤버 메서드 사용 권장
         private bool CheckUnitCollisionPhysics(PhysicsWorldSingleton physicsWorld, float3 center, float3 halfExtents)
         {
             var input = new OverlapAabbInput
@@ -205,13 +218,13 @@ namespace Server
                 },
                 Filter = new CollisionFilter
                 {
-                    BelongsTo = 1u << 6,
-                    CollidesWith = (1u << 7) | (1u << 8),
+                    BelongsTo = 1u << 6,            // Structure Layer
+                    CollidesWith = (1u << 7) | (1u << 8), // Unit | Obstacle
                     GroupIndex = 0
                 }
             };
             
-            // NativeList 사용 시 Allocator.Temp는 Burst 내에서 매우 빠름
+            // NativeList를 사용하여 Overlap 결과를 받지만, 내용물은 필요 없으므로 바로 Dispose
             var hits = new NativeList<int>(Allocator.Temp);
             bool hasCollision = physicsWorld.OverlapAabb(input, ref hits);
             hits.Dispose();
