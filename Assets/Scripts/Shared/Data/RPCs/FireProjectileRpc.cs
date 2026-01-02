@@ -33,9 +33,5 @@ using Unity.NetCode;
  */
 public struct FireProjectileRpc : IRpcCommand
 {
-    // 발사 원점 좌표
-    public float3 Origin;
-
-    // 발사 목표 좌표(마우스 월드 위치)
-    public float3 Target;
+    public float3 TargetPosition; // 마우스 월드 좌표
 }
