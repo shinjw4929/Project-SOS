@@ -17,6 +17,7 @@ GameObject:
   - component: {fileID: 5531017108672036001}
   - component: {fileID: -4148315799516365006}
   - component: {fileID: 4845662913614543231}
+  - component: {fileID: -9080767937217869646}
   m_Layer: 0
   m_Name: ResourceCenter
   m_TagString: Untagged
@@ -219,3 +220,19 @@ MonoBehaviour:
   explosionRadius: 3
   explosionDamage: 100
   explosionDelay: 0.5
+--- !u!208 &-9080767937217869646
+NavMeshObstacle:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5794345652394261381}
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Shape: 1
+  m_Extents: {x: 0.5, y: 0.5, z: 0.5}
+  m_MoveThreshold: 0.1
+  m_Carve: 1
+  m_CarveOnlyStationary: 1
+  m_Center: {x: 0, y: 0, z: 0}
+  m_TimeToStationary: 0.5

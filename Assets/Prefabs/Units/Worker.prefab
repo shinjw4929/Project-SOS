@@ -18,6 +18,7 @@ GameObject:
   - component: {fileID: 8364120396669651066}
   - component: {fileID: -3915132150347008814}
   - component: {fileID: 576986460176096770}
+  - component: {fileID: -4727999321425311732}
   m_Layer: 7
   m_Name: Worker
   m_TagString: Untagged
@@ -233,3 +234,15 @@ MonoBehaviour:
   UseSingleBaseline: 0
   RollbackPredictedSpawnedGhostState: 0
   RollbackPredictionOnStructuralChanges: 1
+--- !u!114 &-4727999321425311732
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3179942793388120451}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a830eb9722e44354886808049793769d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 

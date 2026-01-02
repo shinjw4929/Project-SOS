@@ -185,6 +185,12 @@ namespace Server
                     TotalBuildTime = info.ProductionTime
                 });
             }
+
+            // NavMeshObstacle 생성 요청 (건물이 생성되면 경로 탐색 장애물로 등록)
+            if (state.EntityManager.HasComponent<NeedsNavMeshObstacle>(prefab))
+            {
+                ecb.SetComponentEnabled<NeedsNavMeshObstacle>(newStructure, true);
+            }
         }
         
         [BurstCompile]

@@ -219,10 +219,18 @@ namespace Authoring
                 });
                 
                 // 팀 컬러링
-                AddComponent(entity, new URPMaterialPropertyBaseColor 
-                { 
-                    Value = new float4(1, 1, 1, 1) 
+                AddComponent(entity, new URPMaterialPropertyBaseColor
+                {
+                    Value = new float4(1, 1, 1, 1)
                 });
+
+                // =======================================================================
+                // 5. [NavMesh Obstacle] 경로 탐색 장애물 (서버 전용)
+                // =======================================================================
+                // NavMesh Obstacle 경로 탐색 장애물 (서버 전용)
+                // Managed Component는 Runtime에서 추가됨
+                AddComponent(entity, new NeedsNavMeshObstacle());
+                SetComponentEnabled<NeedsNavMeshObstacle>(entity, false); // 초기 비활성화
             }
         }
     }

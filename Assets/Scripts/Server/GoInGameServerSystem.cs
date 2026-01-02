@@ -44,8 +44,8 @@ partial struct GoInGameServerSystem : ISystem
           
           // 2. 랜덤 위치 배치
           entityCommandBuffer.SetComponent(heroEntity, LocalTransform.FromPosition(new float3(
-              UnityEngine.Random.Range(-10, 10), prefabY, 0
-              )));
+              UnityEngine.Random.Range(-7, 7), prefabY, 7)
+          ));
           
           // 3. 접속한 클라이언트의 고유 ID (0, 1, 2...) 가져오기
           NetworkId networkId = SystemAPI.GetComponent<NetworkId>(receiveRpcCommandRequest.ValueRO.SourceConnection);
