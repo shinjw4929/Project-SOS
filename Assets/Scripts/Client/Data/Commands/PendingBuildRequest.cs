@@ -15,5 +15,7 @@ namespace Client
         public int2 GridPosition;         // 건설 위치 (그리드 좌표)
         public float3 BuildSiteCenter;    // 건설 위치 (월드 좌표, 이동 목표용)
         public float RequiredRange;       // 건설 사거리 (도착 판정용)
+        public int Width;                 // 건물 너비 (AABB 계산용)
+        public int Length;                // 건물 길이 (AABB 계산용)
     }
 }

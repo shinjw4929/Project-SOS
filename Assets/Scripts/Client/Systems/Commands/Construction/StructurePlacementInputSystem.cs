@@ -149,7 +149,9 @@ namespace Client
                 StructureIndex = previewState.SelectedPrefabIndex,
                 GridPosition = gridPos,
                 BuildSiteCenter = buildCenter,
-                RequiredRange = buildRange
+                RequiredRange = buildRange,
+                Width = footprint.Width,
+                Length = footprint.Length
             };
 
             if (EntityManager.HasComponent<PendingBuildRequest>(builderEntity))

@@ -20,6 +20,7 @@ namespace Client
         {
             state.RequireForUpdate<NetworkStreamInGame>();
             state.RequireForUpdate<BeginSimulationEntityCommandBufferSystem.Singleton>();
+            state.RequireForUpdate<GridSettings>();
         }
 
         [BurstCompile]
@@ -27,6 +28,8 @@ namespace Client
         {
             var ecb = SystemAPI.GetSingleton<BeginSimulationEntityCommandBufferSystem.Singleton>()
                 .CreateCommandBuffer(state.WorldUnmanaged);
+
+            var gridSettings = SystemAPI.GetSingleton<GridSettings>();
 
             foreach (var (transform, pending, unitState, entity) in
                      SystemAPI.Query<RefRO<LocalTransform>, RefRO<PendingBuildRequest>, RefRW<UnitState>>()
@@ -37,12 +40,20 @@ namespace Client
                 float3 buildCenter = pending.ValueRO.BuildSiteCenter;
                 float requiredRange = pending.ValueRO.RequiredRange;
 
-                // AABB 최근접점까지의 거리 계산 (간략화: 중심점 거리)
-                // 실제로는 AABB 계산이 필요하지만, 건물 크기를 알 수 없으므로 중심점 기준
-                float distance = math.distance(
-                    new float2(unitPos.x, unitPos.z),
-                    new float2(buildCenter.x, buildCenter.z)
-                );
+                // 건물 AABB 계산
+                float halfWidth = pending.ValueRO.Width * gridSettings.CellSize * 0.5f;
+                float halfLength = pending.ValueRO.Length * gridSettings.CellSize * 0.5f;
+
+                float3 aabbMin = new float3(buildCenter.x - halfWidth, 0, buildCenter.z - halfLength);
+                float3 aabbMax = new float3(buildCenter.x + halfWidth, 0, buildCenter.z + halfLength);
+
+                // 유닛 위치에서 AABB 최근접점까지의 거리 계산 (XZ 평면)
+                float closestX = math.clamp(unitPos.x, aabbMin.x, aabbMax.x);
+                float closestZ = math.clamp(unitPos.z, aabbMin.z, aabbMax.z);
+
+                float dx = unitPos.x - closestX;
+                float dz = unitPos.z - closestZ;
+                float distance = math.sqrt(dx * dx + dz * dz);
 
                 // 사거리 + 여유분 내에 도착했는지 확인
                 if (distance <= requiredRange + 0.5f)
