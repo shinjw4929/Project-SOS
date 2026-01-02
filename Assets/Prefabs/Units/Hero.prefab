@@ -136,7 +136,7 @@ MonoBehaviour:
   - {fileID: 2697124028170181865, guid: 118356b3d5301164d85e3ec67bda087e, type: 3}
   - {fileID: 1805743339364124677, guid: 9b005d17f86bda54fa6d001ce5d23315, type: 3}
   - {fileID: 5794345652394261381, guid: 6c58a1a5c35807e4fa7eb968e02b6aba, type: 3}
-  buildRange: 5
+  buildRange: 2
   cost: 25
   populationCost: 1
   trainingTime: 5
