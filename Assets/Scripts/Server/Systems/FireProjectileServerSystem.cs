@@ -1,131 +1,179 @@
+using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.NetCode;
 using Unity.Transforms;
+using Unity.Jobs;
+using Shared;
 
-[WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
-[UpdateInGroup(typeof(SimulationSystemGroup), OrderLast = true)]
-public partial struct FireProjectileServerSystem : ISystem
+namespace Server
 {
-    private EntityQuery _rpcQuery;
-    private EntityQuery _prefabRefQuery;
-
-    public void OnCreate(ref SystemState state)
+    [BurstCompile]
+    [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
+    [UpdateInGroup(typeof(SimulationSystemGroup), OrderLast = true)]
+    public partial struct FireProjectileServerSystem : ISystem
     {
-        _rpcQuery = state.GetEntityQuery(
-            ComponentType.ReadOnly<ReceiveRpcCommandRequest>(),
-            ComponentType.ReadOnly<FireProjectileRpc>());
+        private EntityQuery _prefabRefQuery;
+        private EntityQuery _ghostOwnerQuery;
 
-        _prefabRefQuery = state.GetEntityQuery(
-            ComponentType.ReadOnly<ProjectilePrefabRef>());
+        public void OnCreate(ref SystemState state)
+        {
+            state.RequireForUpdate<EndSimulationEntityCommandBufferSystem.Singleton>();
+
+            _prefabRefQuery = state.GetEntityQuery(ComponentType.ReadOnly<ProjectilePrefabRef>());
+
+            // 최적화를 위해 GhostOwner 데이터만 따로 쿼리
+            _ghostOwnerQuery = state.GetEntityQuery(
+                ComponentType.ReadOnly<GhostOwner>(),
+                ComponentType.ReadOnly<LocalTransform>()
+            );
+        }
+
+        [BurstCompile]
+        public void OnUpdate(ref SystemState state)
+        {
+            // 1. Prefab 확인
+            if (_prefabRefQuery.IsEmptyIgnoreFilter) return;
+            var prefabRef = _prefabRefQuery.GetSingleton<ProjectilePrefabRef>();
+            Entity projectilePrefab = prefabRef.Prefab;
+            if (projectilePrefab == Entity.Null) return;
+
+            // 2. GhostOwner Map 생성 (Job 1)
+            // RPC 처리 시 'CommandTarget'이 없을 경우를 대비해 NetworkId -> Entity 매핑을 미리 만듭니다.
+            int ghostCount = _ghostOwnerQuery.CalculateEntityCount();
+            var ghostOwnerMap = new NativeParallelHashMap<int, Entity>(ghostCount, Allocator.TempJob);
+
+            var mapJob = new BuildGhostOwnerMapJob
+            {
+                GhostOwners = _ghostOwnerQuery.ToComponentDataArray<GhostOwner>(Allocator.TempJob),
+                GhostEntities = _ghostOwnerQuery.ToEntityArray(Allocator.TempJob),
+                Map = ghostOwnerMap.AsParallelWriter()
+            };
+            state.Dependency = mapJob.Schedule(ghostCount, 64, state.Dependency);
+
+            // 3. RPC 처리 (Job 2 - IJobEntity)
+            var ecbSingleton = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>();
+            
+            var fireJob = new FireProjectileJob
+            {
+                Ecb = ecbSingleton.CreateCommandBuffer(state.WorldUnmanaged).AsParallelWriter(),
+                ProjectilePrefab = projectilePrefab,
+                GhostOwnerMap = ghostOwnerMap, // ReadOnly로 전달
+                
+                // 랜덤 액세스가 필요한 컴포넌트들은 Lookup으로 전달
+                CommandTargetLookup = SystemAPI.GetComponentLookup<CommandTarget>(true),
+                NetworkIdLookup = SystemAPI.GetComponentLookup<NetworkId>(true),
+                TransformLookup = SystemAPI.GetComponentLookup<LocalTransform>(true),
+                TeamLookup = SystemAPI.GetComponentLookup<Team>(true)
+            };
+
+            state.Dependency = fireJob.ScheduleParallel(state.Dependency);
+            
+            // HashMap은 Job 완료 후 해제
+            ghostOwnerMap.Dispose(state.Dependency);
+        }
     }
 
-    public void OnUpdate(ref SystemState state)
+    /// <summary>
+    /// Step 1: NetworkId -> Entity 매핑 생성 잡
+    /// </summary>
+    [BurstCompile]
+    public struct BuildGhostOwnerMapJob : IJobParallelFor
     {
-        var em = state.EntityManager;
+        [DeallocateOnJobCompletion] public NativeArray<GhostOwner> GhostOwners;
+        [DeallocateOnJobCompletion] public NativeArray<Entity> GhostEntities;
+        public NativeParallelHashMap<int, Entity>.ParallelWriter Map;
 
-        using var rpcEntities = _rpcQuery.ToEntityArray(Allocator.Temp);
-        if (rpcEntities.Length == 0)
-            return;
-
-        // Projectile prefab 확보
-        Entity projectilePrefab = Entity.Null;
-        using (var prefEnts = _prefabRefQuery.ToEntityArray(Allocator.Temp))
+        public void Execute(int index)
         {
-            if (prefEnts.Length > 0)
-                projectilePrefab = em.GetComponentData<ProjectilePrefabRef>(prefEnts[0]).Prefab;
+            // 같은 ID가 있어도 덮어쓰거나 무시 (보통 유니크함)
+            Map.TryAdd(GhostOwners[index].NetworkId, GhostEntities[index]);
         }
+    }
 
-        // 프리팹이 없으면 RPC만 소비
-        if (projectilePrefab == Entity.Null || !em.Exists(projectilePrefab))
+    /// <summary>
+    /// Step 2: RPC 처리 및 투사체 발사 (IJobEntity 사용)
+    /// </summary>
+    [BurstCompile]
+    public partial struct FireProjectileJob : IJobEntity
+    {
+        public EntityCommandBuffer.ParallelWriter Ecb;
+        public Entity ProjectilePrefab;
+
+        [ReadOnly] public NativeParallelHashMap<int, Entity> GhostOwnerMap;
+        
+        // 내가 현재 돌고 있는 엔티티(RPC)가 아닌, '다른' 엔티티(Shooter, Connection)의 정보가 필요하므로 Lookup 사용
+        [ReadOnly] public ComponentLookup<CommandTarget> CommandTargetLookup;
+        [ReadOnly] public ComponentLookup<NetworkId> NetworkIdLookup;
+        [ReadOnly] public ComponentLookup<LocalTransform> TransformLookup;
+        [ReadOnly] public ComponentLookup<Team> TeamLookup;
+
+        // IJobEntity는 쿼리 조건에 맞는 엔티티(RPC)를 자동으로 필터링해서 Execute에 넣어줍니다.
+        private void Execute(Entity rpcEntity, [EntityIndexInQuery] int sortKey, in FireProjectileRpc rpc, in ReceiveRpcCommandRequest req)
         {
-            for (int i = 0; i < rpcEntities.Length; i++)
-                em.DestroyEntity(rpcEntities[i]);
-            return;
-        }
-
-        var ltLookup = SystemAPI.GetComponentLookup<LocalTransform>(true);
-        var prefabLookup = SystemAPI.GetComponentLookup<ProjectilePrefabRef>(true);
-
-        for (int i = 0; i < rpcEntities.Length; i++)
-        {
-            var rpcEntity = rpcEntities[i];
-            var req = em.GetComponentData<ReceiveRpcCommandRequest>(rpcEntity);
-            var rpc = em.GetComponentData<FireProjectileRpc>(rpcEntity);
-
-            var conn = req.SourceConnection;
-
-            // shooter 찾기 (CommandTarget 우선, 없으면 NetworkId -> GhostOwner)
+            Entity connection = req.SourceConnection;
             Entity shooter = Entity.Null;
 
-            if (em.HasComponent<CommandTarget>(conn))
+            // 1. Shooter 찾기: CommandTarget (Fast Path)
+            if (CommandTargetLookup.HasComponent(connection))
             {
-                var ct = em.GetComponentData<CommandTarget>(conn);
-                if (ct.targetEntity != Entity.Null && em.Exists(ct.targetEntity))
-                    shooter = ct.targetEntity;
-            }
-
-            if (shooter == Entity.Null && em.HasComponent<NetworkId>(conn))
-            {
-                int nid = em.GetComponentData<NetworkId>(conn).Value;
-
-                foreach (var (owner, ent) in SystemAPI.Query<RefRO<GhostOwner>>().WithEntityAccess())
+                var targetEnt = CommandTargetLookup[connection].targetEntity;
+                if (targetEnt != Entity.Null && TransformLookup.HasComponent(targetEnt))
                 {
-                    if (owner.ValueRO.NetworkId != nid) continue;
-                    if (!ltLookup.HasComponent(ent)) continue;
-
-                    // ProjectilePrefabRef 가진 엔티티(플레이어) 우선
-                    if (prefabLookup.HasComponent(ent))
-                    {
-                        shooter = ent;
-                        break;
-                    }
-
-                    if (shooter == Entity.Null)
-                        shooter = ent;
+                    shooter = targetEnt;
                 }
             }
 
-            // shooter 못 찾으면 RPC만 소비
-            if (shooter == Entity.Null || !ltLookup.HasComponent(shooter))
+            // 2. Shooter 찾기: GhostOwner Map (Fallback)
+            if (shooter == Entity.Null && NetworkIdLookup.HasComponent(connection))
             {
-                em.DestroyEntity(rpcEntity);
-                continue;
+                int netId = NetworkIdLookup[connection].Value;
+                if (GhostOwnerMap.TryGetValue(netId, out Entity ghostEnt))
+                {
+                    if (TransformLookup.HasComponent(ghostEnt))
+                    {
+                        shooter = ghostEnt;
+                    }
+                }
             }
 
-            var shooterTf = ltLookup[shooter];
+            // Shooter가 없으면 RPC 삭제하고 종료
+            if (shooter == Entity.Null)
+            {
+                Ecb.DestroyEntity(sortKey, rpcEntity);
+                return;
+            }
 
-            // ✅ 마우스 월드좌표로 방향 계산
+            // 3. 발사 로직
+            var shooterTf = TransformLookup[shooter];
+            
             float3 dir = math.normalizesafe(rpc.TargetPosition - shooterTf.Position, math.forward(shooterTf.Rotation));
-
-            // 스폰 위치(가까이 쏘는 건 그대로 유지)
             float3 spawnPos = shooterTf.Position + dir * 0.6f;
-
-            // 회전도 dir 바라보게
             quaternion rot = quaternion.LookRotationSafe(dir, math.up());
 
-            var proj = em.Instantiate(projectilePrefab);
-
-            // 위치/회전 세팅
-            var projTf = LocalTransform.FromPositionRotationScale(spawnPos, rot, 1f);
-            if (em.HasComponent<LocalTransform>(proj)) em.SetComponentData(proj, projTf);
-            else em.AddComponentData(proj, projTf);
-
-            // ✅ 이동값 세팅 (안 움직이는 문제 + 즉시 despawn 방지)
-            if (em.HasComponent<ProjectileMove>(proj))
+            // Instantiate
+            Entity proj = Ecb.Instantiate(sortKey, ProjectilePrefab);
+            
+            // Transform 설정
+            Ecb.SetComponent(sortKey, proj, LocalTransform.FromPositionRotationScale(spawnPos, rot, 1f));
+            
+            // Move 설정
+            Ecb.AddComponent(sortKey, proj, new ProjectileMove
             {
-                var mv = em.GetComponentData<ProjectileMove>(proj);
+                Direction = dir,
+                Speed = 20f,
+                RemainingDistance = 30f
+            });
 
-                mv.Direction = dir;               // 마우스 방향으로 이동
-                if (mv.Speed <= 0f) mv.Speed = 20f; // 프리팹 Speed가 0이면 최소 보정
-                if (mv.RemainingDistance <= 0f) mv.RemainingDistance = 30f; // 0이면 DespawnSystem이 즉시 삭제
-
-                em.SetComponentData(proj, mv);
+            // 4. 팀 정보 복사 (아군 오폭 방지 핵심)
+            if (TeamLookup.HasComponent(shooter))
+            {
+                Ecb.AddComponent(sortKey, proj, TeamLookup[shooter]);
             }
 
-            // RPC 소비
-            em.DestroyEntity(rpcEntity);
+            // RPC 요청 엔티티 삭제
+            Ecb.DestroyEntity(sortKey, rpcEntity);
         }
     }
 }

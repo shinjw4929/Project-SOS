@@ -1,6 +1,6 @@
 using Unity.Entities;
 
-namespace Shared
+namespace Client
 {
     /// <summary>
     /// 클라이언트 사용자의 전역 상태를 관리하는 싱글톤

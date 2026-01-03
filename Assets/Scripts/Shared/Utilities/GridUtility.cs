@@ -85,23 +85,19 @@ namespace Shared
         /// <summary>
         /// 그리드 점유 마킹 (최적화됨)
         /// </summary>
-        public static void MarkOccupied(DynamicBuffer<GridCell> buffer, int startX, int startY, int width, int length, int gridSizeX)
+        public static void MarkOccupied(DynamicBuffer<GridCell> buffer, int2 startPos, int width, int length, int gridSizeX)
         {
             // 범위 검사 (필요하다면 추가, 보통은 IsOccupied 통과 후 호출되므로 생략하거나 Assert)
-            if (startX < 0 || startY < 0) return; 
+            if (startPos.x < 0 || startPos.y < 0) return; 
 
-            for (int z = 0; z < length; z++)
+            for (int dy = 0; dy < length; dy++)
             {
-                int rowIndex = (startY + z) * gridSizeX;
-                for (int x = 0; x < width; x++)
+                for (int dx = 0; dx < width; dx++)
                 {
-                    int index = rowIndex + (startX + x);
+                    int index = (startPos.y + dy) * gridSizeX + (startPos.x + dx);
                     
-                    if (index < buffer.Length)
+                    if (index >= 0 && index < buffer.Length)
                     {
-                        // 구조체 전체를 새로 생성하지 않고 내부 값만 변경하는 것이
-                        // 컴파일러 최적화에 유리할 수 있음 (ref 사용 가능 시)
-                        // DynamicBuffer는 ref 리턴을 지원하므로 아래 방식 권장
                         var cell = buffer[index];
                         cell.IsOccupied = true;
                         buffer[index] = cell;

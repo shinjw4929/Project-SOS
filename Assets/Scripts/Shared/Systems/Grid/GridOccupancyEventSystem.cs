@@ -26,6 +26,9 @@ namespace Shared
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
+            // 이전 프레임의 GridCell 관련 Job 완료 대기 (다른 시스템과의 충돌 방지)
+            state.Dependency.Complete();
+
             var gridSettings = SystemAPI.GetSingleton<GridSettings>();
             var gridEntity = SystemAPI.GetSingletonEntity<GridSettings>();
 
@@ -65,6 +68,9 @@ namespace Shared
                 ECB = ecbRemove.AsParallelWriter()
             };
             state.Dependency = removeJob.ScheduleParallel(state.Dependency);
+
+            // Job 완료 (다른 시스템이 GridCell 버퍼에 안전하게 접근할 수 있도록)
+            state.Dependency.Complete();
         }
     }
 

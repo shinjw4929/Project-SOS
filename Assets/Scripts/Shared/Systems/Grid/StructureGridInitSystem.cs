@@ -56,7 +56,7 @@ namespace Shared
 
                 // 3. 그리드 버퍼 직접 수정 (ECB 불필요, 즉시 반영)
                 //    데이터 값 변경은 ECB를 거치지 않고 직접 하는 것이 성능상 유리합니다.
-                OccupyGridInternal(
+                GridUtility.MarkOccupied(
                     gridBuffer, 
                     calculatedGridPos, 
                     footprint.ValueRO.Width, 
@@ -64,45 +64,19 @@ namespace Shared
                     gridSettings.GridSize.x
                 );
 
-                // 4. 구조적 변경 1: NavMeshObstacle 활성화
+                // 4. NavMeshObstacle 활성화
                 if (SystemAPI.HasComponent<NeedsNavMeshObstacle>(entity))
                 {
                     ecb.SetComponentEnabled<NeedsNavMeshObstacle>(entity, true);
                 }
                 
-                // 5. 구조적 변경 2: Cleanup 태그 추가
+                // 5. Cleanup 태그 추가
                 ecb.AddComponent(entity, new GridOccupancyCleanup
                 {
                     GridPosition = calculatedGridPos,
                     Width = footprint.ValueRO.Width,
                     Length = footprint.ValueRO.Length
                 });
-            }
-            
-            // [수정 3] Playback, Dispose 제거 (시스템이 자동으로 수행)
-        }
-
-        // 헬퍼 함수 유지
-        private void OccupyGridInternal(
-            DynamicBuffer<GridCell> buffer, 
-            int2 startPos, 
-            int width, 
-            int length, 
-            int gridSizeX)
-        {
-            for (int dy = 0; dy < length; dy++)
-            {
-                for (int dx = 0; dx < width; dx++)
-                {
-                    int index = (startPos.y + dy) * gridSizeX + (startPos.x + dx);
-                    
-                    if (index >= 0 && index < buffer.Length)
-                    {
-                        var cell = buffer[index];
-                        cell.IsOccupied = true;
-                        buffer[index] = cell;
-                    }
-                }
             }
         }
     }

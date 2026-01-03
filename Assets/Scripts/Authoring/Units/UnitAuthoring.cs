@@ -55,7 +55,7 @@ namespace Authoring
                 // 역할 플래그 (베이킹 로직 분기용)
                 bool isWorker   = false;
                 bool isBuilder  = false;
-                bool isSoldier  = false;
+                //bool isSoldier  = false;
                 
                 switch (authoring.unitType)
                 {
@@ -65,7 +65,7 @@ namespace Authoring
                         AddComponent(entity, new BuilderTag());
                         isWorker = true;
                         isBuilder =  true;
-                        isSoldier =  true;
+                        //isSoldier =  true;
                         break;
                     case AuthoringUnitType.Worker:
                         AddComponent(entity, new WorkerTag());
@@ -75,7 +75,7 @@ namespace Authoring
                         break;
                     case AuthoringUnitType.Soldier:
                         AddComponent(entity, new SoldierTag());
-                        isSoldier = true;
+                        //isSoldier = true;
                         break;
                 }
                 
@@ -195,12 +195,10 @@ namespace Authoring
                     CurrentState = UnitContext.Idle
                 });
                 
-                AddComponent(entity, new URPMaterialPropertyBaseColor 
-                { 
-                    Value = new float4(1, 1, 1, 1) 
+                AddComponent(entity, new URPMaterialPropertyBaseColor
+                {
+                    Value = new float4(1, 1, 1, 1)
                 });
-                //발사체
-                AddComponent<ProjectileFireInput>(entity);
 
             }
         }

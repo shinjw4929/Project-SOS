@@ -16,17 +16,23 @@ namespace Client
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
     public partial struct PendingBuildExecuteSystem : ISystem
     {
+        private ComponentLookup<MoveTarget> _moveTargetLookup;
+
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<NetworkStreamInGame>();
-            state.RequireForUpdate<BeginSimulationEntityCommandBufferSystem.Singleton>();
+            state.RequireForUpdate<EndSimulationEntityCommandBufferSystem.Singleton>();
             state.RequireForUpdate<GridSettings>();
+
+            _moveTargetLookup = state.GetComponentLookup<MoveTarget>(false);
         }
 
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
-            var ecb = SystemAPI.GetSingleton<BeginSimulationEntityCommandBufferSystem.Singleton>()
+            _moveTargetLookup.Update(ref state);
+
+            var ecb = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>()
                 .CreateCommandBuffer(state.WorldUnmanaged);
 
             var gridSettings = SystemAPI.GetSingleton<GridSettings>();
@@ -73,14 +79,14 @@ namespace Client
                     // 유닛 상태 복원: Idle
                     unitState.ValueRW.CurrentState = UnitContext.Idle;
 
-                    // 이동 중지
-                    if (SystemAPI.HasComponent<MoveTarget>(entity))
+                    // 이동 중지 (ComponentLookup으로 안전하게 접근)
+                    if (_moveTargetLookup.HasComponent(entity))
                     {
-                        ecb.SetComponent(entity, new MoveTarget
+                        _moveTargetLookup[entity] = new MoveTarget
                         {
                             position = float3.zero,
                             isValid = false
-                        });
+                        };
                     }
                 }
             }
