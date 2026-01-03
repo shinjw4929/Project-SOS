@@ -10,14 +10,14 @@ using Shared;
 namespace Shared
 {
     [UpdateInGroup(typeof(PredictedSimulationSystemGroup))]
+    [BurstCompile]
     public partial struct NetcodeUnitMovementSystem : ISystem
     {
-        private const float SeparationRadius = 1.5f;
-        private const float SeparationStrength = 2.0f;
-        
-        // [추가됨] 코너링을 시작할 거리 (이 거리 안으로 들어오면 다음 지점으로 조기 전환)
-        private const float CornerRadius = 1.2f; 
-        private const float ArrivalThreshold = 0.5f;
+        private const float SeparationRadius = 0.8f;   // 유닛 반경(0.5) * 2 보다 약간 작게 → 거의 닿을 때만 밀어냄
+        private const float SeparationStrength = 1.0f;
+        private const float CornerRadius = 1.2f;      // 코너링 감지 거리
+        private const float ArrivalThreshold = 0.5f;  // 최종 도착 판정 거리
+        private const float WallCheckDistance = 1.0f; // 벽 감지 레이 길이
 
         [BurstCompile]
         public void OnCreate(ref SystemState state)
@@ -30,22 +30,28 @@ namespace Shared
         public void OnUpdate(ref SystemState state)
         {
             float deltaTime = SystemAPI.Time.DeltaTime;
-            
             var networkTime = SystemAPI.GetSingleton<NetworkTime>();
             var physicsWorld = SystemAPI.GetSingleton<PhysicsWorldSingleton>();
             var collisionWorld = physicsWorld.CollisionWorld;
 
-            // 7: Structure
-            // 11: Unit
-            var structureCollisionFilter = new CollisionFilter
-            {
-                BelongsTo = 1u << 11, CollidesWith = 1u << 7, GroupIndex = 0
-            };
+            // [최적화 1] 충돌 필터 설정
+            // UnitFilter: 유닛끼리 밀어내기용 (상대방도 11번이어야 함)
             var unitCollisionFilter = new CollisionFilter
             {
-                BelongsTo = 1u << 11, CollidesWith = 1u << 11, GroupIndex = 0
+                BelongsTo = 1u << 11,
+                CollidesWith = 1u << 11 | 1u << 12,
+                GroupIndex = 0
             };
 
+            // StructureFilter: 벽 감지용
+            var structureCollisionFilter = new CollisionFilter
+            {
+                BelongsTo = 1u << 11,       
+                CollidesWith = 1u << 7, 
+                GroupIndex = 0
+            };
+
+            // [최적화 2] Query 루프 실행
             foreach ((
                  RefRW<MoveTarget> moveTarget,
                  RefRW<LocalTransform> localTransform,
@@ -56,93 +62,205 @@ namespace Shared
                      RefRW<MoveTarget>,
                      RefRW<LocalTransform>,
                      DynamicBuffer<RTSCommand>,
-                     RefRO<MovementSpeed>>().WithAll<Simulate>().WithEntityAccess())
+                     RefRO<MovementSpeed>>()
+                     .WithAll<Simulate>() // 시뮬레이션 대상만
+                     .WithEntityAccess())
             {
-                // 1. 명령 처리 (기존과 동일)
-                if (inputBuffer.GetDataAtTick(networkTime.ServerTick, out RTSCommand command))
-                {
-                    if (command.CommandType == RTSCommandType.Move)
-                    {
-                        if (SystemAPI.HasComponent<PathfindingState>(entity))
-                        {
-                            var pathState = SystemAPI.GetComponentRW<PathfindingState>(entity);
-                            // 현재 목적지와 새로운 명령의 목적지 사이의 거리 확인
-                            float dist = math.distance(pathState.ValueRO.FinalDestination, command.TargetPosition);
+                // 1. 명령 처리 (서버 틱 기반)
+                ProcessCommands(inputBuffer, networkTime.ServerTick, entity, ref moveTarget.ValueRW, ref state);
 
-                            // 차이가 0.1f 이상일 때만 경로 재계산 요청 (무한 리셋 방지)
+                if (!moveTarget.ValueRO.isValid) continue;
+
+                // 2. 이동 로직 수행
+                MoveUnit(
+                    ref localTransform.ValueRW, 
+                    ref moveTarget.ValueRW, 
+                    movementSpeed.ValueRO.Value, 
+                    deltaTime, 
+                    entity, 
+                    ref collisionWorld, 
+                    unitCollisionFilter, 
+                    structureCollisionFilter
+                );
+            }
+        }
+
+        // 명령 처리 분리 (가독성 향상)
+        private void ProcessCommands(
+            DynamicBuffer<RTSCommand> inputBuffer, 
+            NetworkTick serverTick, 
+            Entity entity, 
+            ref MoveTarget moveTarget,
+            ref SystemState state)
+        {
+            if (inputBuffer.GetDataAtTick(serverTick, out RTSCommand command))
+            {
+                if (command.CommandType == RTSCommandType.Move)
+                {
+                    if (SystemAPI.HasComponent<PathfindingState>(entity))
+                    {
+                        var pathStateLookup = SystemAPI.GetComponentLookup<PathfindingState>(false);
+                        if(pathStateLookup.HasComponent(entity))
+                        {
+                            var pathState = pathStateLookup[entity];
+                            float dist = math.distance(pathState.FinalDestination, command.TargetPosition);
+
                             if (dist > 0.1f)
                             {
-                                pathState.ValueRW.FinalDestination = command.TargetPosition;
-                                pathState.ValueRW.NeedsPath = true;
-                                pathState.ValueRW.CurrentWaypointIndex = 0; 
+                                pathState.FinalDestination = command.TargetPosition;
+                                pathState.NeedsPath = true;
+                                pathState.CurrentWaypointIndex = 0;
+                                pathStateLookup[entity] = pathState; // 값 갱신
                             }
                         }
-                        else
-                        {
-                            moveTarget.ValueRW.position = command.TargetPosition;
-                            moveTarget.ValueRW.isValid = true;
-                            moveTarget.ValueRW.HasNextPosition = false; // 직접 이동 시 다음 경로 없음
-                        }
                     }
-                }
-
-                // 2. 이동 로직
-                if (moveTarget.ValueRO.isValid)
-                {
-                    float3 currentPos = localTransform.ValueRO.Position;
-                    float3 targetPos = moveTarget.ValueRO.position;
-                    targetPos.y = currentPos.y;
-
-                    float distance = math.distance(currentPos, targetPos);
-
-                    // [핵심 변경] 하이브리드 코너링 로직
-                    // 다음 목표가 있고, 코너링 반경 내에 진입했다면 미리 타겟 변경
-                    if (moveTarget.ValueRO.HasNextPosition && distance < CornerRadius)
+                    else
                     {
-                        // 즉시 다음 웨이포인트로 타겟 변경 (서버 응답 대기 X)
-                        moveTarget.ValueRW.position = moveTarget.ValueRO.NextPosition;
-                        moveTarget.ValueRW.HasNextPosition = false; // 소비함
-                        
-                        // 갱신된 타겟으로 거리 재계산
-                        targetPos = moveTarget.ValueRO.position;
-                        targetPos.y = currentPos.y;
-                        distance = math.distance(currentPos, targetPos);
-                    }
-                    // 최종 도착 처리 (다음 웨이포인트가 없을 때만)
-                    else if (!moveTarget.ValueRO.HasNextPosition && distance < ArrivalThreshold)
-                    {
-                        moveTarget.ValueRW.isValid = false;
-                        localTransform.ValueRW.Position = targetPos;
-                        continue; // 이동 종료
-                    }
-
-                    // ... (이하 물리 이동, Separation, Sliding 로직은 기존 코드 유지) ...
-                    float moveStep = movementSpeed.ValueRO.Value * deltaTime;
-                    
-                    if (distance > 0.001f)
-                    {
-                        float3 direction = math.normalize(targetPos - currentPos);
-                        
-                        // Separation Force
-                        float3 separationForce = CalculateSeparationForce(currentPos, entity, ref collisionWorld, unitCollisionFilter);
-                        float3 finalDirection = math.normalize(direction + separationForce * SeparationStrength);
-                        
-                        // 이동 및 충돌 처리 로직 (기존과 동일하게 사용)
-                        // ... (생략된 Sliding/Collision 로직 삽입) ...
-
-                         // 간략화된 이동 적용 (전체 코드는 기존 파일 참조)
-                        localTransform.ValueRW.Position += finalDirection * moveStep;
-                        localTransform.ValueRW.Rotation = quaternion.LookRotationSafe(direction, math.up());
+                        moveTarget.position = command.TargetPosition;
+                        moveTarget.isValid = true;
+                        moveTarget.HasNextPosition = false;
                     }
                 }
             }
         }
-        
-        // CalculateSeparationForce 메서드는 기존과 동일하므로 생략
-        private static float3 CalculateSeparationForce(float3 currentPos, Entity selfEntity, ref CollisionWorld collisionWorld, CollisionFilter unitFilter)
+
+        // 실제 이동 및 물리 처리
+        private void MoveUnit(
+            ref LocalTransform transform, 
+            ref MoveTarget moveTarget, 
+            float speed, 
+            float deltaTime,
+            Entity entity,
+            ref CollisionWorld collisionWorld,
+            CollisionFilter unitFilter,
+            CollisionFilter structureFilter)
         {
-            // (기존 코드 사용)
-            return float3.zero; 
+            float3 currentPos = transform.Position;
+            float3 targetPos = moveTarget.position;
+            targetPos.y = currentPos.y; // Y축 고정 (평면 이동)
+
+            float distance = math.distance(currentPos, targetPos);
+
+            // A. 코너링 및 도착 처리
+            if (moveTarget.HasNextPosition && distance < CornerRadius)
+            {
+                moveTarget.position = moveTarget.NextPosition;
+                moveTarget.HasNextPosition = false;
+                
+                // 타겟 변경 후 거리 재계산
+                targetPos = moveTarget.position;
+                targetPos.y = currentPos.y;
+                distance = math.distance(currentPos, targetPos);
+            }
+            else if (!moveTarget.HasNextPosition && distance < ArrivalThreshold)
+            {
+                moveTarget.isValid = false;
+                transform.Position = targetPos; // 깔끔하게 도착 지점에 안착
+                return;
+            }
+
+            if (distance <= 0.001f) return;
+
+            // B. 방향 계산
+            float3 direction = math.normalize(targetPos - currentPos);
+
+            // C. 유닛 간 밀어내기 (Separation)
+            float3 separationForce = CalculateSeparationForce(currentPos, entity, ref collisionWorld, unitFilter);
+            
+            // 최종 이동 방향 (목표 방향 + 밀어내기)
+            float3 finalDirection = math.normalize(direction + (separationForce * SeparationStrength));
+            float moveStep = speed * deltaTime;
+
+            // D. [중요] 건물 충돌 감지 및 슬라이딩 (Sliding)
+            // 이동하려는 방향으로 레이를 쏴서 벽이 있는지 확인
+            var rayInput = new RaycastInput
+            {
+                Start = currentPos,
+                End = currentPos + (finalDirection * WallCheckDistance), // 살짝 앞까지 검사
+                Filter = structureFilter
+            };
+
+            if (collisionWorld.CastRay(rayInput, out var hit))
+            {
+                // 벽과 충돌했다면, 벽의 법선(Normal)을 이용해 미끄러지는 벡터 구하기
+                // 공식: V_slide = V - (V · N) * N
+                float3 normal = hit.SurfaceNormal;
+                float dot = math.dot(finalDirection, normal);
+                
+                // 벽 안쪽으로 파고드는 방향일 때만 투영 (벽에서 멀어지는 중이면 간섭 X)
+                if (dot < 0) 
+                {
+                    finalDirection = math.normalize(finalDirection - (dot * normal));
+                }
+            }
+
+            // E. 최종 위치 및 회전 적용
+            transform.Position += finalDirection * moveStep;
+            
+            // 회전이 튀는 것 방지 (벡터가 유효할 때만 회전)
+            if (math.lengthsq(finalDirection) > 0.001f)
+            {
+                transform.Rotation = quaternion.LookRotationSafe(finalDirection, math.up());
+            }
+        }
+
+        /// <summary>                                                                                                            
+        /// 주변 유닛과의 거리 기반 반발력 계산                                                                                  
+        /// </summary>                                                                                                           
+        private static float3 CalculateSeparationForce(                                                                          
+            float3 currentPos,                                                                                                   
+            Entity selfEntity,                                                                                                   
+            ref CollisionWorld collisionWorld,                                                                                   
+            CollisionFilter unitFilter)  
+        {
+            float3 separationForce = float3.zero;                                                                                
+                                                                                                                                 
+            // PointDistanceInput으로 주변 콜라이더 탐색                                                                         
+            var pointDistanceInput = new PointDistanceInput                                                                      
+            {                                                                                                                    
+                Position = currentPos,                                                                                           
+                MaxDistance = SeparationRadius,                                                                                  
+                Filter = unitFilter                                                                                              
+            };                                                                                                                   
+                                                                                                                                 
+            // 임시 버퍼에 결과 수집                                                                                             
+            var hits = new NativeList<DistanceHit>(16, Allocator.Temp);                                                          
+                                                                                                                                 
+            if (collisionWorld.CalculateDistance(pointDistanceInput, ref hits))                                                  
+            {                                                                                                                    
+                for (int i = 0; i < hits.Length; i++)                                                                            
+                {                                                                                                                
+                    var hit = hits[i];                                                                                           
+                                                                                                                                 
+                    // 자기 자신 제외                                                                                            
+                    if (hit.Entity == selfEntity) continue;                                                                      
+                                                                                                                                 
+                    // 거리가 0에 가까우면 임의의 방향으로 밀어내기                                                              
+                    float dist = hit.Distance;                                                                                   
+                    if (dist < 0.01f)                                                                                            
+                    {                                                                                                            
+                        // 랜덤 대신 Entity 인덱스 기반으로 방향 결정 (결정적)                                                   
+                        float angle = (selfEntity.Index % 360) * math.PI / 180f;                                                 
+                        separationForce += new float3(math.cos(angle), 0f, math.sin(angle));                                     
+                        continue;                                                                                                
+                    }                                                                                                            
+                                                                                                                                 
+                    // 반발 방향: 상대방 → 나 (hit.Position은 상대방 콜라이더의 가장 가까운 점)                                  
+                    float3 awayDir = currentPos - hit.Position;                                                                  
+                    awayDir.y = 0f; // Y축 고정                                                                                  
+                                                                                                                                 
+                    float awayLength = math.length(awayDir);                                                                     
+                    if (awayLength < 0.001f) continue;                                                                           
+                                                                                                                                 
+                    // 정규화 후 거리에 반비례하는 힘 적용                                                                       
+                    // 가까울수록 강하게 밀어냄 (1 - dist/radius)                                                                
+                    float strength = 1f - (dist / SeparationRadius);                                                             
+                    separationForce += (awayDir / awayLength) * strength;                                                        
+                }                                                                                                                
+            }                                                                                                                    
+                                                                                                                                 
+            hits.Dispose();                                                                                                      
+            return separationForce;     
         }
     }
 }

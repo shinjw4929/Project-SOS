@@ -29,7 +29,7 @@ public partial struct EnemyMoveSystem : ISystem
         var collisionFilter = new CollisionFilter
         {
             BelongsTo = 1u << 12,    // Enemy
-            CollidesWith = 1u << 7, // Structure
+            CollidesWith = 1u << 7 | 1u << 11, // Structure
             GroupIndex = 0
         };
 
