@@ -11,7 +11,7 @@ public partial class RpcDebugServerSystem : SystemBase
         foreach (var _ in SystemAPI.Query<RefRO<ReceiveRpcCommandRequest>, RefRO<FireProjectileRpc>>())
             count++;
 
-        if (count > 0)
-            Debug.Log($"[Server] FireProjectileRpc received: {count}");
+        // if (count > 0)
+        //     Debug.Log($"[Server] FireProjectileRpc received: {count}");
     }
 }

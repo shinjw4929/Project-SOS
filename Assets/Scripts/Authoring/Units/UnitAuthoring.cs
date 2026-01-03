@@ -4,7 +4,6 @@ using Unity.Mathematics;
 using Unity.Rendering;
 using UnityEngine;
 using Shared;
-using Unity.NetCode;
 
 namespace Authoring
 {
@@ -146,7 +145,9 @@ namespace Authoring
                 // 채집, 추격, 공격 대상
                 AddComponent(entity, new Target
                 {
-                    TargetEntity = Entity.Null
+                    TargetEntity = Entity.Null,
+                    HasTarget = false,
+                    LastTargetPosition = Vector3.zero,
                 });
                 
                 // 방어력

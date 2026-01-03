@@ -4,6 +4,7 @@ using Unity.Entities;
 using Unity.NetCode;
 using Unity.Physics;
 using Unity.Physics.Systems;
+using Shared;
 
 [BurstCompile]
 [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
@@ -20,7 +21,7 @@ public partial struct ProjectileApplyDamageServerSystem : ISystem
     {
         var sim = SystemAPI.GetSingleton<SimulationSingleton>();
 
-        var hpLookup = SystemAPI.GetComponentLookup<EnemyHealthData>(false);
+        var hpLookup = SystemAPI.GetComponentLookup<Health>(false);
         var projLookup = SystemAPI.GetComponentLookup<Projectile>(true);
         var dmgLookup = SystemAPI.GetComponentLookup<ProjectileDamageData>(true);
 
@@ -48,7 +49,7 @@ public partial struct ProjectileApplyDamageServerSystem : ISystem
     [BurstCompile]
     private struct TriggerJob : ITriggerEventsJob
     {
-        public ComponentLookup<EnemyHealthData> HpLookup;
+        public ComponentLookup<Health> HpLookup;
         [ReadOnly] public ComponentLookup<Projectile> ProjLookup;
         [ReadOnly] public ComponentLookup<ProjectileDamageData> DmgLookup;
 
@@ -78,8 +79,8 @@ public partial struct ProjectileApplyDamageServerSystem : ISystem
             int dmg = DmgLookup[proj].Value;
             if (dmg <= 0) dmg = 1;
 
-            hp.Current -= dmg;
-            if (hp.Current < 0) hp.Current = 0;
+            hp.CurrentValue -= dmg;
+            if (hp.CurrentValue < 0) hp.CurrentValue = 0;
 
             HpLookup[other] = hp;
 

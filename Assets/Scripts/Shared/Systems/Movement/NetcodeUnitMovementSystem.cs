@@ -162,13 +162,23 @@ namespace Shared
             if (distance <= 0.001f) return;
 
             // B. 방향 계산
-            float3 direction = math.normalize(targetPos - currentPos);
+            float3 toTarget = targetPos - currentPos;
+            float toTargetLengthSq = math.lengthsq(toTarget);
+            if (toTargetLengthSq < 0.0001f) return; // 이미 목표 위치에 있음
+
+            float3 direction = toTarget * math.rsqrt(toTargetLengthSq);
 
             // C. 유닛 간 밀어내기 (Separation)
             float3 separationForce = CalculateSeparationForce(currentPos, entity, ref collisionWorld, unitFilter);
-            
+
             // 최종 이동 방향 (목표 방향 + 밀어내기)
-            float3 finalDirection = math.normalize(direction + (separationForce * SeparationStrength));
+            float3 combinedDir = direction + (separationForce * SeparationStrength);
+            float combinedLengthSq = math.lengthsq(combinedDir);
+
+            // 합산 벡터가 0에 가까우면 목표 방향만 사용 (NaN 방지)
+            float3 finalDirection = combinedLengthSq > 0.0001f
+                ? combinedDir * math.rsqrt(combinedLengthSq)
+                : direction;
             float moveStep = speed * deltaTime;
 
             // D. [중요] 건물 충돌 감지 및 슬라이딩 (Sliding)
@@ -188,9 +198,14 @@ namespace Shared
                 float dot = math.dot(finalDirection, normal);
                 
                 // 벽 안쪽으로 파고드는 방향일 때만 투영 (벽에서 멀어지는 중이면 간섭 X)
-                if (dot < 0) 
+                if (dot < 0)
                 {
-                    finalDirection = math.normalize(finalDirection - (dot * normal));
+                    float3 slideDir = finalDirection - (dot * normal);
+                    float slideLengthSq = math.lengthsq(slideDir);
+                    if (slideLengthSq > 0.0001f)
+                    {
+                        finalDirection = slideDir * math.rsqrt(slideLengthSq);
+                    }
                 }
             }
 

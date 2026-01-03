@@ -140,9 +140,6 @@ namespace Authoring
                         {
                             TargetEntity = Entity.Null,
                         });
-                        
-                        // 발사체 발사 기능이 필요하다면 추가
-                        AddComponent<ProjectileFireInput>(entity);
                     }
                 }
 

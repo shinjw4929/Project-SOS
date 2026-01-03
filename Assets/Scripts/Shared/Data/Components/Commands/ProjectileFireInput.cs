@@ -5,6 +5,6 @@ public struct ProjectileFireInput : IComponentData
 {
     public byte Fire;
 
-    // F ´©¸¥ ¼ø°£ÀÇ ¸¶¿ì½º ¿ùµå À§Ä¡
+    // F ëˆ„ë¥¸ ìˆœê°„ì˜ ë§ˆìš°ìŠ¤ ì›”ë“œ ìœ„ì¹˜
     public float3 TargetPosition;
 }

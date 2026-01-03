@@ -89,7 +89,14 @@ namespace Server
         {
             pathBuffer.Clear();
 
-            // 시작점이 NavMesh 위에 있는지 확인
+            // 좌표 유효성 검사 (NaN, Infinity 방지)
+            if (!math.isfinite(start.x) || !math.isfinite(start.y) || !math.isfinite(start.z) ||
+                !math.isfinite(end.x) || !math.isfinite(end.y) || !math.isfinite(end.z))
+            {
+                return false;
+            }
+
+            //            // 시작점이 NavMesh 위에 있는지 확인
             if (!NavMesh.SamplePosition(start, out NavMeshHit startHit, 2f, NavMesh.AllAreas))
                 return false;
 
