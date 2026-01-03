@@ -1,0 +1,168 @@
+using Unity.Entities;
+using Unity.NetCode;
+using Unity.Collections;
+using Unity.Burst;
+using Shared;
+
+namespace Server
+{
+    [UpdateInGroup(typeof(SimulationSystemGroup))]
+    [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
+    [BurstCompile]
+    public partial struct HandleProduceUnitRequestSystem : ISystem
+    {
+        // 1. 모든 컴포넌트 접근을 Lookup으로 전환
+        [ReadOnly] private ComponentLookup<ProductionCost> _productionCostLookup;
+        [ReadOnly] private ComponentLookup<ProductionInfo> _productionInfoLookup;
+        [ReadOnly] private ComponentLookup<GhostOwner> _ghostOwnerLookup;
+        [ReadOnly] private ComponentLookup<NetworkId> _networkIdLookup;
+        [ReadOnly] private ComponentLookup<ProductionFacilityTag> _facilityTagLookup;
+        
+        // 쓰기 권한이 필요한 Lookup (ReadOnly 제거)
+        private ComponentLookup<UserResources> _userResourcesLookup;
+        private ComponentLookup<ProductionQueue> _productionQueueLookup;
+
+        public void OnCreate(ref SystemState state)
+        {
+            state.RequireForUpdate<NetworkStreamInGame>();
+            state.RequireForUpdate<UnitCatalog>();
+            state.RequireForUpdate<EndSimulationEntityCommandBufferSystem.Singleton>();
+
+            // Lookup 초기화 (ReadOnly 여부 주의)
+            _productionCostLookup = state.GetComponentLookup<ProductionCost>(true);
+            _productionInfoLookup = state.GetComponentLookup<ProductionInfo>(true);
+            _ghostOwnerLookup = state.GetComponentLookup<GhostOwner>(true);
+            _networkIdLookup = state.GetComponentLookup<NetworkId>(true);
+            _facilityTagLookup = state.GetComponentLookup<ProductionFacilityTag>(true);
+            
+            _userResourcesLookup = state.GetComponentLookup<UserResources>(false); // Write
+            _productionQueueLookup = state.GetComponentLookup<ProductionQueue>(false); // Write
+        }
+
+        [BurstCompile]
+        public void OnUpdate(ref SystemState state)
+        {
+            // 2. Lookup 갱신 (매 프레임 필수)
+            _productionCostLookup.Update(ref state);
+            _productionInfoLookup.Update(ref state);
+            _ghostOwnerLookup.Update(ref state);
+            _networkIdLookup.Update(ref state);
+            _facilityTagLookup.Update(ref state);
+            _userResourcesLookup.Update(ref state);
+            _productionQueueLookup.Update(ref state);
+
+            var ecb = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>()
+                .CreateCommandBuffer(state.WorldUnmanaged);
+
+            var catalogEntity = SystemAPI.GetSingletonEntity<UnitCatalog>();
+            var prefabBuffer = SystemAPI.GetBuffer<UnitCatalogElement>(catalogEntity);
+
+            // 3. GhostMap 생성 (Allocator.Temp 사용 - 매우 빠름)
+            // Persistent Map을 Clear하는 것보다 Temp 할당이 선형 메모리라 더 효율적일 수 있음
+            var ghostMap = new NativeParallelHashMap<int, Entity>(1024, Allocator.Temp);
+            foreach (var (ghost, entity) in SystemAPI.Query<RefRO<GhostInstance>>().WithEntityAccess())
+            {
+                ghostMap.TryAdd(ghost.ValueRO.ghostId, entity);
+            }
+
+            // 4. Resource Map 생성 (Allocator.Temp)
+            var networkIdToResourceEntity = new NativeParallelHashMap<int, Entity>(16, Allocator.Temp);
+            foreach (var (ghostOwner, entity) in SystemAPI.Query<RefRO<GhostOwner>>()
+                         .WithAll<UserResourcesTag>()
+                         .WithEntityAccess())
+            {
+                networkIdToResourceEntity.TryAdd(ghostOwner.ValueRO.NetworkId, entity);
+            }
+            
+            // 5. RPC 처리
+            foreach (var (rpcReceive, rpc, rpcEntity) in
+                SystemAPI.Query<RefRO<ReceiveRpcCommandRequest>, RefRO<ProduceUnitRequestRpc>>()
+                .WithEntityAccess())
+            {
+                // GhostMap 검색
+                if (ghostMap.TryGetValue(rpc.ValueRO.StructureGhostId, out Entity producerEntity))
+                {
+                    ProcessRequest(
+                        ecb, 
+                        producerEntity, 
+                        rpcReceive.ValueRO.SourceConnection, 
+                        rpc.ValueRO, 
+                        prefabBuffer, 
+                        networkIdToResourceEntity
+                    );
+                }
+                
+                ecb.DestroyEntity(rpcEntity);
+            }
+            
+            // Allocator.Temp는 함수 종료 시 자동 해제되지만, 명시적 Dispose는 좋은 습관 (여기선 자동 처리됨)
+        }
+
+        private void ProcessRequest(
+            EntityCommandBuffer ecb,
+            Entity producerEntity,
+            Entity sourceConnection,
+            ProduceUnitRequestRpc rpc,
+            DynamicBuffer<UnitCatalogElement> prefabBuffer,
+            NativeParallelHashMap<int, Entity> networkIdToResourceMap)
+        {
+            // 1. 소유권 및 컴포넌트 존재 여부 검증 (Lookup 사용)
+            if (!_ghostOwnerLookup.HasComponent(producerEntity) || 
+                !_networkIdLookup.HasComponent(sourceConnection) ||
+                !_facilityTagLookup.HasComponent(producerEntity) ||
+                !_productionQueueLookup.HasComponent(producerEntity)) 
+                return;
+
+            int ownerId = _ghostOwnerLookup[producerEntity].NetworkId;
+            int requesterId = _networkIdLookup[sourceConnection].Value;
+
+            if (ownerId != requesterId) return;
+
+            // 2. 생산 중인지 확인 (RefRW로 접근하여 복사 방지)
+            RefRW<ProductionQueue> queueRW = _productionQueueLookup.GetRefRW(producerEntity);
+            if (queueRW.ValueRO.IsActive) return;
+
+            // 3. 프리팹 확인
+            if (rpc.UnitIndex < 0 || rpc.UnitIndex >= prefabBuffer.Length) return;
+            Entity unitPrefab = prefabBuffer[rpc.UnitIndex].PrefabEntity;
+            if (unitPrefab == Entity.Null) return;
+
+            // 4. 자원 확인
+            if (!_productionCostLookup.HasComponent(unitPrefab)) return;
+            int constructionCost = _productionCostLookup[unitPrefab].Cost;
+
+            if (networkIdToResourceMap.TryGetValue(ownerId, out Entity userResourceEntity))
+            {
+                RefRW<UserResources> resourceRW = _userResourcesLookup.GetRefRW(userResourceEntity);
+                
+                if (resourceRW.ValueRO.Resources < constructionCost)
+                    return;
+
+                // 5. [최종 승인] 자원 차감
+                resourceRW.ValueRW.Resources -= constructionCost;
+            }
+            else
+            {
+                return; // 자원 엔티티 못 찾음
+            }
+            
+            // 6. 생산 시간 조회 (Lookup)
+            float duration = 5f;
+            if (_productionInfoLookup.HasComponent(unitPrefab))
+            {
+                duration = _productionInfoLookup[unitPrefab].ProductionTime;
+            }
+
+            // 7. 생산 시작 (Queue 직접 수정)
+            queueRW.ValueRW.ProducingUnitIndex = rpc.UnitIndex;
+            queueRW.ValueRW.Progress = 0;
+            queueRW.ValueRW.Duration = duration;
+            queueRW.ValueRW.IsActive = true;
+            
+            // ComponentLookup.GetRefRW를 사용했으므로 ecb.SetComponent 불필요!
+            // 이미 메인 스레드(혹은 잡)에서 컴포넌트 데이터 원본을 수정했습니다.
+            // *주의*: 만약 이 시스템이 병렬 Job이라면 RefRW 사용 시 경합이 발생할 수 있으나, 
+            // 현재 구조는 MainThread OnUpdate이므로 안전하며 가장 빠릅니다.
+        }
+    }
+}

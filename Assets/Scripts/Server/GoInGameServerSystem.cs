@@ -25,7 +25,7 @@ partial struct GoInGameServerSystem : ISystem
         
         var unitCatalog = SystemAPI.GetSingletonEntity<UnitCatalog>();
         var unitBuffer = SystemAPI.GetBuffer<UnitCatalogElement>(unitCatalog);
-        var playerResourcesPrefab = SystemAPI.GetSingleton<UserResourcesPrefabRef>().Prefab;
+        var userResourcesPrefab = SystemAPI.GetSingleton<UserResourcesPrefabRef>().Prefab;
         
         foreach ((
                      RefRO<ReceiveRpcCommandRequest> receiveRpcCommandRequest,
@@ -70,7 +70,7 @@ partial struct GoInGameServerSystem : ISystem
           });
 
           // 6. 플레이어 자원 엔티티 생성 (Ghost 프리팹 인스턴스화)
-          Entity resourceEntity = entityCommandBuffer.Instantiate(playerResourcesPrefab);
+          Entity resourceEntity = entityCommandBuffer.Instantiate(userResourcesPrefab);
           entityCommandBuffer.AddComponent(resourceEntity, new GhostOwner
           {
               NetworkId = networkId.Value,
