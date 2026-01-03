@@ -1,3 +1,4 @@
+using Unity.Collections;
 using Unity.Entities;
 using Unity.NetCode;
 using UnityEngine;
@@ -32,17 +33,17 @@ namespace Client
                 return;
             }
 
-            // 2. 데이터 존재 여부 체크
-            if (_userResourcesQuery.IsEmptyIgnoreFilter)
+            // 2. 로컬 플레이어의 자원 엔티티 조회
+            using var entities = _userResourcesQuery.ToEntityArray(Allocator.Temp);
+            if (entities.Length == 0)
             {
                 HidePanel();
-                // 데이터가 사라졌다면 캐시를 초기화하여 다시 나타날 때 갱신되도록 함
                 ResetCache();
                 return;
             }
 
-            // 3. 데이터 가져오기 (이 자체는 가벼움)
-            UserResources userResources = _userResourcesQuery.GetSingleton<UserResources>();
+            // 3. 데이터 가져오기 (로컬 플레이어 자원)
+            UserResources userResources = _clientEntityManager.GetComponentData<UserResources>(entities[0]);
 
             ShowPanel();
 
@@ -90,7 +91,11 @@ namespace Client
                 {
                     _clientWorld = world;
                     _clientEntityManager = world.EntityManager;
-                    _userResourcesQuery = _clientEntityManager.CreateEntityQuery(typeof(UserResources));
+                    _userResourcesQuery = _clientEntityManager.CreateEntityQuery(
+                        ComponentType.ReadOnly<UserResources>(),
+                        ComponentType.ReadOnly<UserResourcesTag>(),
+                        ComponentType.ReadOnly<GhostOwnerIsLocal>()
+                    );
                     return true;
                 }
             }

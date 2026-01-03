@@ -8,9 +8,10 @@ namespace Shared
     /// <summary>
     /// 건물 생성/파괴 시 그리드 점유 상태(GridCell.isOccupied)를 갱신하는 시스템
     /// - 방식: Reactive (Cleanup 컴포넌트 활용)
+    /// - 실행 시점: LateSimulationSystemGroup (일반 시뮬레이션 이후)
     /// </summary>
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation | WorldSystemFilterFlags.ServerSimulation)]
-    [UpdateInGroup(typeof(SimulationSystemGroup))]
+    [UpdateInGroup(typeof(LateSimulationSystemGroup))]
     [BurstCompile]
     public partial struct GridOccupancyEventSystem : ISystem
     {

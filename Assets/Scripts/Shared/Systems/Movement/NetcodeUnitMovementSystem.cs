@@ -10,7 +10,7 @@ using Shared;
 namespace Shared
 {
     [UpdateInGroup(typeof(PredictedSimulationSystemGroup))]
-    public partial struct NetcodePlayerMovementSystem : ISystem
+    public partial struct NetcodeUnitMovementSystem : ISystem
     {
         private const float SeparationRadius = 1.5f;
         private const float SeparationStrength = 2.0f;
