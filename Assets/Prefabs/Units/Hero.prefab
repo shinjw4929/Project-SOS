@@ -137,7 +137,7 @@ MonoBehaviour:
   - {fileID: 1805743339364124677, guid: 9b005d17f86bda54fa6d001ce5d23315, type: 3}
   - {fileID: 5794345652394261381, guid: 6c58a1a5c35807e4fa7eb968e02b6aba, type: 3}
   buildRange: 2
-  cost: 25
+  cost: 10000
   populationCost: 1
   trainingTime: 5
   moveSpeed: 25

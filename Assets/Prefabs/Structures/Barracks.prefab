@@ -173,7 +173,7 @@ MonoBehaviour:
   length: 3
   height: 3
   cost: 100
-  buildTime: 5
+  buildTime: 3
   maxHealth: 100
   defense: 0
   visionRange: 10
