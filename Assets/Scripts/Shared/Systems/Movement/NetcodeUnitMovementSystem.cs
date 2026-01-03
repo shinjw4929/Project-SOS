@@ -66,10 +66,16 @@ namespace Shared
                         if (SystemAPI.HasComponent<PathfindingState>(entity))
                         {
                             var pathState = SystemAPI.GetComponentRW<PathfindingState>(entity);
-                            pathState.ValueRW.FinalDestination = command.TargetPosition;
-                            pathState.ValueRW.NeedsPath = true;
-                            // 경로 재계산 시 초기화
-                            pathState.ValueRW.CurrentWaypointIndex = 0; 
+                            // 현재 목적지와 새로운 명령의 목적지 사이의 거리 확인
+                            float dist = math.distance(pathState.ValueRO.FinalDestination, command.TargetPosition);
+
+                            // 차이가 0.1f 이상일 때만 경로 재계산 요청 (무한 리셋 방지)
+                            if (dist > 0.1f)
+                            {
+                                pathState.ValueRW.FinalDestination = command.TargetPosition;
+                                pathState.ValueRW.NeedsPath = true;
+                                pathState.ValueRW.CurrentWaypointIndex = 0; 
+                            }
                         }
                         else
                         {
