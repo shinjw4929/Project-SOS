@@ -15,7 +15,7 @@ partial struct GoInGameServerSystem : ISystem
     {
         state.RequireForUpdate<UnitCatalog>();
         state.RequireForUpdate<NetworkId>();
-        state.RequireForUpdate<UserResourcesPrefabRef>();
+        state.RequireForUpdate<UserEconomyPrefabRef>();
     }
 
     [BurstCompile]
@@ -25,7 +25,7 @@ partial struct GoInGameServerSystem : ISystem
         
         var unitCatalog = SystemAPI.GetSingletonEntity<UnitCatalog>();
         var unitBuffer = SystemAPI.GetBuffer<UnitCatalogElement>(unitCatalog);
-        var userResourcesPrefab = SystemAPI.GetSingleton<UserResourcesPrefabRef>().Prefab;
+        var userEconomyPrefab = SystemAPI.GetSingleton<UserEconomyPrefabRef>().Prefab;
         
         foreach ((
                      RefRO<ReceiveRpcCommandRequest> receiveRpcCommandRequest,
@@ -70,8 +70,8 @@ partial struct GoInGameServerSystem : ISystem
           });
 
           // 6. 플레이어 자원 엔티티 생성 (Ghost 프리팹 인스턴스화)
-          Entity resourceEntity = entityCommandBuffer.Instantiate(userResourcesPrefab);
-          entityCommandBuffer.AddComponent(resourceEntity, new GhostOwner
+          Entity economyEntity = entityCommandBuffer.Instantiate(userEconomyPrefab);
+          entityCommandBuffer.AddComponent(economyEntity, new GhostOwner
           {
               NetworkId = networkId.Value,
           });

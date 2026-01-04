@@ -3,8 +3,10 @@ using Unity.NetCode;
 
 namespace Shared
 {
-    public struct UnitTag : IComponentData { }       // "나는 움직이는 유닛이다"
-    public struct StructureTag : IComponentData { }  // "나는 고정된 건물이다"
-    public struct ProjectileTag : IComponentData { } // "나는 투사체다"
-    public struct EnemyTag : IComponentData { }      // "나는 적 유닛이다"
+    public struct UnitTag : IComponentData { } // 유닛
+    public struct StructureTag : IComponentData { } // 건물
+    public struct ProjectileTag : IComponentData { } // 투사체
+    public struct EnemyTag : IComponentData { } // 적 유닛
+    public struct InteractionObstacle : IComponentData { } // 상호작용 장애물
+    
 }

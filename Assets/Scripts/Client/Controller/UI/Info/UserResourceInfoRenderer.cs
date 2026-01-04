@@ -17,85 +17,101 @@ namespace Client
 
         private World _clientWorld;
         private EntityManager _clientEntityManager;
-        private EntityQuery _userResourcesQuery;
+        private EntityQuery _userEconomyQuery;
 
-        // [최적화] 이전 프레임의 데이터를 저장하여 비교용으로 사용 (Dirty Flag)
-        private int _cachedResources = -1;
-        private int _cachedCurrentPopulation = -1;
-        private int _cachedMaxPopulation = -1;
+        // 캐싱 변수
+        private int _cachedAmount = -1;
+        private int _cachedCurrentSupply = -1;
+        private int _cachedMaxSupply = -1;
 
-        private void Update()
+        // [최적화] 초기화 여부 플래그
+        private bool _isInitialized = false;
+
+private void Update()
         {
             // 1. 월드 초기화 체크
-            if (!TryInitClientWorld())
+            if (!_isInitialized && !TryInitClientWorld())
             {
                 HidePanel();
                 return;
             }
+            
+            if (!_clientWorld.IsCreated)
+            {
+                _isInitialized = false;
+                HidePanel();
+                return;
+            }
 
-            // 2. 로컬 플레이어의 자원 엔티티 조회
-            using var entities = _userResourcesQuery.ToEntityArray(Allocator.Temp);
-            if (entities.Length == 0)
+            // [수정된 부분] 
+            // IsEmptyIgnoreFilter 대신 CalculateEntityCount() 사용
+            // 엔티티가 정확히 1개가 아니면(0개거나 2개 이상이면) 패널을 끄고 리턴합니다.
+            // 이렇게 하면 GetSingleton()이 실패하는 것을 100% 방지할 수 있습니다.
+            if (_userEconomyQuery.CalculateEntityCount() != 1)
             {
                 HidePanel();
                 ResetCache();
                 return;
             }
 
-            // 3. 데이터 가져오기 (로컬 플레이어 자원)
-            UserResources userResources = _clientEntityManager.GetComponentData<UserResources>(entities[0]);
+            // 3. 데이터 가져오기 (위에서 1개임이 보장되었으므로 안전함)
+            var currency = _userEconomyQuery.GetSingleton<UserCurrency>();
+            var supply = _userEconomyQuery.GetSingleton<UserSupply>();
 
             ShowPanel();
 
-            // [최적화] 값이 실제로 변했을 때만 UI 갱신 수행
-            UpdateUIIfChanged(ref userResources);
+            // 4. UI 갱신
+            UpdateUIIfChanged(currency, supply);
         }
-
-        private void UpdateUIIfChanged(ref UserResources userResources)
+        private void UpdateUIIfChanged(UserCurrency currency, UserSupply supply)
         {
-            // 자원 정보 갱신
-            if (_cachedResources != userResources.Resources)
+            // 1. 자원 정보 갱신
+            if (_cachedAmount != currency.Amount)
             {
-                _cachedResources = userResources.Resources;
+                _cachedAmount = currency.Amount;
                 if (userResourceInfoText != null)
-                    userResourceInfoText.SetText("$: {0}", _cachedResources); // GC 발생 최소화
+                    userResourceInfoText.SetText("$: {0}", _cachedAmount); 
             }
 
-            // 현재 인구 갱신
-            if (_cachedCurrentPopulation != userResources.CurrentPopulation)
+            // 2. 현재 인구 갱신
+            if (_cachedCurrentSupply != supply.Currentvalue)
             {
-                _cachedCurrentPopulation = userResources.CurrentPopulation;
+                _cachedCurrentSupply = supply.Currentvalue;
                 if (currentPopulationText != null)
-                    currentPopulationText.SetText("{0}", _cachedCurrentPopulation);
+                    currentPopulationText.SetText("{0}", _cachedCurrentSupply);
             }
 
-            // 최대 인구 갱신
-            if (_cachedMaxPopulation != userResources.MaxPopulation)
+            // 3. 최대 인구 갱신
+            if (_cachedMaxSupply != supply.MaxValue)
             {
-                _cachedMaxPopulation = userResources.MaxPopulation;
+                _cachedMaxSupply = supply.MaxValue;
                 if (maxPopulationText != null)
-                    maxPopulationText.SetText("/ {0}", _cachedMaxPopulation);
+                    maxPopulationText.SetText("/ {0}", _cachedMaxSupply);
             }
         }
 
         private bool TryInitClientWorld()
         {
-            // 이미 찾았으면 바로 리턴 (가장 빈번한 경로)
+            // 이미 찾았다면 스킵
             if (_clientWorld != null && _clientWorld.IsCreated)
                 return true;
 
-            // 월드 검색 (초기화 시에만 실행됨)
             foreach (var world in World.All)
             {
                 if (world.IsClient())
                 {
                     _clientWorld = world;
                     _clientEntityManager = world.EntityManager;
-                    _userResourcesQuery = _clientEntityManager.CreateEntityQuery(
-                        ComponentType.ReadOnly<UserResources>(),
-                        ComponentType.ReadOnly<UserResourcesTag>(),
+
+                    // 쿼리 생성: 로컬 소유자이면서 경제 데이터를 가진 엔티티
+                    _userEconomyQuery = _clientEntityManager.CreateEntityQuery(
+                        ComponentType.ReadOnly<UserCurrency>(),
+                        ComponentType.ReadOnly<UserSupply>(),
+                        ComponentType.ReadOnly<UserEconomyTag>(),
                         ComponentType.ReadOnly<GhostOwnerIsLocal>()
                     );
+                    
+                    _isInitialized = true;
                     return true;
                 }
             }
@@ -105,6 +121,8 @@ namespace Client
 
         private void ShowPanel()
         {
+            // activeSelf 체크는 유니티 내부 비용이 있으므로 로컬 변수 등으로 관리하면 더 좋지만,
+            // 현재 구조에서는 이 정도 체크는 괜찮습니다.
             if (panelRoot != null && !panelRoot.activeSelf)
                 panelRoot.SetActive(true);
         }
@@ -117,9 +135,10 @@ namespace Client
 
         private void ResetCache()
         {
-            _cachedResources = -1;
-            _cachedCurrentPopulation = -1;
-            _cachedMaxPopulation = -1;
+            // UI가 꺼졌다가 다시 켜질 때 값이 같아도 텍스트를 갱신하도록 강제하기 위함
+            _cachedAmount = -1;
+            _cachedCurrentSupply = -1;
+            _cachedMaxSupply = -1;
         }
     }
 }

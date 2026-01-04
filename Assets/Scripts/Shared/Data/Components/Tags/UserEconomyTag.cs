@@ -8,5 +8,5 @@ namespace Shared
     /// GhostOwner와 함께 사용하여 소유자별 자원을 구분
     /// </summary>
     [GhostComponent]
-    public struct UserResourcesTag : IComponentData { }
+    public struct UserEconomyTag : IComponentData { }
 }

@@ -19,7 +19,7 @@ namespace Server
         [ReadOnly] private ComponentLookup<ProductionFacilityTag> _facilityTagLookup;
         
         // 쓰기 권한이 필요한 Lookup (ReadOnly 제거)
-        private ComponentLookup<UserResources> _userResourcesLookup;
+        private ComponentLookup<UserCurrency> _userCurrencyLookup;
         private ComponentLookup<ProductionQueue> _productionQueueLookup;
 
         public void OnCreate(ref SystemState state)
@@ -35,7 +35,7 @@ namespace Server
             _networkIdLookup = state.GetComponentLookup<NetworkId>(true);
             _facilityTagLookup = state.GetComponentLookup<ProductionFacilityTag>(true);
             
-            _userResourcesLookup = state.GetComponentLookup<UserResources>(false); // Write
+            _userCurrencyLookup = state.GetComponentLookup<UserCurrency>(false); // Write
             _productionQueueLookup = state.GetComponentLookup<ProductionQueue>(false); // Write
         }
 
@@ -48,7 +48,7 @@ namespace Server
             _ghostOwnerLookup.Update(ref state);
             _networkIdLookup.Update(ref state);
             _facilityTagLookup.Update(ref state);
-            _userResourcesLookup.Update(ref state);
+            _userCurrencyLookup.Update(ref state);
             _productionQueueLookup.Update(ref state);
 
             var ecb = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>()
@@ -65,13 +65,13 @@ namespace Server
                 ghostMap.TryAdd(ghost.ValueRO.ghostId, entity);
             }
 
-            // 4. Resource Map 생성 (Allocator.Temp)
-            var networkIdToResourceEntity = new NativeParallelHashMap<int, Entity>(16, Allocator.Temp);
+            // 4. Currency Map 생성 (Allocator.Temp)
+            var networkIdToCurrencyEntity = new NativeParallelHashMap<int, Entity>(16, Allocator.Temp);
             foreach (var (ghostOwner, entity) in SystemAPI.Query<RefRO<GhostOwner>>()
-                         .WithAll<UserResourcesTag>()
+                         .WithAll<UserEconomyTag>()
                          .WithEntityAccess())
             {
-                networkIdToResourceEntity.TryAdd(ghostOwner.ValueRO.NetworkId, entity);
+                networkIdToCurrencyEntity.TryAdd(ghostOwner.ValueRO.NetworkId, entity);
             }
             
             // 5. RPC 처리
@@ -88,7 +88,7 @@ namespace Server
                         rpcReceive.ValueRO.SourceConnection, 
                         rpc.ValueRO, 
                         prefabBuffer, 
-                        networkIdToResourceEntity
+                        networkIdToCurrencyEntity
                     );
                 }
                 
@@ -104,7 +104,7 @@ namespace Server
             Entity sourceConnection,
             ProduceUnitRequestRpc rpc,
             DynamicBuffer<UnitCatalogElement> prefabBuffer,
-            NativeParallelHashMap<int, Entity> networkIdToResourceMap)
+            NativeParallelHashMap<int, Entity> networkIdToCurrencyMap)
         {
             // 1. 소유권 및 컴포넌트 존재 여부 검증 (Lookup 사용)
             if (!_ghostOwnerLookup.HasComponent(producerEntity) || 
@@ -131,15 +131,15 @@ namespace Server
             if (!_productionCostLookup.HasComponent(unitPrefab)) return;
             int constructionCost = _productionCostLookup[unitPrefab].Cost;
 
-            if (networkIdToResourceMap.TryGetValue(ownerId, out Entity userResourceEntity))
+            if (networkIdToCurrencyMap.TryGetValue(ownerId, out Entity userCurrencyEntity))
             {
-                RefRW<UserResources> resourceRW = _userResourcesLookup.GetRefRW(userResourceEntity);
+                RefRW<UserCurrency> currencyRW = _userCurrencyLookup.GetRefRW(userCurrencyEntity);
                 
-                if (resourceRW.ValueRO.Resources < constructionCost)
+                if (currencyRW.ValueRO.Amount < constructionCost)
                     return;
 
                 // 5. [최종 승인] 자원 차감
-                resourceRW.ValueRW.Resources -= constructionCost;
+                currencyRW.ValueRW.Amount -= constructionCost;
             }
             else
             {

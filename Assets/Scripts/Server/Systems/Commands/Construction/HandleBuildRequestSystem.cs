@@ -22,7 +22,7 @@ namespace Server
         [ReadOnly] private ComponentLookup<NeedsNavMeshObstacle> _needsNavMeshLookup;
         
         // 자원을 수정해야 하므로 ReadOnly 아님
-        private ComponentLookup<UserResources> _userResourcesLookup;
+        private ComponentLookup<UserCurrency> _userCurrencyLookup;
 
         public void OnCreate(ref SystemState state)
         {
@@ -37,7 +37,7 @@ namespace Server
             _networkIdLookup = state.GetComponentLookup<NetworkId>(true);
             _productionInfoLookup = state.GetComponentLookup<ProductionInfo>(true);
             _needsNavMeshLookup = state.GetComponentLookup<NeedsNavMeshObstacle>(true);
-            _userResourcesLookup = state.GetComponentLookup<UserResources>(false); 
+            _userCurrencyLookup = state.GetComponentLookup<UserCurrency>(false); 
         }
 
         [BurstCompile]
@@ -55,15 +55,15 @@ namespace Server
             _networkIdLookup.Update(ref state);
             _productionInfoLookup.Update(ref state);
             _needsNavMeshLookup.Update(ref state);
-            _userResourcesLookup.Update(ref state);
+            _userCurrencyLookup.Update(ref state);
 
-            // NetworkId -> UserResources Entity 매핑
-            var networkIdToResourceEntity = new NativeHashMap<int, Entity>(16, Allocator.Temp);
+            // NetworkId -> UserCurrency Entity 매핑
+            var networkIdToCurrencyEntity = new NativeHashMap<int, Entity>(16, Allocator.Temp);
             foreach (var (ghostOwner, entity) in SystemAPI.Query<RefRO<GhostOwner>>()
-                         .WithAll<UserResourcesTag>()
+                         .WithAll<UserEconomyTag>()
                          .WithEntityAccess())
             {
-                networkIdToResourceEntity.TryAdd(ghostOwner.ValueRO.NetworkId, entity);
+                networkIdToCurrencyEntity.TryAdd(ghostOwner.ValueRO.NetworkId, entity);
             }
 
             var gridSettings = SystemAPI.GetComponent<GridSettings>(gridEntity);
@@ -99,11 +99,11 @@ namespace Server
                     gridBuffer, 
                     prefabBuffer, 
                     physicsWorld,
-                    networkIdToResourceEntity
+                    networkIdToCurrencyEntity
                 );
             }
 
-            networkIdToResourceEntity.Dispose();
+            networkIdToCurrencyEntity.Dispose();
         }
 
         private void ProcessBuildRequest(
@@ -115,7 +115,7 @@ namespace Server
             DynamicBuffer<GridCell> gridBuffer,
             DynamicBuffer<StructureCatalogElement> prefabBuffer,
             PhysicsWorldSingleton physicsWorld,
-            NativeHashMap<int, Entity> networkIdToResourceMap)
+            NativeHashMap<int, Entity> networkIdToCurrencyMap)
         {
             // 1. 프리팹 유효성 검사
             int index = rpc.StructureIndex;
@@ -136,13 +136,13 @@ namespace Server
 
             // 2. 자원 보유량 '확인' (차감은 아직 안 함)
             int constructionCost = _productionCostLookup[structurePrefab].Cost;
-            Entity userResourceEntity = Entity.Null;
+            Entity userCurrencyEntity = Entity.Null;
 
-            if (networkIdToResourceMap.TryGetValue(sourceNetworkId, out userResourceEntity))
+            if (networkIdToCurrencyMap.TryGetValue(sourceNetworkId, out userCurrencyEntity))
             {
-                // 현재 자원량만 확인 (ValueRO 사용)
-                int currentResources = _userResourcesLookup[userResourceEntity].Resources;
-                if (currentResources < constructionCost)
+                // 현재 자원량 확인
+                int currencyAmount = _userCurrencyLookup[userCurrencyEntity].Amount;
+                if (currencyAmount < constructionCost)
                 {
                     // 자원 부족 -> 실패
                     ecb.DestroyEntity(rpcEntity);
@@ -186,8 +186,8 @@ namespace Server
 
             // 4. [최종 승인] 자원 차감 (Commit)
             // 위 모든 검사를 통과했으므로 이제 안전하게 돈을 뺍니다.
-            RefRW<UserResources> userResourcesRW = _userResourcesLookup.GetRefRW(userResourceEntity);
-            userResourcesRW.ValueRW.Resources -= constructionCost;
+            RefRW<UserCurrency> userCurrencyRW = _userCurrencyLookup.GetRefRW(userCurrencyEntity);
+            userCurrencyRW.ValueRW.Amount -= constructionCost;
 
             // 5. 엔티티 생성 실행
             CreateBuildingEntity(ecb, structurePrefab, rpc, width, length, gridSettings, buildingCenter, sourceNetworkId);
