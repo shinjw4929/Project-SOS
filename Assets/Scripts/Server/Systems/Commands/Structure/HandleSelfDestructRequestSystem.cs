@@ -24,7 +24,8 @@ namespace Server
             state.RequireForUpdate<NetworkStreamInGame>();
             state.RequireForUpdate<EndSimulationEntityCommandBufferSystem.Singleton>();
         }
-
+        
+        [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
             var ecb = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>()
@@ -39,6 +40,7 @@ namespace Server
             }
         }
 
+        [BurstCompile]
         private void ProcessRequest(
             ref SystemState state,
             EntityCommandBuffer ecb,
@@ -49,21 +51,18 @@ namespace Server
             Entity targetEntity = FindEntityByGhostId(ref state, rpc.TargetGhostId);
             if (targetEntity == Entity.Null)
             {
-                UnityEngine.Debug.LogWarning($"[HandleSelfDestructRequest] Entity not found for GhostId: {rpc.TargetGhostId}");
                 return;
             }
 
             // 2. 소유권 검증
             if (!ValidateOwnership(ref state, targetEntity, rpcReceive.SourceConnection))
             {
-                UnityEngine.Debug.LogWarning("[HandleSelfDestructRequest] Ownership validation failed");
                 return;
             }
 
             // 3. ExplosionData 확인
             if (!state.EntityManager.HasComponent<ExplosionData>(targetEntity))
             {
-                UnityEngine.Debug.LogWarning("[HandleSelfDestructRequest] Entity does not have ExplosionData");
                 return;
             }
 
@@ -73,7 +72,6 @@ namespace Server
                 var currentTag = state.EntityManager.GetComponentData<SelfDestructTag>(targetEntity);
                 if (currentTag.RemainingTime >= 0)
                 {
-                    UnityEngine.Debug.Log("[HandleSelfDestructRequest] Already self-destructing");
                     return;
                 }
             }
@@ -88,7 +86,6 @@ namespace Server
                 {
                     RemainingTime = explosionData.Delay
                 });
-                UnityEngine.Debug.Log($"[HandleSelfDestructRequest] Self-destruct initiated with delay: {explosionData.Delay}s");
             }
             else
             {
@@ -126,9 +123,7 @@ namespace Server
             ExplosionData explosionData)
         {
             var position = state.EntityManager.GetComponentData<LocalTransform>(sourceEntity).Position;
-
-            UnityEngine.Debug.Log($"[HandleSelfDestructRequest] Explosion at {position}, Radius: {explosionData.Radius}, Damage: {explosionData.Damage}");
-
+            
             // 범위 내 모든 유닛/건물에 데미지 (사망 처리는 DeathSystem에서)
             foreach (var (health, transform, entity) in
                 SystemAPI.Query<RefRW<Health>, RefRO<LocalTransform>>().WithEntityAccess())

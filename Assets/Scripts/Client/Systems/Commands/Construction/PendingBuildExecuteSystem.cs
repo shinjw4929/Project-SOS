@@ -4,6 +4,7 @@ using Unity.Mathematics;
 using Unity.NetCode;
 using Unity.Transforms;
 using Shared;
+using Unity.Collections;
 
 namespace Client
 {
@@ -17,25 +18,28 @@ namespace Client
     public partial struct PendingBuildExecuteSystem : ISystem
     {
         private ComponentLookup<MoveTarget> _moveTargetLookup;
+        private ComponentLookup<ObstacleRadius> _obstacleRadiusLookup;
+        [ReadOnly] private ComponentLookup<GhostInstance> _ghostInstanceLookup;
 
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<NetworkStreamInGame>();
             state.RequireForUpdate<EndSimulationEntityCommandBufferSystem.Singleton>();
-            state.RequireForUpdate<GridSettings>();
 
             _moveTargetLookup = state.GetComponentLookup<MoveTarget>(false);
+            _obstacleRadiusLookup = state.GetComponentLookup<ObstacleRadius>(true);
+            _ghostInstanceLookup = state.GetComponentLookup<GhostInstance>(true);
         }
 
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
             _moveTargetLookup.Update(ref state);
+            _obstacleRadiusLookup.Update(ref state);
+            _ghostInstanceLookup.Update(ref state);
 
             var ecb = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>()
                 .CreateCommandBuffer(state.WorldUnmanaged);
-
-            var gridSettings = SystemAPI.GetSingleton<GridSettings>();
 
             foreach (var (transform, pending, unitState, entity) in
                      SystemAPI.Query<RefRO<LocalTransform>, RefRO<PendingBuildRequest>, RefRW<UnitState>>()
@@ -44,32 +48,41 @@ namespace Client
             {
                 float3 unitPos = transform.ValueRO.Position;
                 float3 buildCenter = pending.ValueRO.BuildSiteCenter;
-                float requiredRange = pending.ValueRO.RequiredRange;
+                float structureRadius = pending.ValueRO.StructureRadius;
 
-                // 건물 AABB 계산
-                float halfWidth = pending.ValueRO.Width * gridSettings.CellSize * 0.5f;
-                float halfLength = pending.ValueRO.Length * gridSettings.CellSize * 0.5f;
-
-                float3 aabbMin = new float3(buildCenter.x - halfWidth, 0, buildCenter.z - halfLength);
-                float3 aabbMax = new float3(buildCenter.x + halfWidth, 0, buildCenter.z + halfLength);
-
-                // 유닛 위치에서 AABB 최근접점까지의 거리 계산 (XZ 평면)
-                float closestX = math.clamp(unitPos.x, aabbMin.x, aabbMax.x);
-                float closestZ = math.clamp(unitPos.z, aabbMin.z, aabbMax.z);
-
-                float dx = unitPos.x - closestX;
-                float dz = unitPos.z - closestZ;
-                float distance = math.sqrt(dx * dx + dz * dz);
-
-                // 사거리 + 여유분 내에 도착했는지 확인
-                if (distance <= requiredRange + 0.5f)
+                // 유닛 반지름 조회
+                float unitRadius = 0.5f; // 기본값
+                if (_obstacleRadiusLookup.HasComponent(entity))
                 {
-                    // 건설 RPC 전송
+                    unitRadius = _obstacleRadiusLookup[entity].Radius;
+                }
+
+                // 중심점 거리 계산 (XZ 평면) - 건물 반지름 빼기
+                float centerDistance = math.distance(
+                    new float2(unitPos.x, unitPos.z),
+                    new float2(buildCenter.x, buildCenter.z)
+                );
+                float distanceToSurface = centerDistance - structureRadius;
+
+                // 도착 판정: 유닛 반지름 + 이동 시스템 오차(0.5f) + 여유분 이내면 도착
+                // NetcodeUnitMovementSystem.ArrivalThreshold = 0.5f를 고려
+                float arrivalThreshold = unitRadius + 0.5f + 0.5f;
+                if (distanceToSurface <= arrivalThreshold)
+                {
+                    // Builder의 GhostId 조회
+                    int builderGhostId = 0;
+                    if (_ghostInstanceLookup.HasComponent(entity))
+                    {
+                        builderGhostId = _ghostInstanceLookup[entity].ghostId;
+                    }
+
+                    // 건설 RPC 전송 (BuilderGhostId 포함)
                     var rpcEntity = ecb.CreateEntity();
                     ecb.AddComponent(rpcEntity, new BuildRequestRpc
                     {
                         StructureIndex = pending.ValueRO.StructureIndex,
-                        GridPosition = pending.ValueRO.GridPosition
+                        GridPosition = pending.ValueRO.GridPosition,
+                        BuilderGhostId = builderGhostId
                     });
                     ecb.AddComponent<SendRpcCommandRequest>(rpcEntity);
 

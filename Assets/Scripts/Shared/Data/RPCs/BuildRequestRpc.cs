@@ -8,5 +8,6 @@ namespace Shared
     {
         public int StructureIndex;
         public int2 GridPosition;
+        public int BuilderGhostId;  // 건설자의 GhostId (충돌 검사 제외용)
     }
 }

@@ -30,7 +30,7 @@ namespace Authoring
         public float maxHealth = 100.0f;
         public float defense = 0.0f;
         public float visionRange = 10.0f;
-        public float workRange = 2.0f;
+        public float workRange = 1.0f;
         
         [Header("Unit Size")]
         public float radius = 1.0f;
@@ -168,7 +168,7 @@ namespace Authoring
                 // 사거리
                 AddComponent(entity, new WorkRange
                 {
-                    Value = authoring.workRange,
+                    Value = authoring.workRange + authoring.radius,
                 });
                 
                 // 채집, 추격, 공격 대상
@@ -191,6 +191,12 @@ namespace Authoring
                     Value = authoring.visionRange
                 });
                 
+                // 유닛 반지름 (상호작용/도착 판정용)
+                AddComponent(entity, new ObstacleRadius
+                {
+                    Radius = authoring.radius
+                });
+
                 // =======================================================================
                 // 5. [전투 능력]
                 // =======================================================================
@@ -200,7 +206,7 @@ namespace Authoring
                     {
                         AttackPower = authoring.attackPower,
                         AttackSpeed = authoring.attackSpeed,
-                        AttackRange = authoring.attackRange
+                        AttackRange = authoring.attackRange + authoring.radius
                     });
                 }
                 
@@ -216,7 +222,6 @@ namespace Authoring
                 {
                     Value = new float4(1, 1, 1, 1)
                 });
-
             }
         }
     }

@@ -72,7 +72,6 @@ namespace Client
             // 먼저 ResourceNode 클릭 여부 확인
             if (Physics.Raycast(ray, out UnityEngine.RaycastHit resourceHit, 1000f, resourceNodeMask))
             {
-                Debug.Log("자원 클릭함");
                 // ResourceNode를 클릭한 경우 - 채집 명령 처리
                 ProcessGatherCommand(ref state, resourceHit, ecb);
                 return;

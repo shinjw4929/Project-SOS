@@ -209,7 +209,7 @@ namespace Server
                 float touchingDistance = 0.5f;
 
                 // 1. 타겟(건물)의 반지름 가져오기
-                float targetRadius = 3.0f;
+                float targetRadius = 1.5f; // 기본값 (ResourceCenter:2.84 등 고려)
                 if (_obstacleRadiusLookup.HasComponent(returnPoint))
                 {
                     targetRadius = _obstacleRadiusLookup[returnPoint].Radius;

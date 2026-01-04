@@ -17,6 +17,7 @@ namespace Client
         [ReadOnly] private BufferLookup<GridCell> _gridCellLookup;
         [ReadOnly] private ComponentLookup<LocalTransform> _transformLookup;
         [ReadOnly] private ComponentLookup<WorkRange> _workRangeLookup;
+        [ReadOnly] private ComponentLookup<ObstacleRadius> _obstacleRadiusLookup;
 
         public void OnCreate(ref SystemState state)
         {
@@ -30,6 +31,7 @@ namespace Client
             _gridCellLookup = state.GetBufferLookup<GridCell>(true);
             _transformLookup = state.GetComponentLookup<LocalTransform>(true);
             _workRangeLookup = state.GetComponentLookup<WorkRange>(true);
+            _obstacleRadiusLookup = state.GetComponentLookup<ObstacleRadius>(true);
         }
 
         [BurstCompile]
@@ -72,6 +74,7 @@ namespace Client
 
             // 4. 유닛 물리 충돌 확인
             var physicsWorld = SystemAPI.GetSingleton<PhysicsWorldSingleton>();
+            var selectionState = SystemAPI.GetSingleton<CurrentSelectionState>();
             float3 buildingCenter = GridUtility.GridToWorld(previewState.GridPosition.x, previewState.GridPosition.y,
                 width, length, gridSettings);
 
@@ -81,7 +84,11 @@ namespace Client
                 length * gridSettings.CellSize * 0.5f
             );
 
-            bool hasUnitCollision = CheckCollision(ref physicsWorld, buildingCenter, halfExtents);
+            Entity builderEntity = selectionState.PrimaryEntity;
+
+            if (builderEntity == Entity.Null) return;
+            
+            bool hasUnitCollision = CheckCollision(ref physicsWorld, buildingCenter, halfExtents, builderEntity);
 
             // 5. 기본 유효성 판단 (그리드 점유 + 유닛 충돌)
             bool isValidPlacement = !isOccupied && !hasUnitCollision;
@@ -96,14 +103,13 @@ namespace Client
             }
 
             // 7. PrimaryEntity의 위치와 BuildRange 조회
-            var selectionState = SystemAPI.GetSingleton<CurrentSelectionState>();
-            Entity builderEntity = selectionState.PrimaryEntity;
 
             _transformLookup.Update(ref state);
             _workRangeLookup.Update(ref state);
+            _obstacleRadiusLookup.Update(ref state);
 
             // Builder 엔티티가 유효하고 위치 정보가 있는지 확인
-            if (builderEntity == Entity.Null || !_transformLookup.HasComponent(builderEntity))
+            if (!_transformLookup.HasComponent(builderEntity))
             {
                 // Builder 정보 없으면 사거리 내로 간주 (기본 동작)
                 previewState.Status = PlacementStatus.ValidInRange;
@@ -120,15 +126,25 @@ namespace Client
                 buildRange = _workRangeLookup[builderEntity].Value;
             }
 
-            // 8. AABB 최근접점까지의 거리 계산
-            float3 aabbMin = buildingCenter - halfExtents;
-            float3 aabbMax = buildingCenter + halfExtents;
-            float distance = CalculateDistanceToAABB(builderPos, aabbMin, aabbMax);
+            // 건물 반지름 조회
+            float structureRadius = 1.5f; // 기본값
+            if (_obstacleRadiusLookup.HasComponent(previewState.SelectedPrefab))
+            {
+                structureRadius = _obstacleRadiusLookup[previewState.SelectedPrefab].Radius;
+            }
 
-            previewState.DistanceToBuilder = distance;
+            // 8. 중심점 거리 계산 (XZ 평면) - 건물 반지름 빼기
+            float centerDistance = math.distance(
+                new float2(builderPos.x, builderPos.z),
+                new float2(buildingCenter.x, buildingCenter.z)
+            );
+            float distanceToSurface = centerDistance - structureRadius;
+
+            previewState.DistanceToBuilder = distanceToSurface;
 
             // 9. 사거리 내/외 판단
-            if (distance <= buildRange)
+            // WorkRange는 이미 유닛 반지름이 포함되어 있음 (workRange + radius)
+            if (distanceToSurface <= buildRange)
             {
                 previewState.Status = PlacementStatus.ValidInRange;
             }
@@ -138,26 +154,8 @@ namespace Client
             }
         }
 
-        /// <summary>
-        /// 점(point)에서 AABB까지의 XZ 평면 거리를 계산합니다.
-        /// Y축은 무시하고 수평 거리만 계산합니다.
-        /// </summary>
         [BurstCompile]
-        private static float CalculateDistanceToAABB(in float3 point, in float3 aabbMin, in float3 aabbMax)
-        {
-            // XZ 평면에서 AABB 최근접점 계산
-            float closestX = math.clamp(point.x, aabbMin.x, aabbMax.x);
-            float closestZ = math.clamp(point.z, aabbMin.z, aabbMax.z);
-
-            // 수평 거리 계산
-            float dx = point.x - closestX;
-            float dz = point.z - closestZ;
-
-            return math.sqrt(dx * dx + dz * dz);
-        }
-
-        [BurstCompile]
-        private bool CheckCollision(ref PhysicsWorldSingleton physicsWorld, float3 center, float3 halfExtents)
+        private bool CheckCollision(ref PhysicsWorldSingleton physicsWorld, float3 center, float3 halfExtents, Entity builderEntity)
         {
             var input = new OverlapAabbInput
             {
@@ -177,10 +175,26 @@ namespace Client
             var hits = new NativeList<int>(Allocator.Temp);
             physicsWorld.PhysicsWorld.CollisionWorld.OverlapAabb(input, ref hits);
 
-            bool hasHit = hits.Length > 0;
-            hits.Dispose();
+            // 건설자(builderEntity)를 제외한 충돌 검사
+            bool hasBlockingCollision = false;
+            for (int i = 0; i < hits.Length; i++)
+            {
+                int bodyIndex = hits[i];
+                Entity hitEntity = physicsWorld.PhysicsWorld.Bodies[bodyIndex].Entity;
 
-            return hasHit;
+                // 건설자 제외
+                if (builderEntity != Entity.Null && hitEntity == builderEntity)
+                {
+                    continue; // 건설자는 충돌에서 제외
+                }
+
+                // 건설자가 아닌 다른 유닛/적과 충돌
+                hasBlockingCollision = true;
+                break;
+            }
+
+            hits.Dispose();
+            return hasBlockingCollision;
         }
     }
 }

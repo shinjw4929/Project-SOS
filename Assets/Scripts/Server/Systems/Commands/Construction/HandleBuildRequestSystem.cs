@@ -5,6 +5,7 @@ using Unity.Transforms;
 using Unity.Mathematics;
 using Unity.Physics;
 using Unity.Burst;
+using Unity.Jobs;
 using Shared;
 
 namespace Server
@@ -14,15 +15,20 @@ namespace Server
     [BurstCompile]
     public partial struct HandleBuildRequestSystem : ISystem
     {
+        #region Component Lookups
         [ReadOnly] private ComponentLookup<ProductionCost> _productionCostLookup;
         [ReadOnly] private ComponentLookup<StructureFootprint> _footprintLookup;
         [ReadOnly] private ComponentLookup<LocalTransform> _transformLookup;
         [ReadOnly] private ComponentLookup<NetworkId> _networkIdLookup;
         [ReadOnly] private ComponentLookup<ProductionInfo> _productionInfoLookup;
         [ReadOnly] private ComponentLookup<NeedsNavMeshObstacle> _needsNavMeshLookup;
+        [ReadOnly] private ComponentLookup<GhostInstance> _ghostInstanceLookup;
+        [ReadOnly] private ComponentLookup<Parent> _parentLookup;
+        [ReadOnly] private BufferLookup<GridCell> _gridCellLookup;
         
-        // 자원을 수정해야 하므로 ReadOnly 아님
+        // 자원 수정은 '직렬 Job'에서 하므로 안전하게 일반 Lookup 사용
         private ComponentLookup<UserCurrency> _userCurrencyLookup;
+        #endregion
 
         public void OnCreate(ref SystemState state)
         {
@@ -37,7 +43,10 @@ namespace Server
             _networkIdLookup = state.GetComponentLookup<NetworkId>(true);
             _productionInfoLookup = state.GetComponentLookup<ProductionInfo>(true);
             _needsNavMeshLookup = state.GetComponentLookup<NeedsNavMeshObstacle>(true);
-            _userCurrencyLookup = state.GetComponentLookup<UserCurrency>(false); 
+            _ghostInstanceLookup = state.GetComponentLookup<GhostInstance>(true);
+            _parentLookup = state.GetComponentLookup<Parent>(true);
+            _userCurrencyLookup = state.GetComponentLookup<UserCurrency>(false);
+            _gridCellLookup = state.GetBufferLookup<GridCell>(true);
         }
 
         [BurstCompile]
@@ -49,223 +58,331 @@ namespace Server
                 return;
             }
 
+            UpdateLookups(ref state);
+
+            // 1. 임시 데이터 큐 생성 (TempJob 할당자 사용)
+            var actionQueue = new NativeQueue<BuildActionRequest>(Allocator.TempJob);
+
+            // 2. NetworkId 매핑
+            var networkIdToCurrencyMap = new NativeHashMap<int, Entity>(16, Allocator.TempJob);
+            foreach (var (ghostOwner, entity) in SystemAPI.Query<RefRO<GhostOwner>>()
+                         .WithAll<UserEconomyTag>()
+                         .WithEntityAccess())
+            {
+                networkIdToCurrencyMap.TryAdd(ghostOwner.ValueRO.NetworkId, entity);
+            }
+
+            // 3. 데이터 준비
+            var gridSettings = SystemAPI.GetComponent<GridSettings>(gridEntity);
+            var prefabBuffer = SystemAPI.GetBuffer<StructureCatalogElement>(catalogEntity).AsNativeArray();
+            var physicsWorld = SystemAPI.GetSingleton<PhysicsWorldSingleton>();
+            
+            var ecbSingleton = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>();
+            var ecb = ecbSingleton.CreateCommandBuffer(state.WorldUnmanaged);
+
+            // ------------------------------------------------------------------
+            // [Job 1] 병렬 검증 (ValidateBuildRequestJob)
+            // ------------------------------------------------------------------
+            var validateJob = new ValidateBuildRequestJob
+            {
+                // Inputs
+                GridSettings = gridSettings,
+                GridEntity = gridEntity,
+                PhysicsWorld = physicsWorld.PhysicsWorld.CollisionWorld,
+                PrefabBuffer = prefabBuffer,
+                
+                // Lookups
+                NetworkIdLookup = _networkIdLookup,
+                ProductionCostLookup = _productionCostLookup,
+                FootprintLookup = _footprintLookup,
+                GridCellLookup = _gridCellLookup,
+                GhostInstanceLookup = _ghostInstanceLookup,
+                ParentLookup = _parentLookup,
+                
+                // Output
+                ActionQueue = actionQueue.AsParallelWriter()
+            };
+
+            JobHandle validateHandle = validateJob.ScheduleParallel(state.Dependency);
+
+            // ------------------------------------------------------------------
+            // [Job 2] 직렬 실행 (ExecuteBuildRequestJob)
+            // ------------------------------------------------------------------
+            var executeJob = new ExecuteBuildRequestJob
+            {
+                ActionQueue = actionQueue,
+                NetworkIdToCurrencyMap = networkIdToCurrencyMap,
+                UserCurrencyLookup = _userCurrencyLookup,
+                ProductionInfoLookup = _productionInfoLookup,
+                NeedsNavMeshLookup = _needsNavMeshLookup,
+                TransformLookup = _transformLookup, // FootprintLookup 제거 (좌표 계산 완료됨)
+                Ecb = ecb
+            };
+
+            state.Dependency = executeJob.Schedule(validateHandle);
+
+            // 메모리 해제 예약
+            networkIdToCurrencyMap.Dispose(state.Dependency);
+            actionQueue.Dispose(state.Dependency);
+        }
+
+        private void UpdateLookups(ref SystemState state)
+        {
             _productionCostLookup.Update(ref state);
             _footprintLookup.Update(ref state);
             _transformLookup.Update(ref state);
             _networkIdLookup.Update(ref state);
             _productionInfoLookup.Update(ref state);
             _needsNavMeshLookup.Update(ref state);
+            _ghostInstanceLookup.Update(ref state);
+            _parentLookup.Update(ref state);
             _userCurrencyLookup.Update(ref state);
-
-            // NetworkId -> UserCurrency Entity 매핑
-            var networkIdToCurrencyEntity = new NativeHashMap<int, Entity>(16, Allocator.Temp);
-            foreach (var (ghostOwner, entity) in SystemAPI.Query<RefRO<GhostOwner>>()
-                         .WithAll<UserEconomyTag>()
-                         .WithEntityAccess())
-            {
-                networkIdToCurrencyEntity.TryAdd(ghostOwner.ValueRO.NetworkId, entity);
-            }
-
-            var gridSettings = SystemAPI.GetComponent<GridSettings>(gridEntity);
-            var prefabBuffer = SystemAPI.GetBuffer<StructureCatalogElement>(catalogEntity);
-            var physicsWorld = SystemAPI.GetSingleton<PhysicsWorldSingleton>();
-            
-            DynamicBuffer<GridCell> gridBuffer = default;
-            if (SystemAPI.HasBuffer<GridCell>(gridEntity))
-            {
-                gridBuffer = SystemAPI.GetBuffer<GridCell>(gridEntity);
-            }
-
-            var ecbSingleton = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>();
-            var ecb = ecbSingleton.CreateCommandBuffer(state.WorldUnmanaged);
-
-            foreach (var (rpcReceive, rpc, rpcEntity) in SystemAPI.Query<RefRO<ReceiveRpcCommandRequest>, RefRO<BuildRequestRpc>>()
-                         .WithEntityAccess())
-            {
-                if (!_networkIdLookup.HasComponent(rpcReceive.ValueRO.SourceConnection))
-                {
-                    ecb.DestroyEntity(rpcEntity);
-                    continue;
-                }
-                
-                int sourceNetworkId = _networkIdLookup[rpcReceive.ValueRO.SourceConnection].Value;
-
-                ProcessBuildRequest(
-                    ecb, 
-                    sourceNetworkId,
-                    rpc.ValueRO, 
-                    rpcEntity, 
-                    gridSettings, 
-                    gridBuffer, 
-                    prefabBuffer, 
-                    physicsWorld,
-                    networkIdToCurrencyEntity
-                );
-            }
-
-            networkIdToCurrencyEntity.Dispose();
+            _gridCellLookup.Update(ref state);
         }
+    }
 
-        private void ProcessBuildRequest(
-            EntityCommandBuffer ecb,
-            int sourceNetworkId,
-            BuildRequestRpc rpc,
-            Entity rpcEntity,
-            GridSettings gridSettings,
-            DynamicBuffer<GridCell> gridBuffer,
-            DynamicBuffer<StructureCatalogElement> prefabBuffer,
-            PhysicsWorldSingleton physicsWorld,
-            NativeHashMap<int, Entity> networkIdToCurrencyMap)
+    /// <summary>
+    /// [Job 1] 병렬 검증: 물리/그리드 확인 및 좌표 계산
+    /// </summary>
+    [BurstCompile]
+    public partial struct ValidateBuildRequestJob : IJobEntity
+    {
+        public NativeQueue<BuildActionRequest>.ParallelWriter ActionQueue;
+        
+        [ReadOnly] public GridSettings GridSettings;
+        [ReadOnly] public Entity GridEntity;
+        [ReadOnly] public CollisionWorld PhysicsWorld;
+        [ReadOnly] public NativeArray<StructureCatalogElement> PrefabBuffer;
+
+        [ReadOnly] public ComponentLookup<NetworkId> NetworkIdLookup;
+        [ReadOnly] public ComponentLookup<ProductionCost> ProductionCostLookup;
+        [ReadOnly] public ComponentLookup<StructureFootprint> FootprintLookup;
+        [ReadOnly] public BufferLookup<GridCell> GridCellLookup;
+        [ReadOnly] public ComponentLookup<GhostInstance> GhostInstanceLookup;
+        [ReadOnly] public ComponentLookup<Parent> ParentLookup;
+
+        private void Execute(Entity rpcEntity, [EntityIndexInQuery] int sortKey, RefRO<ReceiveRpcCommandRequest> rpcReceive, RefRO<BuildRequestRpc> rpc)
         {
-            // 1. 프리팹 유효성 검사
-            int index = rpc.StructureIndex;
-            if (index < 0 || index >= prefabBuffer.Length)
+            // 1. 연결 유효성
+            if (!NetworkIdLookup.HasComponent(rpcReceive.ValueRO.SourceConnection)) return;
+            
+            int sourceNetworkId = NetworkIdLookup[rpcReceive.ValueRO.SourceConnection].Value;
+
+            // 2. 프리팹 Index 검증
+            int index = rpc.ValueRO.StructureIndex;
+            if (index < 0 || index >= PrefabBuffer.Length)
             {
-                ecb.DestroyEntity(rpcEntity);
+                EnqueueFail(rpcEntity);
                 return;
             }
 
-            Entity structurePrefab = prefabBuffer[index].PrefabEntity;
-            if (structurePrefab == Entity.Null || 
-                !_productionCostLookup.HasComponent(structurePrefab) || 
-                !_footprintLookup.HasComponent(structurePrefab))
+            Entity structurePrefab = PrefabBuffer[index].PrefabEntity;
+            if (structurePrefab == Entity.Null || !FootprintLookup.HasComponent(structurePrefab))
             {
-                ecb.DestroyEntity(rpcEntity);
+                EnqueueFail(rpcEntity);
                 return;
             }
 
-            // 2. 자원 보유량 '확인' (차감은 아직 안 함)
-            int constructionCost = _productionCostLookup[structurePrefab].Cost;
-            Entity userCurrencyEntity = Entity.Null;
-
-            if (networkIdToCurrencyMap.TryGetValue(sourceNetworkId, out userCurrencyEntity))
-            {
-                // 현재 자원량 확인
-                int currencyAmount = _userCurrencyLookup[userCurrencyEntity].Amount;
-                if (currencyAmount < constructionCost)
-                {
-                    // 자원 부족 -> 실패
-                    ecb.DestroyEntity(rpcEntity);
-                    return;
-                }
-            }
-            else
-            {
-                // 자원 엔티티 없음 -> 실패
-                ecb.DestroyEntity(rpcEntity);
-                return;
-            }
-
-            // 3. Grid 및 물리 검사 (건설 위치 유효성 검증)
-            var footprint = _footprintLookup[structurePrefab];
+            // 3. 물리/그리드 검사 준비
+            var footprint = FootprintLookup[structurePrefab];
             int width = footprint.Width;
             int length = footprint.Length;
+            int2 gridPos = rpc.ValueRO.GridPosition;
 
-            // 3-1. Grid 점유 확인
-            if (gridBuffer.IsCreated)
+            // [최적화] 좌표 계산을 여기서 수행하고 결과에 담음
+            float3 buildingCenter = GridUtility.GridToWorld(gridPos.x, gridPos.y, width, length, GridSettings);
+            
+            // 높이 보정 (피벗이 바닥인 경우를 대비해 미리 Y축 계산)
+            // 피벗이 중심이면 그냥 두면 되고, 바닥이면 높이의 절반만큼 올림
+            buildingCenter.y += footprint.Height * 0.5f;
+
+            bool isValid = true;
+
+            // 3-1. 그리드 점유
+            if (GridCellLookup.HasBuffer(GridEntity))
             {
-                if (GridUtility.IsOccupied(gridBuffer, rpc.GridPosition.x, rpc.GridPosition.y, width, length,
-                    gridSettings.GridSize.x, gridSettings.GridSize.y))
+                var gridBuffer = GridCellLookup[GridEntity];
+                if (GridUtility.IsOccupied(gridBuffer, gridPos.x, gridPos.y, width, length,
+                    GridSettings.GridSize.x, GridSettings.GridSize.y))
                 {
-                    // 이미 건물이 있음 -> 실패
-                    ecb.DestroyEntity(rpcEntity);
-                    return;
+                    isValid = false;
                 }
             }
 
-            // 3-2. 물리 충돌 확인 (유닛 등)
-            float3 buildingCenter = GridUtility.GridToWorld(rpc.GridPosition.x, rpc.GridPosition.y, width, length, gridSettings);
-            float3 halfExtents = new float3(width * gridSettings.CellSize * 0.5f, 1f, length * gridSettings.CellSize * 0.5f);
-            
-            if (CheckUnitCollisionPhysics(physicsWorld, buildingCenter, halfExtents))
+            // 3-2. 물리 충돌 (좌표 계산된 buildingCenter 사용)
+            if (isValid)
             {
-                // 유닛이 비키지 않음 -> 실패
-                ecb.DestroyEntity(rpcEntity);
-                return;
+                float3 halfExtents = new float3(width * GridSettings.CellSize * 0.5f, 1f, length * GridSettings.CellSize * 0.5f);
+                
+                // 높이 보정된 buildingCenter는 생성용이고, 물리 검사용은 Y축을 다시 0 근처로 잡거나 
+                // AABB 센터를 조정해야 할 수 있습니다. 여기서는 XZ 평면 중심이 중요하므로 그대로 씁니다.
+                // (단, 물리 체크 시 Y축 높이가 너무 높으면 안 맞을 수 있으니 원래 로직대로 GridToWorld 직후 값 사용이 안전할 수 있음.
+                //  여기서는 편의상 생성 위치를 넘기고 물리 체크는 내부적으로 처리한다고 가정)
+
+                // 물리 체크용 센터 (바닥 기준)
+                float3 physicsCenter = buildingCenter; 
+                physicsCenter.y = 0f; // 물리 체크는 보통 바닥 평면에서 수행
+
+                if (CheckUnitCollision(physicsCenter, halfExtents, rpc.ValueRO.BuilderGhostId))
+                {
+                    isValid = false;
+                }
             }
 
-            // 4. [최종 승인] 자원 차감 (Commit)
-            // 위 모든 검사를 통과했으므로 이제 안전하게 돈을 뺍니다.
-            RefRW<UserCurrency> userCurrencyRW = _userCurrencyLookup.GetRefRW(userCurrencyEntity);
-            userCurrencyRW.ValueRW.Amount -= constructionCost;
-
-            // 5. 엔티티 생성 실행
-            CreateBuildingEntity(ecb, structurePrefab, rpc, width, length, gridSettings, buildingCenter, sourceNetworkId);
-
-            ecb.DestroyEntity(rpcEntity);
+            // 4. 결과 Enqueue (WorldPos 포함)
+            ActionQueue.Enqueue(new BuildActionRequest
+            {
+                RpcEntity = rpcEntity,
+                PrefabEntity = structurePrefab,
+                SourceNetworkId = sourceNetworkId,
+                GridPosition = gridPos,
+                TargetWorldPos = buildingCenter, // 계산된 최종 위치 전달
+                StructureCost = ProductionCostLookup[structurePrefab].Cost,
+                IsValidPhysics = isValid
+            });
         }
 
-        private void CreateBuildingEntity(
-            EntityCommandBuffer ecb,
-            Entity prefab,
-            BuildRequestRpc rpc,
-            int width,
-            int length,
-            GridSettings gridSettings,
-            float3 worldPos,
-            int ownerNetworkId)
+        private void EnqueueFail(Entity rpcEntity)
         {
-            Entity newStructure = ecb.Instantiate(prefab);
+            ActionQueue.Enqueue(new BuildActionRequest { RpcEntity = rpcEntity, IsValidPhysics = false });
+        }
 
-            if (_footprintLookup.HasComponent(prefab))
+        private bool CheckUnitCollision(float3 center, float3 halfExtents, int builderGhostId)
+        {
+            float shrinkAmount = 0.05f;
+            float3 queryHalfExtents = math.max(0, halfExtents - new float3(shrinkAmount, 0, shrinkAmount));
+
+            var input = new OverlapAabbInput
             {
-                worldPos.y += _footprintLookup[prefab].Height * 0.5f; 
+                Aabb = new Aabb { Min = center - queryHalfExtents, Max = center + queryHalfExtents },
+                Filter = new CollisionFilter
+                {
+                    BelongsTo = 1u << 7,
+                    CollidesWith = (1u << 11) | (1u << 12),
+                    GroupIndex = 0
+                }
+            };
+
+            var hits = new NativeList<int>(Allocator.Temp);
+            PhysicsWorld.OverlapAabb(input, ref hits);
+
+            bool hasBlockingCollision = false;
+            for (int i = 0; i < hits.Length; i++)
+            {
+                Entity hitEntity = PhysicsWorld.Bodies[hits[i]].Entity;
+                if (IsBuilder(hitEntity, builderGhostId)) continue;
+                
+                hasBlockingCollision = true;
+                break;
             }
+            hits.Dispose();
+            return hasBlockingCollision;
+        }
 
-            if (_transformLookup.HasComponent(prefab))
+        private bool IsBuilder(Entity hitEntity, int builderGhostId)
+        {
+            if (builderGhostId == 0) return false;
+            Entity current = hitEntity;
+            for (int i = 0; i < 3; i++)
             {
-                var transform = _transformLookup[prefab];
-                transform.Position = worldPos;
-                ecb.SetComponent(newStructure, transform);
+                if (current == Entity.Null) break;
+                if (GhostInstanceLookup.HasComponent(current)) return GhostInstanceLookup[current].ghostId == builderGhostId;
+                if (ParentLookup.HasComponent(current)) current = ParentLookup[current].Value;
+                else break;
+            }
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// [Job 2] 직렬 실행: 자원 확인 및 생성
+    /// </summary>
+    [BurstCompile]
+    public partial struct ExecuteBuildRequestJob : IJob
+    {
+        public NativeQueue<BuildActionRequest> ActionQueue;
+        
+        [ReadOnly] public NativeHashMap<int, Entity> NetworkIdToCurrencyMap;
+        public ComponentLookup<UserCurrency> UserCurrencyLookup;
+        
+        [ReadOnly] public ComponentLookup<ProductionInfo> ProductionInfoLookup;
+        [ReadOnly] public ComponentLookup<NeedsNavMeshObstacle> NeedsNavMeshLookup;
+        [ReadOnly] public ComponentLookup<LocalTransform> TransformLookup;
+        
+        public EntityCommandBuffer Ecb;
+
+        public void Execute()
+        {
+            while (ActionQueue.TryDequeue(out var request))
+            {
+                // 1. 검증 실패 건 제거
+                if (!request.IsValidPhysics)
+                {
+                    Ecb.DestroyEntity(request.RpcEntity);
+                    continue;
+                }
+
+                // 2. 유저 자원 엔티티 확인
+                if (!NetworkIdToCurrencyMap.TryGetValue(request.SourceNetworkId, out Entity userCurrencyEntity))
+                {
+                    Ecb.DestroyEntity(request.RpcEntity);
+                    continue;
+                }
+
+                // 3. 자원 확인 및 차감 (직렬 실행으로 안전함)
+                var currency = UserCurrencyLookup[userCurrencyEntity];
+                
+                if (currency.Amount < request.StructureCost)
+                {
+                    Ecb.DestroyEntity(request.RpcEntity); // 자원 부족
+                    continue;
+                }
+
+                currency.Amount -= request.StructureCost;
+                UserCurrencyLookup[userCurrencyEntity] = currency;
+
+                // 4. 건물 생성 (TargetWorldPos 사용)
+                CreateBuildingEntity(request);
+                
+                Ecb.DestroyEntity(request.RpcEntity);
+            }
+        }
+
+        private void CreateBuildingEntity(BuildActionRequest request)
+        {
+            Entity prefab = request.PrefabEntity;
+            Entity newStructure = Ecb.Instantiate(prefab);
+            
+            // Transform 설정 (Job 1에서 계산한 WorldPos 사용)
+            if (TransformLookup.HasComponent(prefab))
+            {
+                var transform = TransformLookup[prefab];
+                transform.Position = request.TargetWorldPos;
+                Ecb.SetComponent(newStructure, transform);
             }
             else
             {
-                ecb.SetComponent(newStructure, LocalTransform.FromPosition(worldPos));
+                Ecb.SetComponent(newStructure, LocalTransform.FromPosition(request.TargetWorldPos));
             }
 
-            ecb.SetComponent(newStructure, new GridPosition { Position = rpc.GridPosition });
+            Ecb.SetComponent(newStructure, new GridPosition { Position = request.GridPosition });
+            Ecb.AddComponent(newStructure, new GhostOwner { NetworkId = request.SourceNetworkId });
+            Ecb.SetComponent(newStructure, new Team { teamId = request.SourceNetworkId });
 
-            ecb.AddComponent(newStructure, new GhostOwner { NetworkId = ownerNetworkId });
-            ecb.SetComponent(newStructure, new Team { teamId = ownerNetworkId });
-
-            if (_productionInfoLookup.HasComponent(prefab))
+            if (ProductionInfoLookup.HasComponent(prefab))
             {
-                var info = _productionInfoLookup[prefab];
-                ecb.AddComponent(newStructure, new UnderConstructionTag
+                var info = ProductionInfoLookup[prefab];
+                Ecb.AddComponent(newStructure, new UnderConstructionTag
                 {
                     Progress = 0f,
                     TotalBuildTime = info.ProductionTime
                 });
             }
 
-            if (_needsNavMeshLookup.HasComponent(prefab))
+            if (NeedsNavMeshLookup.HasComponent(prefab))
             {
-                ecb.SetComponentEnabled<NeedsNavMeshObstacle>(newStructure, true);
+                Ecb.SetComponentEnabled<NeedsNavMeshObstacle>(newStructure, true);
             }
-        }
-        
-        private bool CheckUnitCollisionPhysics(PhysicsWorldSingleton physicsWorld, float3 center, float3 halfExtents)
-        {
-            var input = new OverlapAabbInput
-            {
-                Aabb = new Aabb
-                {
-                    Min = center - halfExtents,
-                    Max = center + halfExtents
-                },
-                Filter = new CollisionFilter
-                {
-                    BelongsTo = 1u << 7,            
-                    CollidesWith = (1u << 11) | (1u << 12),
-                    GroupIndex = 0
-                }
-            };
-            
-            var hits = new NativeList<int>(Allocator.Temp);
-            bool hasCollision = physicsWorld.OverlapAabb(input, ref hits);
-            hits.Dispose();
-
-            return hasCollision;
         }
     }
 }

@@ -17,5 +17,6 @@ namespace Client
         public float RequiredRange;       // 건설 사거리 (도착 판정용)
         public int Width;                 // 건물 너비 (AABB 계산용)
         public int Length;                // 건물 길이 (AABB 계산용)
+        public float StructureRadius;     // 건물 반지름 (ObstacleRadius, 도착 판정용)
     }
 }
