@@ -13,6 +13,7 @@ namespace Server
     /// - ObstaclePadding을 적용하여 NavMesh 구멍을 실제 건물보다 살짝 작게 뚫음 (유닛이 딱 붙게 하기 위함)
     /// </summary>
     [UpdateInGroup(typeof(SimulationSystemGroup))]
+    [UpdateAfter(typeof(StructureGridInitSystem))]
     [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
     public partial class NavMeshObstacleSpawnSystem : SystemBase
     {

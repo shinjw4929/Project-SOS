@@ -26,9 +26,10 @@ namespace Client
             if (userState.CurrentState != UserContext.Command) return;
 
             // 1. 입력 체크
-            bool isMouseFire = Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame;
+            // (임시)마우스 입력 제거
+            //bool isMouseFire = Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame;
             bool isSpaceFire = Keyboard.current != null && Keyboard.current.spaceKey.wasPressedThisFrame;
-            if (!isMouseFire && !isSpaceFire) return;
+            if (!isSpaceFire) return;
 
             // 2. 연결 엔티티 확인
             if (!SystemAPI.TryGetSingletonEntity<NetworkId>(out Entity connectionEntity)) return;
