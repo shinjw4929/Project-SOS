@@ -7,6 +7,6 @@ namespace Shared
     public struct StructureTag : IComponentData { } // 건물
     public struct ProjectileTag : IComponentData { } // 투사체
     public struct EnemyTag : IComponentData { } // 적 유닛
-    public struct InteractionObstacle : IComponentData { } // 상호작용 장애물
+    public struct ResourceNodeTag : IComponentData { } // 자원
     
 }

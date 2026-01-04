@@ -75,7 +75,7 @@ namespace Shared
     }
 
     [BurstCompile]
-    [WithAll(typeof(StructureTag))] // 건물이면서
+    [WithAny(typeof(StructureTag), typeof(ResourceNodeTag))] // 건물, 자원
     [WithNone(typeof(GridOccupancyCleanup))] // 아직 처리 안 된 녀석
     public partial struct AddOccupancyJob : IJobEntity
     {

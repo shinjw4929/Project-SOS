@@ -33,12 +33,12 @@ namespace Authoring
         public int cost = 100;
         public float buildTime = 10.0f;
         
-        [Header("Base Stats")]
+        [Header("Base Status")]
         public float maxHealth = 500.0f;
         public float defense = 1.0f;
         public float visionRange = 10.0f;
         
-        [Header("Combat Stats (Turret Only)")]
+        [Header("Combat Status (Turret Only)")]
         public float attackDamage = 0.0f;
         public float attackRange = 0.0f;
         public float attackSpeed = 0.0f;

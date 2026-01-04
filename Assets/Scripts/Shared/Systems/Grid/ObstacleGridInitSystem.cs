@@ -3,23 +3,23 @@ using Unity.Entities;
 using Unity.Collections;
 using Unity.Mathematics;
 using Unity.Transforms;
-using Shared; 
+using Shared;
+using UnityEngine;
 
 namespace Shared
 {
     /// <summary>
-    /// 초기 배치된 건물(Baked)의 GridPosition을 계산하고, 즉시 그리드에 점유를 등록하는 시스템
+    /// 초기 배치된 건물, 자원(Baked)의 GridPosition을 계산하고, 즉시 그리드에 점유를 등록하는 시스템
     /// </summary>
     [UpdateInGroup(typeof(InitializationSystemGroup))]
     [UpdateBefore(typeof(GridOccupancyEventSystem))] 
     [BurstCompile]
-    public partial struct StructureGridInitSystem : ISystem
+    public partial struct ObstacleGridInitSystem : ISystem
     {
         [BurstCompile]
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<GridSettings>();
-            // [수정 1] ECB 시스템 싱글톤 요구
             state.RequireForUpdate<EndInitializationEntityCommandBufferSystem.Singleton>();
         }
 
@@ -39,7 +39,7 @@ namespace Shared
 
             foreach (var (transform, gridPos, footprint, entity) in
                      SystemAPI.Query<RefRO<LocalTransform>, RefRW<GridPosition>, RefRO<StructureFootprint>>()
-                         .WithAll<StructureTag>()
+                         .WithAny<StructureTag, ResourceNodeTag>()
                          .WithNone<GridOccupancyCleanup>()
                          .WithEntityAccess())
             {

@@ -32,8 +32,8 @@ namespace Server
         {
             int processedCount = 0;
 
-            // NavMesh가 준비되었는지 확인
-            if (!NavMesh.SamplePosition(float3.zero, out _, 1f, NavMesh.AllAreas))
+            // NavMesh가 준비되었는지 확인 (특정 위치가 아닌 NavMesh 자체 존재 여부 확인)
+            if (NavMesh.GetSettingsCount() == 0)
             {
                 // NavMesh가 아직 로드되지 않음
                 return;

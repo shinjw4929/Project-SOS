@@ -10,16 +10,14 @@ namespace Authoring
     /// </summary>
     public class UserEconomyPrefabRefAuthoring : MonoBehaviour
     {
-        [Tooltip("UserEconomyAuthoring + GhostAuthoringComponent가 붙은 프리팹")]
         public GameObject playerEconomyPrefab;
 
         class Baker : Baker<UserEconomyPrefabRefAuthoring>
         {
             public override void Bake(UserEconomyPrefabRefAuthoring authoring)
             {
-                if (authoring.playerEconomyPrefab == null)
+                if (!authoring.playerEconomyPrefab)
                 {
-                    Debug.LogWarning("PlayerEconomyPrefabRefAuthoring: 프리팹이 할당되지 않았습니다.");
                     return;
                 }
 

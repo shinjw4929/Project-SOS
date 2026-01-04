@@ -19,11 +19,11 @@ namespace Server
 
             // 쿼리 논리:
             // 1. NavMeshObstacleReference(Cleanup)는 가지고 있는데
-            // 2. StructureTag(일반)는 없는 엔티티
+            // 2. StructureTag, ResourceNodeTag 모두 없는 엔티티
             // => "DestroyEntity가 호출되어 본체는 날아갔지만, 아직 뒷수습이 필요한 상태"
             foreach (var (obstacleRef, entity) in
                      SystemAPI.Query<NavMeshObstacleReference>()
-                         .WithNone<StructureTag>() 
+                         .WithNone<StructureTag, ResourceNodeTag>()
                          .WithEntityAccess())
             {
                 // 1. GameObject 파괴
