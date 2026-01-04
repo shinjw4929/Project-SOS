@@ -169,6 +169,7 @@ MonoBehaviour:
   width: 2
   length: 2
   height: 2
+  radius: 1.42
   cost: 0
   buildTime: 1
   maxHealth: 100

@@ -24,10 +24,11 @@ namespace Authoring
         [Header("Unit Production Settings")]
         public List<GameObject> producibleUnits; // 이 건물이 생산할 수 있는 유닛 프리팹 목록
         
-        [Header("Grid Size")]
+        [Header("Size")]
         [Min(1)] public int width = 1;
         [Min(1)] public int length = 1;
         public float height = 1;
+        public float radius = 1;
         
         [Header("Build Info (Cost & Time)")]
         public int cost = 100;
@@ -83,6 +84,7 @@ namespace Authoring
                         break;
                         
                     case AuthoringStructureType.ResourceCenter:
+                        AddComponent(entity, new ResourceCenterTag()); // 자원 반납 지점
                         AddComponent(entity, new ProductionFacilityTag());
                         canProduce = true;
                         break;
@@ -128,12 +130,8 @@ namespace Authoring
                         AddComponent(entity, new CombatStatus
                         {
                             AttackPower = authoring.attackDamage,
-                            AttackSpeed = authoring.attackSpeed
-                        });
-                        
-                        AddComponent(entity, new Reach
-                        {
-                            Value = authoring.attackRange,
+                            AttackSpeed = authoring.attackSpeed,
+                            AttackRange = authoring.attackRange
                         });
                         
                         AddComponent(entity, new Target
@@ -169,6 +167,11 @@ namespace Authoring
                     Width = authoring.width,
                     Length = authoring.length,
                     Height = authoring.height
+                });
+                
+                AddComponent(entity, new ObstacleRadius
+                {
+                    Radius = authoring.radius
                 });
                 
                 // 그리드 위치

@@ -16,7 +16,7 @@ namespace Client
         [ReadOnly] private ComponentLookup<StructureFootprint> _footprintLookup;
         [ReadOnly] private BufferLookup<GridCell> _gridCellLookup;
         [ReadOnly] private ComponentLookup<LocalTransform> _transformLookup;
-        [ReadOnly] private ComponentLookup<BuildRange> _buildRangeLookup;
+        [ReadOnly] private ComponentLookup<WorkRange> _workRangeLookup;
 
         public void OnCreate(ref SystemState state)
         {
@@ -29,7 +29,7 @@ namespace Client
             _footprintLookup = state.GetComponentLookup<StructureFootprint>(true);
             _gridCellLookup = state.GetBufferLookup<GridCell>(true);
             _transformLookup = state.GetComponentLookup<LocalTransform>(true);
-            _buildRangeLookup = state.GetComponentLookup<BuildRange>(true);
+            _workRangeLookup = state.GetComponentLookup<WorkRange>(true);
         }
 
         [BurstCompile]
@@ -100,7 +100,7 @@ namespace Client
             Entity builderEntity = selectionState.PrimaryEntity;
 
             _transformLookup.Update(ref state);
-            _buildRangeLookup.Update(ref state);
+            _workRangeLookup.Update(ref state);
 
             // Builder 엔티티가 유효하고 위치 정보가 있는지 확인
             if (builderEntity == Entity.Null || !_transformLookup.HasComponent(builderEntity))
@@ -115,9 +115,9 @@ namespace Client
 
             // BuildRange 컴포넌트가 있는지 확인
             float buildRange = float.MaxValue; // 기본값: 무한대 (제한 없음)
-            if (_buildRangeLookup.HasComponent(builderEntity))
+            if (_workRangeLookup.HasComponent(builderEntity))
             {
-                buildRange = _buildRangeLookup[builderEntity].Value;
+                buildRange = _workRangeLookup[builderEntity].Value;
             }
 
             // 8. AABB 최근접점까지의 거리 계산

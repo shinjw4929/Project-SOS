@@ -11,7 +11,12 @@ namespace Authoring
         [Min(1)] public int width = 1;
         [Min(1)] public int length = 1;
         [Min(0.1f)] public float height = 1f;
-        
+
+        [Header("Gathering Settings")]
+        public ResourceType resourceType = ResourceType.Cheese;
+        [Min(1)] public int amountPerGather = 10;
+        [Min(1f)] public float baseGatherDuration = 1.0f;
+
         public class Baker : Baker<ResourceNodeAuthoring>
         {
             public override void Bake(ResourceNodeAuthoring authoring)
@@ -21,7 +26,20 @@ namespace Authoring
                 // 태그
                 AddComponent(entity, new ResourceNodeTag());
                 
-
+                // 자원 노드 Status
+                AddComponent(entity, new ResourceNodeSetting
+                {
+                    ResourceType = authoring.resourceType,
+                    AmountPerGather = authoring.amountPerGather,
+                    BaseGatherDuration =  authoring.baseGatherDuration,
+                });
+                
+                // 자원 노드 상태 (점유 정보)
+                AddComponent(entity, new ResourceNodeState
+                {
+                    OccupyingWorker = Entity.Null,
+                });
+                
                 // 크기 (풋프린트)
                 AddComponent(entity, new StructureFootprint
                 {

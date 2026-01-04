@@ -130,8 +130,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   unitType: 2
-  buildableStructures: []
-  buildRange: 0
   cost: 30
   populationCost: 1
   trainingTime: 3
@@ -139,9 +137,14 @@ MonoBehaviour:
   maxHealth: 100
   defense: 0
   visionRange: 10
-  reach: 20
+  workRange: 2
+  radius: 0.8
   attackPower: 10
   attackSpeed: 1
+  attackRange: 2
+  maxCarryAmount: 10
+  gatheringSpeed: 1
+  buildableStructures: []
 --- !u!114 &6436938495033817077
 MonoBehaviour:
   m_ObjectHideFlags: 0

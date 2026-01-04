@@ -224,7 +224,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   width: 3
   length: 2
-  height: 0
+  height: 1
+  resourceType: 1
+  amountPerGather: 10
+  gatherDuration: 1
 --- !u!114 &6134974049345022030
 MonoBehaviour:
   m_ObjectHideFlags: 0

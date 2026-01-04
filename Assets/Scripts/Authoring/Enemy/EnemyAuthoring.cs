@@ -14,11 +14,12 @@ namespace Authoring
         public float maxHealth = 100.0f;
         public float defense = 0.0f;
         public float visionRange = 10.0f;
-        public float reach = 2.0f;
+
         
         [Header("Combat Status")]
         public float attackPower = 0.0f;
         public float attackSpeed = 1.0f;
+        public float attackRange = 2.0f;
         
         [Header("Enemy Status")]
         public float aggroRange  = 15.0f;
@@ -48,12 +49,6 @@ namespace Authoring
                 AddComponent(entity, new MovementSpeed
                 {
                     Value = authoring.moveSpeed
-                });
-                
-                // 사거리
-                AddComponent(entity, new Reach
-                {
-                    Value = authoring.reach,
                 });
                 
                 // 방어력
@@ -100,7 +95,8 @@ namespace Authoring
                     AddComponent(entity, new CombatStatus
                     {
                         AttackPower = authoring.attackPower,
-                        AttackSpeed = authoring.attackSpeed
+                        AttackSpeed = authoring.attackSpeed,
+                        AttackRange = authoring.attackRange
                     });
                 }
 

@@ -29,12 +29,13 @@ namespace Shared
     /// </summary>
     public enum RTSCommandType : byte
     {
-        None = 0,           // 명령 없음
-        Move = 1,           // 이동 (우클릭 지면)
-        Attack = 2,         // 공격 (A + 클릭)
-        AttackMove = 3,     // 이동 + 공격 (우클릭 적 또는 A + 클릭 지면)
-        Stop = 4,           // 정지 (S)
-        Patrol = 5,         // 순찰 (P)
-        Hold = 6,           // 대기 (H)
+        None = 0,            // 명령 없음
+        Move = 1,            // 이동 (우클릭 지면)
+        Attack = 2,          // 공격 (A + 클릭)
+        AttackMove = 3,      // 이동 + 공격 (우클릭 적 또는 A + 클릭 지면)
+        Stop = 4,            // 정지
+        Hold = 5,            // 대기
+        Gather = 6,          // 채집 (우클릭 ResourceNode)
+        ReturnResource = 7,  // 자원 반납 (우클릭 ResourceCenter)
     }
 }

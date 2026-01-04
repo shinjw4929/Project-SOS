@@ -20,10 +20,6 @@ namespace Authoring
         [Header("Identity")]
         public AuthoringUnitType unitType = AuthoringUnitType.Soldier;
         
-        [Header("Builder Settings")]
-        public List<GameObject> buildableStructures; // 이 유닛이 건설할 수 있는 건물 프리팹 목록
-        public float buildRange = 5.0f; // 건설 사거리
-        
         [Header("Production Info (Prefab Data)")]
         public int cost = 100;
         public int populationCost = 1;
@@ -34,12 +30,24 @@ namespace Authoring
         public float maxHealth = 100.0f;
         public float defense = 0.0f;
         public float visionRange = 10.0f;
-        public float reach = 2.0f;
+        public float workRange = 2.0f;
+        
+        [Header("Unit Size")]
+        public float radius = 1.0f;
         
         [Header("Combat Status")]
         public float attackPower = 0.0f;
         public float attackSpeed = 1.0f;
+        public float attackRange = 2.0f;
+        
+        [Header("Gathering Settings (Worker Only)")]
+        [Min(1)] public int maxCarryAmount = 10;
+        [Min(1)] public float gatheringSpeed = 1.0f;
 
+        [Header("Builder Settings")]
+        public List<GameObject> buildableStructures; // 이 유닛이 건설할 수 있는 건물 프리팹 목록
+        
+        
         public class Baker : Baker<UnitAuthoring>
         {
             public override void Bake(UnitAuthoring authoring)
@@ -80,16 +88,10 @@ namespace Authoring
                 }
                 
                 // =======================================================================
-                // 2. [건설 유닛] 버퍼 및 사거리 설정
+                // 2. [Builder 유닛] 버퍼 및 사거리 설정
                 // =======================================================================
                 if (isBuilder)
                 {
-                    // 건설 사거리 추가
-                    AddComponent(entity, new BuildRange
-                    {
-                        Value = authoring.buildRange
-                    });
-
                     // 건설 가능 건물 버퍼 생성
                     if (authoring.buildableStructures != null && authoring.buildableStructures.Count > 0)
                     {
@@ -109,7 +111,34 @@ namespace Authoring
                 }
                 
                 // =======================================================================
-                // 3. [기본 스탯]
+                // 3. [Worker 유닛]
+                // =======================================================================
+                if (isWorker)
+                {
+                    AddComponent(entity, new GatheringAbility
+                    {
+                        MaxCarryAmount = authoring.maxCarryAmount,
+                        GatheringSpeed = authoring.gatheringSpeed
+                    });
+                    
+                    AddComponent(entity, new WorkerState
+                    {
+                        CarriedAmount = 0,
+                        CarriedType = ResourceType.None,
+                        GatheringProgress = 0f,
+                        IsInsideNode = false
+                    });
+
+                    AddComponent(entity, new GatheringTarget
+                    {
+                        ResourceNodeEntity = Entity.Null,
+                        ReturnPointEntity = Entity.Null,
+                        AutoReturn = true
+                    });
+                }
+                
+                // =======================================================================
+                // 4. [기본 스탯]
                 // =======================================================================
                 AddComponent(entity, new ProductionCost
                 {
@@ -137,9 +166,9 @@ namespace Authoring
                 });
                 
                 // 사거리
-                AddComponent(entity, new Reach
+                AddComponent(entity, new WorkRange
                 {
-                    Value = authoring.reach,
+                    Value = authoring.workRange,
                 });
                 
                 // 채집, 추격, 공격 대상
@@ -163,27 +192,15 @@ namespace Authoring
                 });
                 
                 // =======================================================================
-                // 4. [전투 능력]
+                // 5. [전투 능력]
                 // =======================================================================
                 if (authoring.attackPower > 0)
                 {
                     AddComponent(entity, new CombatStatus
                     {
                         AttackPower = authoring.attackPower,
-                        AttackSpeed = authoring.attackSpeed
-                    });
-                }
-
-                // =======================================================================
-                // 5. [채집 능력]
-                // =======================================================================
-                if (isWorker)
-                {
-                    AddComponent(entity, new WorkerState
-                    {
-                        CarriedAmount = 0,
-                        CarriedType = ResourceType.None,
-                        GatheringProgress = 0f
+                        AttackSpeed = authoring.attackSpeed,
+                        AttackRange = authoring.attackRange
                     });
                 }
                 

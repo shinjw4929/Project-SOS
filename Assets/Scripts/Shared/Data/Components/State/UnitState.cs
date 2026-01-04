@@ -6,16 +6,22 @@ namespace Shared
     // 유닛의 현재 행동 상태 (Enum)
     public enum UnitContext : byte
     {
-        Idle = 0,           // 대기
-        Moving = 1,         // 이동 중
-        Attacking = 2,      // 공격 중 (쿨타임 대기 포함)
-        Chasing = 3,        // 적 추격 중
-        Gathering = 10,      // 자원 채집 중 (이동 -> 채집 -> 반납 사이클)
-        Constructing = 11,   // 건설 중 (일꾼이 건물 짓는 모션)
-        MovingToBuild = 12,  // 건설 위치로 이동 중 (사거리 밖 건설 명령)
-        Disabled = 20,
+        Idle = 0,            // 대기
+        Moving = 1,          // 이동 중
+        Attacking = 2,       // 공격 중 (쿨타임 대기 포함)
+        Chasing = 3,         // 적 추격 중
+        Stop = 4,            // 정지
+        Holding = 5,         // 대기
+        Constructing = 10,   // 건설 중 (일꾼이 건물 짓는 모션)
+        MovingToBuild = 11,  // 건설 위치로 이동 중 (사거리 밖 건설 명령)
+        Gathering = 20,      // 자원 채집 중 (노드 내부에서 채집)
+        MovingToGather = 21, // 자원 노드로 이동 중
+        MovingToReturn = 22, // 반납 지점(ResourceCenter)으로 이동 중
+        Unloading = 23,
+        WaitingForNode = 24, // 자원 노드 대기 상태
+        Disabled = 200,
         Dying = 254,
-        Dead = 255          // 사망
+        Dead = 255           // 사망
     }
 
     [GhostComponent]
@@ -23,9 +29,5 @@ namespace Shared
     {
         // 1. 현재 상태 (Enum)
         [GhostField] public UnitContext CurrentState;
-        
-        // 3. (선택) 상태 보조 데이터 (예: 채집 시작한지 얼마나 됐나?)
-        // 복잡한 타이머는 별도 컴포넌트로 빼도 되지만, 간단한 건 여기 둬도 됨
-        // [GhostField] public double StateStartTime; 
     }
 }

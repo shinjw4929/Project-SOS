@@ -126,11 +126,11 @@ namespace Client
                 gridSettings
             );
 
-            // BuildRange 조회
-            float buildRange = 5f; // 기본값
-            if (EntityManager.HasComponent<BuildRange>(builderEntity))
+            // workRange 조회
+            float workRange = 2f; // 기본값
+            if (EntityManager.HasComponent<WorkRange>(builderEntity))
             {
-                buildRange = EntityManager.GetComponentData<BuildRange>(builderEntity).Value;
+                workRange = EntityManager.GetComponentData<WorkRange>(builderEntity).Value;
             }
 
             // 유닛 현재 위치 조회
@@ -141,7 +141,7 @@ namespace Client
             }
 
             // 이동 목표 계산: 건물 AABB 가장자리에서 사거리 내 지점
-            float3 moveTarget = CalculateMoveTarget(unitPos, buildCenter, footprint, gridSettings, buildRange);
+            float3 moveTarget = CalculateMoveTarget(unitPos, buildCenter, footprint, gridSettings, workRange);
 
             // PendingBuildRequest 부착 (기존 있으면 덮어쓰기)
             var pendingRequest = new PendingBuildRequest
@@ -149,7 +149,7 @@ namespace Client
                 StructureIndex = previewState.SelectedPrefabIndex,
                 GridPosition = gridPos,
                 BuildSiteCenter = buildCenter,
-                RequiredRange = buildRange,
+                RequiredRange = workRange,
                 Width = footprint.Width,
                 Length = footprint.Length
             };

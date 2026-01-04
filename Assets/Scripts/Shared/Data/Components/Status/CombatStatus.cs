@@ -11,5 +11,6 @@ namespace Shared
     {
         [GhostField] public float AttackPower;
         [GhostField] public float AttackSpeed;
+        [GhostField] public float AttackRange;
     }
 }
