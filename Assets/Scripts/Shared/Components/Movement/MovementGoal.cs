@@ -11,7 +11,7 @@ namespace Shared
     /// - CurrentWaypointIndex/TotalWaypoints: 서버 로컬 (동기화 안함)
     /// </summary>
     [GhostComponent]
-    public struct PathfindingState : IComponentData
+    public struct MovementGoal : IComponentData
     {
         /// <summary>최종 목적지 (경로 끝점)</summary>
         [GhostField] public float3 FinalDestination;
