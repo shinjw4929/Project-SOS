@@ -5,7 +5,7 @@ using Unity.NetCode;
 namespace Shared
 {
     /// <summary>
-    /// 유닛의 경로 탐색 상태
+    /// 유닛의 경로 탐색 목표
     /// </summary>
     [GhostComponent]
     public struct MovementGoal : IComponentData

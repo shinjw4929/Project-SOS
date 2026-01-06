@@ -1,3 +1,4 @@
+#if LEGACY_MOVEMENT_SYSTEM
 using Unity.Entities;
 using UnityEngine;
 using Shared;
@@ -31,3 +32,4 @@ namespace Authoring
         }
     }
 }
+#endif

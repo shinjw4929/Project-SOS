@@ -14,7 +14,7 @@ namespace Authoring
                 Entity entity = GetEntity(TransformUsageFlags.Dynamic);
 
                 // 1. 서버 동기화용 (결과물)
-                AddComponent(entity, new MovementDestination { Position = float3.zero, IsValid = false });
+                AddComponent(entity, new MovementWaypoints { Current = float3.zero, Next = float3.zero, HasNext = false});
 
                 // 2. 명령 전송용 버퍼
                 AddBuffer<UnitCommand>(entity);

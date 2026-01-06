@@ -1,3 +1,4 @@
+#if LEGACY_MOVEMENT_SYSTEM
 using Unity.Entities;
 using Unity.Transforms;
 using UnityEngine;
@@ -115,3 +116,4 @@ namespace Server
         }
     }
 }
+#endif  // LEGACY_MOVEMENT_SYSTEM

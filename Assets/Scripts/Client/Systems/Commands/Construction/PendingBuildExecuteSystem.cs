@@ -1,3 +1,4 @@
+#if LEGACY_MOVEMENT_SYSTEM
 using Unity.Burst;
 using Unity.Entities;
 using Unity.Mathematics;
@@ -106,3 +107,4 @@ namespace Client
         }
     }
 }
+#endif  // LEGACY_MOVEMENT_SYSTEM

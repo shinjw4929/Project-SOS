@@ -1,3 +1,4 @@
+#if LEGACY_MOVEMENT_SYSTEM
 using Unity.Collections;
 using Unity.Entities;
 using Unity.NetCode;
@@ -223,3 +224,4 @@ namespace Client
         }
     }
 }
+#endif

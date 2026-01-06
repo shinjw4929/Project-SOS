@@ -1,3 +1,4 @@
+#if LEGACY_MOVEMENT_SYSTEM 
 using Unity.Entities;
 using Unity.NetCode;
 using Unity.Burst;
@@ -356,3 +357,5 @@ namespace Server
         }
     }
 }
+
+#endif

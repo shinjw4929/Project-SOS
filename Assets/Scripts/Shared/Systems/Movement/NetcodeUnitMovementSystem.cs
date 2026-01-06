@@ -1,3 +1,4 @@
+#if LEGACY_MOVEMENT_SYSTEM  // 조건부 컴파일로 완전 비활성화
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
@@ -279,3 +280,4 @@ namespace Shared
         }
     }
 }
+#endif  // LEGACY_MOVEMENT_SYSTEM
