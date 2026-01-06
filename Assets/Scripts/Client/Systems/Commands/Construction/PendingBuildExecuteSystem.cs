@@ -17,7 +17,7 @@ namespace Client
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
     public partial struct PendingBuildExecuteSystem : ISystem
     {
-        private ComponentLookup<MoveTarget> _moveTargetLookup;
+        private ComponentLookup<MovementDestination> _moveTargetLookup;
         private ComponentLookup<ObstacleRadius> _obstacleRadiusLookup;
         [ReadOnly] private ComponentLookup<GhostInstance> _ghostInstanceLookup;
 
@@ -26,7 +26,7 @@ namespace Client
             state.RequireForUpdate<NetworkStreamInGame>();
             state.RequireForUpdate<EndSimulationEntityCommandBufferSystem.Singleton>();
 
-            _moveTargetLookup = state.GetComponentLookup<MoveTarget>(false);
+            _moveTargetLookup = state.GetComponentLookup<MovementDestination>(false);
             _obstacleRadiusLookup = state.GetComponentLookup<ObstacleRadius>(true);
             _ghostInstanceLookup = state.GetComponentLookup<GhostInstance>(true);
         }
@@ -95,10 +95,10 @@ namespace Client
                     // 이동 중지 (ComponentLookup으로 안전하게 접근)
                     if (_moveTargetLookup.HasComponent(entity))
                     {
-                        _moveTargetLookup[entity] = new MoveTarget
+                        _moveTargetLookup[entity] = new MovementDestination
                         {
-                            position = float3.zero,
-                            isValid = false
+                            Position = float3.zero,
+                            IsValid = false
                         };
                     }
                 }

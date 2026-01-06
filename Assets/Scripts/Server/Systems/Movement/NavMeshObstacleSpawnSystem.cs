@@ -99,10 +99,10 @@ namespace Server
         private void InvalidateNearbyPaths(float3 buildingPos)
         {
             foreach (var (pathState, unitTransform, moveTarget) in
-                SystemAPI.Query<RefRW<PathfindingState>, RefRO<LocalTransform>, RefRO<MoveTarget>>()
+                SystemAPI.Query<RefRW<PathfindingState>, RefRO<LocalTransform>, RefRO<MovementDestination>>()
                     .WithAll<UnitTag>())
             {
-                if (!moveTarget.ValueRO.isValid)
+                if (!moveTarget.ValueRO.IsValid)
                     continue;
 
                 float distance = math.distance(unitTransform.ValueRO.Position, buildingPos);

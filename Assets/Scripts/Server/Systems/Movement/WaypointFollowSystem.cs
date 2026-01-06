@@ -21,7 +21,7 @@ namespace Server
         public void OnUpdate(ref SystemState state)
         {
             foreach (var (pathState, pathBuffer, moveTarget, transform) in
-                SystemAPI.Query<RefRW<PathfindingState>, DynamicBuffer<PathWaypoint>, RefRW<MoveTarget>, RefRO<LocalTransform>>()
+                SystemAPI.Query<RefRW<PathfindingState>, DynamicBuffer<PathWaypoint>, RefRW<MovementDestination>, RefRO<LocalTransform>>()
                     .WithAll<UnitTag>())
             {
                 if (pathState.ValueRO.TotalWaypoints == 0 || pathBuffer.IsEmpty)
@@ -34,7 +34,7 @@ namespace Server
                 if (currentIndex < pathBuffer.Length)
                 {
                     float3 bufferPos = pathBuffer[currentIndex].Position;
-                    float3 currentTargetPos = moveTarget.ValueRO.position;
+                    float3 currentTargetPos = moveTarget.ValueRO.Position;
                     
                     // 오차 범위(float 정밀도) 내에서 다른지 체크
                     if (math.distancesq(bufferPos, currentTargetPos) > 0.1f)
@@ -55,8 +55,8 @@ namespace Server
 
                 // 2. 현재 상태에 맞춰 MoveTarget 데이터 갱신 (Look-ahead)
                 // 현재 목표가 올바른지 확인 및 재설정
-                moveTarget.ValueRW.position = pathBuffer[currentIndex].Position;
-                moveTarget.ValueRW.isValid = true;
+                moveTarget.ValueRW.Position = pathBuffer[currentIndex].Position;
+                moveTarget.ValueRW.IsValid = true;
 
                 // [핵심] 다음 웨이포인트 미리 넣어주기
                 int nextIndex = currentIndex + 1;

@@ -3,7 +3,7 @@ using Unity.Mathematics;
 
 namespace Shared
 {
-    public struct RTSInputState : IComponentData
+    public struct UnitInputData : IComponentData
     {
         public float3 TargetPosition;
         public bool HasTarget;

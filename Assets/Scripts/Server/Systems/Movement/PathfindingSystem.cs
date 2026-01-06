@@ -40,7 +40,7 @@ namespace Server
             }
 
             foreach (var (pathState, pathBuffer, moveTarget, transform, entity) in
-                SystemAPI.Query<RefRW<PathfindingState>, DynamicBuffer<PathWaypoint>, RefRW<MoveTarget>, RefRO<LocalTransform>>()
+                SystemAPI.Query<RefRW<PathfindingState>, DynamicBuffer<PathWaypoint>, RefRW<MovementDestination>, RefRO<LocalTransform>>()
                     .WithAll<UnitTag>()
                     .WithEntityAccess())
             {
@@ -62,8 +62,8 @@ namespace Server
                     pathState.ValueRW.CurrentWaypointIndex = 0;
 
                     // 첫 번째 웨이포인트를 MoveTarget에 설정
-                    moveTarget.ValueRW.position = pathBuffer[0].Position;
-                    moveTarget.ValueRW.isValid = true;
+                    moveTarget.ValueRW.Position = pathBuffer[0].Position;
+                    moveTarget.ValueRW.IsValid = true;
                 }
                 else
                 {
@@ -73,8 +73,8 @@ namespace Server
                     pathState.ValueRW.TotalWaypoints = 1;
                     pathState.ValueRW.CurrentWaypointIndex = 0;
 
-                    moveTarget.ValueRW.position = endPos;
-                    moveTarget.ValueRW.isValid = true;
+                    moveTarget.ValueRW.Position = endPos;
+                    moveTarget.ValueRW.IsValid = true;
                 }
 
                 pathState.ValueRW.NeedsPath = false;

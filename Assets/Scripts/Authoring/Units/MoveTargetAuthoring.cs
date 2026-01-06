@@ -14,13 +14,13 @@ namespace Authoring
                 Entity entity = GetEntity(TransformUsageFlags.Dynamic);
 
                 // 1. 서버 동기화용 (결과물)
-                AddComponent(entity, new MoveTarget { position = float3.zero, isValid = false });
+                AddComponent(entity, new MovementDestination { Position = float3.zero, IsValid = false });
 
                 // 2. 명령 전송용 버퍼
-                AddBuffer<RTSCommand>(entity);
+                AddBuffer<UnitCommand>(entity);
 
                 // 3. [핵심 추가] 클라이언트 입력 기억용 (초기값 0)
-                AddComponent(entity, new RTSInputState { TargetPosition = float3.zero, HasTarget = false });
+                AddComponent(entity, new UnitInputData { TargetPosition = float3.zero, HasTarget = false });
             }
         }
     }

@@ -200,9 +200,9 @@ namespace Client
             }
 
             // 이동 명령 발행: RTSInputState 업데이트
-            if (EntityManager.HasComponent<RTSInputState>(builderEntity))
+            if (EntityManager.HasComponent<UnitInputData>(builderEntity))
             {
-                ecb.SetComponent(builderEntity, new RTSInputState
+                ecb.SetComponent(builderEntity, new UnitInputData
                 {
                     TargetPosition = moveTarget,
                     HasTarget = true
@@ -210,12 +210,12 @@ namespace Client
             }
 
             // MoveTarget 설정 (이동 시스템에서 사용)
-            if (EntityManager.HasComponent<MoveTarget>(builderEntity))
+            if (EntityManager.HasComponent<MovementDestination>(builderEntity))
             {
-                ecb.SetComponent(builderEntity, new MoveTarget
+                ecb.SetComponent(builderEntity, new MovementDestination
                 {
-                    position = moveTarget,
-                    isValid = true
+                    Position = moveTarget,
+                    IsValid = true
                 });
             }
         }

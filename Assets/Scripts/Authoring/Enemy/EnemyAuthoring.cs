@@ -92,7 +92,7 @@ namespace Authoring
                 // =======================================================================
                 if (authoring.attackPower > 0)
                 {
-                    AddComponent(entity, new CombatStatus
+                    AddComponent(entity, new CombatStats
                     {
                         AttackPower = authoring.attackPower,
                         AttackSpeed = authoring.attackSpeed,

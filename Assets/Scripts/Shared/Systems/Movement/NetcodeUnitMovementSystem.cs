@@ -53,15 +53,15 @@ namespace Shared
 
             // [최적화 2] Query 루프 실행
             foreach ((
-                 RefRW<MoveTarget> moveTarget,
+                 RefRW<MovementDestination> moveTarget,
                  RefRW<LocalTransform> localTransform,
-                 DynamicBuffer<RTSCommand> inputBuffer,
+                 DynamicBuffer<UnitCommand> inputBuffer,
                  RefRO<MovementSpeed> movementSpeed,
                  Entity entity)
                  in SystemAPI.Query<
-                     RefRW<MoveTarget>,
+                     RefRW<MovementDestination>,
                      RefRW<LocalTransform>,
-                     DynamicBuffer<RTSCommand>,
+                     DynamicBuffer<UnitCommand>,
                      RefRO<MovementSpeed>>()
                      .WithAll<Simulate>() // 시뮬레이션 대상만
                      .WithEntityAccess())
@@ -69,7 +69,7 @@ namespace Shared
                 // 1. 명령 처리 (서버 틱 기반)
                 ProcessCommands(inputBuffer, networkTime.ServerTick, entity, ref moveTarget.ValueRW, ref state);
 
-                if (!moveTarget.ValueRO.isValid) continue;
+                if (!moveTarget.ValueRO.IsValid) continue;
 
                 // 2. 이동 로직 수행
                 MoveUnit(
@@ -87,15 +87,15 @@ namespace Shared
 
         // 명령 처리 분리 (가독성 향상)
         private void ProcessCommands(
-            DynamicBuffer<RTSCommand> inputBuffer, 
+            DynamicBuffer<UnitCommand> inputBuffer, 
             NetworkTick serverTick, 
             Entity entity, 
-            ref MoveTarget moveTarget,
+            ref MovementDestination moveTarget,
             ref SystemState state)
         {
-            if (inputBuffer.GetDataAtTick(serverTick, out RTSCommand command))
+            if (inputBuffer.GetDataAtTick(serverTick, out UnitCommand command))
             {
-                if (command.CommandType == RTSCommandType.Move)
+                if (command.CommandType == UnitCommandType.Move)
                 {
                     if (SystemAPI.HasComponent<PathfindingState>(entity))
                     {
@@ -116,8 +116,8 @@ namespace Shared
                     }
                     else
                     {
-                        moveTarget.position = command.TargetPosition;
-                        moveTarget.isValid = true;
+                        moveTarget.Position = command.TargetPosition;
+                        moveTarget.IsValid = true;
                         moveTarget.HasNextPosition = false;
                     }
                 }
@@ -127,7 +127,7 @@ namespace Shared
         // 실제 이동 및 물리 처리
         private void MoveUnit(
             ref LocalTransform transform, 
-            ref MoveTarget moveTarget, 
+            ref MovementDestination moveTarget, 
             float speed, 
             float deltaTime,
             Entity entity,
@@ -136,7 +136,7 @@ namespace Shared
             CollisionFilter structureFilter)
         {
             float3 currentPos = transform.Position;
-            float3 targetPos = moveTarget.position;
+            float3 targetPos = moveTarget.Position;
             targetPos.y = currentPos.y; // Y축 고정 (평면 이동)
 
             float distance = math.distance(currentPos, targetPos);
@@ -144,17 +144,17 @@ namespace Shared
             // A. 코너링 및 도착 처리
             if (moveTarget.HasNextPosition && distance < CornerRadius)
             {
-                moveTarget.position = moveTarget.NextPosition;
+                moveTarget.Position = moveTarget.NextPosition;
                 moveTarget.HasNextPosition = false;
                 
                 // 타겟 변경 후 거리 재계산
-                targetPos = moveTarget.position;
+                targetPos = moveTarget.Position;
                 targetPos.y = currentPos.y;
                 distance = math.distance(currentPos, targetPos);
             }
             else if (!moveTarget.HasNextPosition && distance < ArrivalThreshold)
             {
-                moveTarget.isValid = false;
+                moveTarget.IsValid = false;
                 transform.Position = targetPos; // 깔끔하게 도착 지점에 안착
                 return;
             }

@@ -114,7 +114,7 @@ namespace Client
             if (resourceNodeEntity == Entity.Null) return;
 
             // 선택된 Worker들에게 채집 RPC 전송
-            foreach (var (inputState, ghostInstance, entity) in SystemAPI.Query<RefRW<RTSInputState>, RefRO<GhostInstance>>() // RefRO -> RefRW 변경
+            foreach (var (inputState, ghostInstance, entity) in SystemAPI.Query<RefRW<UnitInputData>, RefRO<GhostInstance>>() // RefRO -> RefRW 변경
                          .WithAll<Selected, GhostOwnerIsLocal, WorkerTag>()
                          .WithEntityAccess())
             {
@@ -147,7 +147,7 @@ namespace Client
         {
             // 1. 선택된 유닛 수 카운트 + 엔티티 목록 수집
             var selectedUnits = new NativeList<Entity>(16, Allocator.Temp);
-            foreach (var (_, entity) in SystemAPI.Query<RefRO<RTSInputState>>()
+            foreach (var (_, entity) in SystemAPI.Query<RefRO<UnitInputData>>()
                 .WithAll<Selected, GhostOwnerIsLocal>()
                 .WithEntityAccess())
             {
@@ -166,9 +166,9 @@ namespace Client
                     centerTargetPos, i, totalUnits);
 
                 // RTSInputState 갱신
-                if (SystemAPI.HasComponent<RTSInputState>(entity))
+                if (SystemAPI.HasComponent<UnitInputData>(entity))
                 {
-                    var inputState = SystemAPI.GetComponentRW<RTSInputState>(entity);
+                    var inputState = SystemAPI.GetComponentRW<UnitInputData>(entity);
                     inputState.ValueRW.TargetPosition = formationPos;
                     inputState.ValueRW.HasTarget = true;
                 }
@@ -207,15 +207,15 @@ namespace Client
             var networkTime = SystemAPI.GetSingleton<NetworkTime>();
             NetworkTick tick = networkTime.ServerTick;
 
-            foreach (var (inputState, inputBuffer) in SystemAPI.Query<RefRO<RTSInputState>, DynamicBuffer<RTSCommand>>()
+            foreach (var (inputState, inputBuffer) in SystemAPI.Query<RefRO<UnitInputData>, DynamicBuffer<UnitCommand>>()
                 .WithAll<GhostOwnerIsLocal>())
             {
-                var command = new RTSCommand
+                var command = new UnitCommand
                 {
                     Tick = tick,
                     TargetPosition = inputState.ValueRO.TargetPosition,
                     TargetGhostId = 0, // 향후 공격 명령에서 사용
-                    CommandType = inputState.ValueRO.HasTarget ? RTSCommandType.Move : RTSCommandType.None
+                    CommandType = inputState.ValueRO.HasTarget ? UnitCommandType.Move : UnitCommandType.None
                 };
 
                 inputBuffer.AddCommandData(command);

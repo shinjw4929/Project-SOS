@@ -33,7 +33,7 @@ namespace Server
             var healthLookup = SystemAPI.GetComponentLookup<Health>(false);
             var defenseLookup = SystemAPI.GetComponentLookup<Defense>(true);
             var projectileTagLookup = SystemAPI.GetComponentLookup<ProjectileTag>(true);
-            var combatStatusLookup = SystemAPI.GetComponentLookup<CombatStatus>(true);
+            var combatStatusLookup = SystemAPI.GetComponentLookup<CombatStats>(true);
             var teamLookup = SystemAPI.GetComponentLookup<Team>(true);
             
             var commandBuffer = ecbSingleton.ValueRW.CreateCommandBuffer(state.WorldUnmanaged);
@@ -64,7 +64,7 @@ namespace Server
             public ComponentLookup<Health> HealthLookup;
             [ReadOnly] public ComponentLookup<Defense> DefenseLookup;
             [ReadOnly] public ComponentLookup<ProjectileTag> ProjectileTagLookup;
-            [ReadOnly] public ComponentLookup<CombatStatus> CombatStatusLookup;
+            [ReadOnly] public ComponentLookup<CombatStats> CombatStatusLookup;
             [ReadOnly] public ComponentLookup<Team> TeamLookup;
             
             public EntityCommandBuffer CommandBuffer;

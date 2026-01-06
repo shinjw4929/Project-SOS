@@ -42,10 +42,10 @@ namespace Client
             Entity shooter = selectionState.PrimaryEntity;
 
             // 4. 전투 능력 확인
-            if (!SystemAPI.HasComponent<CombatStatus>(shooter)) return;
+            if (!SystemAPI.HasComponent<CombatStats>(shooter)) return;
 
             // 5. 쿨타임 계산
-            var combatStatus = SystemAPI.GetComponent<CombatStatus>(shooter);
+            var combatStatus = SystemAPI.GetComponent<CombatStats>(shooter);
             float cooldown = (combatStatus.AttackSpeed > 0) ? (1.0f / combatStatus.AttackSpeed) : 999f;
 
             double currentTime = SystemAPI.Time.ElapsedTime;

@@ -9,12 +9,12 @@ namespace Shared
     /// - 클라이언트에서 서버로 전송되는 입력 명령
     /// - 예측 시뮬레이션에서 사용
     /// </summary>
-    public struct RTSCommand : ICommandData
+    public struct UnitCommand : ICommandData
     {
         public NetworkTick Tick { get; set; }
 
         // 명령 타입
-        public RTSCommandType CommandType;
+        public UnitCommandType CommandType;
 
         // 목표 위치 (Move, AttackMove, Patrol 등)
         public float3 TargetPosition;
@@ -27,7 +27,7 @@ namespace Shared
     /// <summary>
     /// RTS 명령 타입
     /// </summary>
-    public enum RTSCommandType : byte
+    public enum UnitCommandType : byte
     {
         None = 0,            // 명령 없음
         Move = 1,            // 이동 (우클릭 지면)

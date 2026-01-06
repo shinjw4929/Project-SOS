@@ -102,8 +102,8 @@ namespace Client
 
             // --- Attack Power (Optional) ---
             float currentAttack = 0f;
-            if (_entityManager.HasComponent<CombatStatus>(entity))
-                currentAttack = _entityManager.GetComponentData<CombatStatus>(entity).AttackPower;
+            if (_entityManager.HasComponent<CombatStats>(entity))
+                currentAttack = _entityManager.GetComponentData<CombatStats>(entity).AttackPower;
 
             if (_cachedAttackPower != currentAttack)
             {
