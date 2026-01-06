@@ -5,22 +5,19 @@ using Unity.Mathematics;
 namespace Shared
 {
     /// <summary>
-    /// RTS 유닛 명령 (ICommandData)
+    /// 유닛 명령 (ICommandData)
     /// - 클라이언트에서 서버로 전송되는 입력 명령
-    /// - 예측 시뮬레이션에서 사용
     /// </summary>
     public struct UnitCommand : ICommandData
     {
         public NetworkTick Tick { get; set; }
-
         // 명령 타입
         public UnitCommandType CommandType;
-
-        // 목표 위치 (Move, AttackMove, Patrol 등)
-        public float3 TargetPosition;
-
-        // 목표 엔티티의 GhostId (Attack, AttackMove 시 대상)
-        // Entity는 서버/클라이언트에서 다르므로 GhostId로 전송
+        // 유닛이 이동할 위치
+        public float3 GoalPosition;
+        // 목표 엔티티의 GhostId
+        // 명령의 대상이 되는 엔티티가 존재할 시 입력됨
+        // Entity의 Id는 서버/클라이언트에서 다르므로 GhostId로 전송
         public int TargetGhostId;
     }
 
@@ -30,12 +27,11 @@ namespace Shared
     public enum UnitCommandType : byte
     {
         None = 0,            // 명령 없음
-        Move = 1,            // 이동 (우클릭 지면)
-        Attack = 2,          // 공격 (A + 클릭)
-        AttackMove = 3,      // 이동 + 공격 (우클릭 적 또는 A + 클릭 지면)
-        Stop = 4,            // 정지
-        Hold = 5,            // 대기
-        Gather = 6,          // 채집 (우클릭 ResourceNode)
-        ReturnResource = 7,  // 자원 반납 (우클릭 ResourceCenter)
+        LeftClick = 1,       // 좌클릭
+        RightClick = 2,      // 우클릭
+        AttackKey = 3,       // 공격키
+        StopKey = 4,         // 정지키
+        HoldKey = 5,         // 홀드키
+        BuildKey = 6,        // 건설키
     }
 }

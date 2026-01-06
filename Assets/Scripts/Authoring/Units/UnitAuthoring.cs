@@ -159,12 +159,6 @@ namespace Authoring
                     MaxValue = authoring.maxHealth
                 });
                 
-                // 이동 속도 (이동 불가능한 유닛이면 0으로 하거나 아예 안 붙임)
-                AddComponent(entity, new MovementSpeed
-                {
-                    Value = authoring.moveSpeed
-                });
-                
                 // 사거리
                 AddComponent(entity, new WorkRange
                 {
@@ -198,7 +192,23 @@ namespace Authoring
                 });
 
                 // =======================================================================
-                // 5. [전투 능력]
+                // 5. [이동 관련]
+                // =======================================================================
+                
+                // 이동 속도 (이동 불가능한 유닛이면 0으로 하거나 아예 안 붙임)
+                AddComponent(entity, new MovementSpeed
+                {
+                    Value = authoring.moveSpeed
+                });
+                
+                // 유닛 간 밀어내기 힘
+                AddComponent(entity, new SeparationForce
+                {
+                    Force = float3.zero,
+                });
+                
+                // =======================================================================
+                // 6. [전투 능력]
                 // =======================================================================
                 if (authoring.attackPower > 0)
                 {
@@ -211,7 +221,7 @@ namespace Authoring
                 }
                 
                 // =======================================================================
-                // 6. [상태 및 렌더링]
+                // 7. [상태 및 렌더링]
                 // =======================================================================
                 AddComponent(entity, new UnitState
                 {

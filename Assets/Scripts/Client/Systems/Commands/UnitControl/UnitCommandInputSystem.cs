@@ -214,7 +214,7 @@ namespace Client
                 {
                     Tick = tick,
                     TargetPosition = inputState.ValueRO.TargetPosition,
-                    TargetGhostId = 0, // 향후 공격 명령에서 사용
+                    TargetGhostId = 0, // 스마트 명령의 대상 엔티티 조회용
                     CommandType = inputState.ValueRO.HasTarget ? UnitCommandType.Move : UnitCommandType.None
                 };
 
