@@ -12,7 +12,8 @@
         "Unity.Physics",
         "Unity.Entities.Graphics",
         "Shared",
-        "Unity.TextMeshPro"
+        "Unity.TextMeshPro",
+        "Unity.Entities.Hybrid"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

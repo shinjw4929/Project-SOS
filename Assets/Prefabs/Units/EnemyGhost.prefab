@@ -20,6 +20,7 @@ GameObject:
   - component: {fileID: 7193939348551218195}
   - component: {fileID: 302020858861551457}
   - component: {fileID: 6093735089773103206}
+  - component: {fileID: 3859431538276865638}
   m_Layer: 7
   m_Name: EnemyGhost
   m_TagString: Untagged
@@ -246,3 +247,18 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   faction: 2
+--- !u!114 &3859431538276865638
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7816698049205446904}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 61d3b4cc7575a8b4c9a66dcdf3b8ced2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  damage: 1
+  interval: 0.5
+  range: 2.5
