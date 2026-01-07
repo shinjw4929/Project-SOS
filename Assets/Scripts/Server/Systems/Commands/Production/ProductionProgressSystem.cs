@@ -1,4 +1,3 @@
-#if LEGACY_MOVEMENT_SYSTEM
 using Unity.Entities;
 using Unity.NetCode;
 using Unity.Transforms;
@@ -135,12 +134,6 @@ namespace Server
             // 소유권 설정
             Ecb.SetComponent(sortKey, newUnit, new GhostOwner { NetworkId = ownerId });
             Ecb.SetComponent(sortKey, newUnit, new Team { teamId = ownerId });
-            
-            // 필수 컴포넌트가 프리팹에 없는 경우를 대비한 안전장치 (필요 없다면 제거 가능)
-            // 성능을 위해 가능하면 프리팹 자체에 컴포넌트를 붙여두는 것이 좋음
-            Ecb.AddComponent(sortKey, newUnit, new MovementDestination { Position = spawnPos, IsValid = false });
-            Ecb.AddComponent(sortKey, newUnit, new UnitInputData { TargetPosition = float3.zero, HasTarget = false });
         }
     }
 }
-#endif

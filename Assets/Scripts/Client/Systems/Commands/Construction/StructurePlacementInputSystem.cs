@@ -1,4 +1,3 @@
-#if LEGACY_MOVEMENT_SYSTEM
 using Unity.Entities;
 using Unity.NetCode;
 using Unity.Mathematics;
@@ -11,7 +10,7 @@ using Unity.Collections;
 namespace Client
 {
     [UpdateInGroup(typeof(GhostInputSystemGroup))]
-    [UpdateAfter(typeof(SelectionInputSystem))]
+    [UpdateAfter(typeof(UserSelectionInputState))]
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
     public partial class StructurePlacementInputSystem : SystemBase
     {
@@ -23,7 +22,7 @@ namespace Client
             RequireForUpdate<NetworkStreamInGame>();
             RequireForUpdate<UserState>();
             RequireForUpdate<GridSettings>();
-            RequireForUpdate<CurrentSelectionState>();
+            RequireForUpdate<SelectedEntityInfoState>();
             _groundMask = 1 << 3; // 3: Ground
         }
 
@@ -75,7 +74,7 @@ namespace Client
                 .CreateCommandBuffer(World.Unmanaged);
 
             // Builder entity의 GhostId 조회
-            var selectionState = SystemAPI.GetSingleton<CurrentSelectionState>();
+            var selectionState = SystemAPI.GetSingleton<SelectedEntityInfoState>();
             Entity builderEntity = selectionState.PrimaryEntity;
             int builderGhostId = 0;
 
@@ -114,7 +113,7 @@ namespace Client
 
         private void IssueMoveAndBuildCommand(EntityCommandBuffer ecb, StructurePreviewState previewState, int2 gridPos, GridSettings gridSettings)
         {
-            var selectionState = SystemAPI.GetSingleton<CurrentSelectionState>();
+            var selectionState = SystemAPI.GetSingleton<SelectedEntityInfoState>();
             Entity builderEntity = selectionState.PrimaryEntity;
 
             if (builderEntity == Entity.Null)
@@ -199,24 +198,22 @@ namespace Client
                     CurrentState = UnitContext.MovingToBuild
                 });
             }
-
-            // 이동 명령 발행: RTSInputState 업데이트
-            if (EntityManager.HasComponent<UnitInputData>(builderEntity))
+            
+            if (EntityManager.HasComponent<MovementGoal>(builderEntity))
             {
-                ecb.SetComponent(builderEntity, new UnitInputData
+                ecb.SetComponent(builderEntity, new MovementGoal
                 {
-                    TargetPosition = moveTarget,
-                    HasTarget = true
+                    // TargetPosition = moveTarget,
+                    // HasTarget = true
                 });
             }
-
-            // MoveTarget 설정 (이동 시스템에서 사용)
-            if (EntityManager.HasComponent<MovementDestination>(builderEntity))
+            
+            if (EntityManager.HasComponent<MovementWaypoints>(builderEntity))
             {
-                ecb.SetComponent(builderEntity, new MovementDestination
+                ecb.SetComponent(builderEntity, new MovementWaypoints
                 {
-                    Position = moveTarget,
-                    IsValid = true
+                    // Position = moveTarget,
+                    // IsValid = true
                 });
             }
         }
@@ -258,4 +255,3 @@ namespace Client
         }
     }
 }
-#endif  // LEGACY_MOVEMENT_SYSTEM

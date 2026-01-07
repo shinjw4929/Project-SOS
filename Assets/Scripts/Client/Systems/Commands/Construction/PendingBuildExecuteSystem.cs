@@ -1,4 +1,3 @@
-#if LEGACY_MOVEMENT_SYSTEM
 using Unity.Burst;
 using Unity.Entities;
 using Unity.Mathematics;
@@ -18,7 +17,7 @@ namespace Client
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
     public partial struct PendingBuildExecuteSystem : ISystem
     {
-        private ComponentLookup<MovementDestination> _moveTargetLookup;
+        private ComponentLookup<MovementWaypoints> _waypointsLookup;
         private ComponentLookup<ObstacleRadius> _obstacleRadiusLookup;
         [ReadOnly] private ComponentLookup<GhostInstance> _ghostInstanceLookup;
 
@@ -27,7 +26,7 @@ namespace Client
             state.RequireForUpdate<NetworkStreamInGame>();
             state.RequireForUpdate<EndSimulationEntityCommandBufferSystem.Singleton>();
 
-            _moveTargetLookup = state.GetComponentLookup<MovementDestination>(false);
+            _waypointsLookup = state.GetComponentLookup<MovementWaypoints>(false);
             _obstacleRadiusLookup = state.GetComponentLookup<ObstacleRadius>(true);
             _ghostInstanceLookup = state.GetComponentLookup<GhostInstance>(true);
         }
@@ -35,7 +34,7 @@ namespace Client
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
-            _moveTargetLookup.Update(ref state);
+            _waypointsLookup.Update(ref state);
             _obstacleRadiusLookup.Update(ref state);
             _ghostInstanceLookup.Update(ref state);
 
@@ -94,12 +93,13 @@ namespace Client
                     unitState.ValueRW.CurrentState = UnitContext.Idle;
 
                     // 이동 중지 (ComponentLookup으로 안전하게 접근)
-                    if (_moveTargetLookup.HasComponent(entity))
+                    if (_waypointsLookup.HasComponent(entity))
                     {
-                        _moveTargetLookup[entity] = new MovementDestination
+                        _waypointsLookup[entity] = new MovementWaypoints
                         {
-                            Position = float3.zero,
-                            IsValid = false
+                            Current = float3.zero,
+                            Next = float3.zero,
+                            HasNext = false,
                         };
                     }
                 }
@@ -107,4 +107,3 @@ namespace Client
         }
     }
 }
-#endif  // LEGACY_MOVEMENT_SYSTEM
