@@ -1,4 +1,3 @@
-#if LEGACY_MOVEMENT_SYSTEM
 using Unity.Collections;
 using Unity.Entities;
 using Unity.NetCode;
@@ -10,10 +9,7 @@ using Shared;
 namespace Client
 {
     /// <summary>
-    /// 사용자가 유닛에게 명령을 입력하는 시스템
-    /// - 우클릭 → 이동 명령 (다중 유닛 분산 도착 지원)
-    /// - 우클릭 ResourceNode → 채집 명령 (Worker만)
-    /// - (향후) A-클릭 → 공격 명령, S → 정지 명령 등
+    /// 사용자의 마우스/키보드 입력을 UnitCommand로 변환하여 전송하는 시스템
     /// </summary>
     [UpdateInGroup(typeof(GhostInputSystemGroup))]
     [UpdateAfter(typeof(SelectionStateSystem))]
@@ -21,8 +17,6 @@ namespace Client
     public partial struct UnitCommandInputSystem : ISystem
     {
         private ComponentLookup<PendingBuildRequest> _pendingBuildLookup;
-        private ComponentLookup<UnitState> _unitStateLookup;
-        private ComponentLookup<WorkerTag> _workerTagLookup;
         private ComponentLookup<GhostInstance> _ghostInstanceLookup;
 
         public void OnCreate(ref SystemState state)
@@ -33,8 +27,6 @@ namespace Client
             state.RequireForUpdate<BeginSimulationEntityCommandBufferSystem.Singleton>();
 
             _pendingBuildLookup = state.GetComponentLookup<PendingBuildRequest>(true);
-            _unitStateLookup = state.GetComponentLookup<UnitState>(true);
-            _workerTagLookup = state.GetComponentLookup<WorkerTag>(true);
             _ghostInstanceLookup = state.GetComponentLookup<GhostInstance>(true);
         }
 
@@ -43,185 +35,114 @@ namespace Client
             var userState = SystemAPI.GetSingleton<UserState>();
             if (userState.CurrentState == UserContext.Dead) return;
 
+            // Lookup 업데이트
             _pendingBuildLookup.Update(ref state);
-            _unitStateLookup.Update(ref state);
-            _workerTagLookup.Update(ref state);
             _ghostInstanceLookup.Update(ref state);
 
-            ProcessRightClickCommand(ref state);
-            SubmitCommands(ref state);
+            ProcessMouseInput(ref state);
         }
 
-        /// <summary>
-        /// 우클릭 입력 처리 → RTSInputState 갱신 + 분산 도착 또는 채집 명령
-        /// </summary>
-        private void ProcessRightClickCommand(ref SystemState state)
+        private void ProcessMouseInput(ref SystemState state)
         {
             var mouse = Mouse.current;
-            if (mouse == default || !mouse.rightButton.wasPressedThisFrame) return;
+            if (mouse == default) return;
             if (!Camera.main) return;
 
-            float2 mousePos = mouse.position.ReadValue();
-            UnityEngine.Ray ray = Camera.main.ScreenPointToRay(new Vector3(mousePos.x, mousePos.y, 0));
+            // 우클릭했을 때만 명령 전송
+            if (mouse.rightButton.wasPressedThisFrame)
+            {
+                // 1. Raycast 수행
+                float2 mousePos = mouse.position.ReadValue();
+                UnityEngine.Ray ray = Camera.main.ScreenPointToRay(new Vector3(mousePos.x, mousePos.y, 0));
 
-            int groundMask = 1 << 3;        // Ground
-            int resourceNodeMask = 1 << 6;  // ResourceNode 레이어 (필요시 수정)
+                // 레이어 마스크 (Ground, Unit, Resource 등)
+                int layerMask = (1 << 3) | (1 << 6) | (1 << 7); // 예시: 3=Ground, 6=Resource, 7=Structure
+
+                if (Physics.Raycast(ray, out UnityEngine.RaycastHit hit, 1000f, layerMask))
+                {
+                    // 2. 클릭된 대상 분석 (Entity 찾기)
+                    Entity targetEntity = Entity.Null;
+                    int targetGhostId = 0;
+
+                    // [간소화] 일단은 땅 클릭(이동)만 있다고 가정하고, 타겟 ID는 0으로 둠.
+                    // 나중에 '적 유닛 클릭' 등을 구현할 때 여기서 targetGhostId를 채우면 됨.
+
+                    // 3. 명령 전송
+                    SendCommandToSelectedUnits(ref state, hit.point, targetGhostId);
+                    return; // 명령 전송했으면 빈 명령 전송 스킵
+                }
+            }
+
+            // 입력이 없을 때는 빈 명령(None) 전송하여 이전 명령 반복 방지
+            SendEmptyCommandToAllUnits(ref state);
+        }
+
+        private void SendCommandToSelectedUnits(ref SystemState state, float3 goalPos, int targetGhostId)
+        {
+            var networkTime = SystemAPI.GetSingleton<NetworkTime>();
+            var tick = networkTime.ServerTick;
 
             var ecb = SystemAPI.GetSingleton<BeginSimulationEntityCommandBufferSystem.Singleton>()
                 .CreateCommandBuffer(state.WorldUnmanaged);
 
-            // 먼저 ResourceNode 클릭 여부 확인
-            if (Physics.Raycast(ray, out UnityEngine.RaycastHit resourceHit, 1000f, resourceNodeMask))
-            {
-                // ResourceNode를 클릭한 경우 - 채집 명령 처리
-                ProcessGatherCommand(ref state, resourceHit, ecb);
-                return;
-            }
+            int selectedCount = 0;
 
-            // Ground 클릭 - 이동 명령 처리
-            if (Physics.Raycast(ray, out UnityEngine.RaycastHit hit, 1000f, groundMask))
-            {
-                ProcessMoveCommand(ref state, hit.point, ecb);
-            }
-        }
-
-        /// <summary>
-        /// 채집 명령 처리 - 선택된 Worker들에게 ResourceNode 채집 명령
-        /// </summary>
-        private void ProcessGatherCommand(ref SystemState state, RaycastHit resourceHit, EntityCommandBuffer ecb)
-        {
-            // ResourceNode의 Collider에서 Entity 찾기
-            var resourceNodeGameObject = resourceHit.collider.gameObject;
-            Entity resourceNodeEntity = Entity.Null;
-            int resourceNodeGhostId = 0;
-
-            // EntityManager를 통해 ResourceNodeTag를 가진 엔티티 중 위치가 일치하는 것 찾기
-            float3 hitPos = resourceHit.point;
-            float closestDist = float.MaxValue;
-
-            foreach (var (transform, ghostInstance, entity) in SystemAPI.Query<RefRO<Unity.Transforms.LocalTransform>, RefRO<GhostInstance>>()
-                .WithAll<ResourceNodeTag>()
+            // 선택된 내 유닛들에게 명령 하달
+            foreach (var (inputBuffer, entity) in SystemAPI.Query<DynamicBuffer<UnitCommand>>()
+                .WithAll<Selected, GhostOwnerIsLocal>() // 내가 소유하고 선택한 유닛만
                 .WithEntityAccess())
             {
-                float dist = math.distance(transform.ValueRO.Position, hitPos);
-                if (dist < closestDist && dist < 5f) // 5 unit 이내
-                {
-                    closestDist = dist;
-                    resourceNodeEntity = entity;
-                    resourceNodeGhostId = ghostInstance.ValueRO.ghostId;
-                }
-            }
+                selectedCount++;
 
-            if (resourceNodeEntity == Entity.Null) return;
-
-            // 선택된 Worker들에게 채집 RPC 전송
-            foreach (var (inputState, ghostInstance, entity) in SystemAPI.Query<RefRW<UnitInputData>, RefRO<GhostInstance>>() // RefRO -> RefRW 변경
-                         .WithAll<Selected, GhostOwnerIsLocal, WorkerTag>()
-                         .WithEntityAccess())
-            {
-                // 1. RPC 전송
-                var rpcEntity = ecb.CreateEntity();
-                ecb.AddComponent(rpcEntity, new GatherRequestRpc
-                {
-                    WorkerGhostId = ghostInstance.ValueRO.ghostId,
-                    ResourceNodeGhostId = resourceNodeGhostId,
-                    ReturnPointGhostId = 0
-                });
-                ecb.AddComponent(rpcEntity, new SendRpcCommandRequest());
-
-                // 2. [중요] 기존 이동 명령 취소
-                // 이걸 안 하면 다음 프레임에 Move Command가 전송되어 서버의 상태 변경을 덮어쓸 수 있습니다.
-                inputState.ValueRW.HasTarget = false; 
-
-                // 3. PendingBuildRequest 취소
-                if (_pendingBuildLookup.HasComponent(entity))
-                {
-                    ecb.RemoveComponent<PendingBuildRequest>(entity);
-                }
-            }
-        }
-
-        /// <summary>
-        /// 이동 명령 처리 - 선택된 유닛들에게 분산 이동 명령
-        /// </summary>
-        private void ProcessMoveCommand(ref SystemState state, float3 centerTargetPos, EntityCommandBuffer ecb)
-        {
-            // 1. 선택된 유닛 수 카운트 + 엔티티 목록 수집
-            var selectedUnits = new NativeList<Entity>(16, Allocator.Temp);
-            foreach (var (_, entity) in SystemAPI.Query<RefRO<UnitInputData>>()
-                .WithAll<Selected, GhostOwnerIsLocal>()
-                .WithEntityAccess())
-            {
-                selectedUnits.Add(entity);
-            }
-
-            int totalUnits = selectedUnits.Length;
-
-            // 2. 각 유닛에 분산된 목표 위치 할당
-            for (int i = 0; i < totalUnits; i++)
-            {
-                Entity entity = selectedUnits[i];
-
-                // 분산 도착 위치 계산
-                float3 formationPos = FormationUtility.CalculateFormationPosition(
-                    centerTargetPos, i, totalUnits);
-
-                // RTSInputState 갱신
-                if (SystemAPI.HasComponent<UnitInputData>(entity))
-                {
-                    var inputState = SystemAPI.GetComponentRW<UnitInputData>(entity);
-                    inputState.ValueRW.TargetPosition = formationPos;
-                    inputState.ValueRW.HasTarget = true;
-                }
-
-                // PendingBuildRequest가 있으면 취소 (이동 후 건설 취소)
-                if (_pendingBuildLookup.HasComponent(entity))
-                {
-                    ecb.RemoveComponent<PendingBuildRequest>(entity);
-                }
-
-                // MovingToBuild 또는 채집 관련 상태이면 Moving으로 변경
-                if (_unitStateLookup.HasComponent(entity))
-                {
-                    var currentState = _unitStateLookup[entity].CurrentState;
-                    if (currentState == UnitContext.MovingToBuild ||
-                        currentState == UnitContext.MovingToGather ||
-                        currentState == UnitContext.MovingToReturn ||
-                        currentState == UnitContext.Gathering)
-                    {
-                        ecb.SetComponent(entity, new UnitState
-                        {
-                            CurrentState = UnitContext.Moving
-                        });
-                    }
-                }
-            }
-
-            selectedUnits.Dispose();
-        }
-
-        /// <summary>
-        /// RTSInputState → RTSCommand 버퍼에 명령 제출
-        /// </summary>
-        private void SubmitCommands(ref SystemState state)
-        {
-            var networkTime = SystemAPI.GetSingleton<NetworkTime>();
-            NetworkTick tick = networkTime.ServerTick;
-
-            foreach (var (inputState, inputBuffer) in SystemAPI.Query<RefRO<UnitInputData>, DynamicBuffer<UnitCommand>>()
-                .WithAll<GhostOwnerIsLocal>())
-            {
+                // 1. UnitCommand 생성
                 var command = new UnitCommand
                 {
                     Tick = tick,
-                    TargetPosition = inputState.ValueRO.TargetPosition,
-                    TargetGhostId = 0, // 스마트 명령의 대상 엔티티 조회용
-                    CommandType = inputState.ValueRO.HasTarget ? UnitCommandType.Move : UnitCommandType.None
+                    CommandType = UnitCommandType.RightClick, // 우클릭 통합 명령
+                    GoalPosition = goalPos,
+                    TargetGhostId = targetGhostId,
                 };
 
+                // 2. 버퍼에 추가 (Netcode가 서버로 전송함)
                 inputBuffer.AddCommandData(command);
+
+                // UnityEngine.Debug.Log($"[CLIENT] 명령 추가됨! Entity: {entity.Index}, Tick: {tick}, Pos: {goalPos}, BufferLength: {inputBuffer.Length}");
+
+                // 3. 건설 대기 상태였다면 취소 (이동 명령이 우선이므로)
+                if (_pendingBuildLookup.HasComponent(entity))
+                {
+                    ecb.RemoveComponent<PendingBuildRequest>(entity);
+                }
+            }
+
+            // if (selectedCount == 0)
+            // {
+            //     UnityEngine.Debug.LogWarning("[CLIENT] 우클릭했지만 선택된 유닛이 없음!");
+            // }
+        }
+
+        /// <summary>
+        /// 빈 명령(None)을 모든 유닛에 전송하여 이전 명령 반복 방지
+        /// </summary>
+        private void SendEmptyCommandToAllUnits(ref SystemState state)
+        {
+            var networkTime = SystemAPI.GetSingleton<NetworkTime>();
+            var tick = networkTime.ServerTick;
+
+            // 내 유닛들에게 빈 명령 전송 (이전 명령 반복 방지)
+            foreach (var inputBuffer in SystemAPI.Query<DynamicBuffer<UnitCommand>>()
+                .WithAll<GhostOwnerIsLocal>())
+            {
+                var emptyCommand = new UnitCommand
+                {
+                    Tick = tick,
+                    CommandType = UnitCommandType.None,
+                    GoalPosition = default,
+                    TargetGhostId = 0,
+                };
+
+                inputBuffer.AddCommandData(emptyCommand);
             }
         }
     }
 }
-#endif

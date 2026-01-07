@@ -26,7 +26,6 @@ namespace Authoring
         public float trainingTime = 5.0f;
  
         [Header("Base Status")]
-        public float moveSpeed = 25.0f;
         public float maxHealth = 100.0f;
         public float defense = 0.0f;
         public float visionRange = 10.0f;
@@ -189,22 +188,6 @@ namespace Authoring
                 AddComponent(entity, new ObstacleRadius
                 {
                     Radius = authoring.radius
-                });
-
-                // =======================================================================
-                // 5. [이동 관련]
-                // =======================================================================
-                
-                // 이동 속도 (이동 불가능한 유닛이면 0으로 하거나 아예 안 붙임)
-                AddComponent(entity, new MovementSpeed
-                {
-                    Value = authoring.moveSpeed
-                });
-                
-                // 유닛 간 밀어내기 힘
-                AddComponent(entity, new SeparationForce
-                {
-                    Force = float3.zero,
                 });
                 
                 // =======================================================================

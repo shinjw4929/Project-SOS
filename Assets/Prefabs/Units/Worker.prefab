@@ -14,11 +14,9 @@ GameObject:
   - component: {fileID: 7362991297529851973}
   - component: {fileID: 7293219286418846535}
   - component: {fileID: -8082140988052619074}
-  - component: {fileID: 5700580238772538456}
   - component: {fileID: 8364120396669651066}
   - component: {fileID: -3915132150347008814}
   - component: {fileID: 576986460176096770}
-  - component: {fileID: -4727999321425311732}
   m_Layer: 11
   m_Name: Worker
   m_TagString: Untagged
@@ -160,18 +158,6 @@ MonoBehaviour:
   - {fileID: 2697124028170181865, guid: 118356b3d5301164d85e3ec67bda087e, type: 3}
   - {fileID: 1805743339364124677, guid: 9b005d17f86bda54fa6d001ce5d23315, type: 3}
   - {fileID: 5794345652394261381, guid: 6c58a1a5c35807e4fa7eb968e02b6aba, type: 3}
---- !u!114 &5700580238772538456
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3179942793388120451}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c2e7876e32d2ec0408790590305e4439, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
 --- !u!54 &8364120396669651066
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -237,15 +223,3 @@ MonoBehaviour:
   UseSingleBaseline: 0
   RollbackPredictedSpawnedGhostState: 0
   RollbackPredictionOnStructuralChanges: 1
---- !u!114 &-4727999321425311732
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3179942793388120451}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: a830eb9722e44354886808049793769d, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 

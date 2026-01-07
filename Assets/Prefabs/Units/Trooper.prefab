@@ -13,12 +13,10 @@ GameObject:
   - component: {fileID: 5311303963870271693}
   - component: {fileID: 2618216604821846599}
   - component: {fileID: -8389805907187040619}
-  - component: {fileID: 6436938495033817077}
   - component: {fileID: -6579359648565810101}
   - component: {fileID: 7138247794112937167}
   - component: {fileID: -3200572469814136834}
   - component: {fileID: 3272844813672822570}
-  - component: {fileID: -1595756637257730470}
   m_Layer: 11
   m_Name: Trooper
   m_TagString: Untagged
@@ -145,18 +143,6 @@ MonoBehaviour:
   maxCarryAmount: 10
   gatheringSpeed: 1
   buildableStructures: []
---- !u!114 &6436938495033817077
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5905964026690146530}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c2e7876e32d2ec0408790590305e4439, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
 --- !u!114 &-6579359648565810101
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -234,15 +220,3 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 0
   m_CollisionDetection: 0
---- !u!114 &-1595756637257730470
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5905964026690146530}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: a830eb9722e44354886808049793769d, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 

@@ -16,7 +16,7 @@ namespace Shared
         [ReadOnly] private ComponentLookup<EnemyTag> _enemyTagLookup;
         [ReadOnly] private ComponentLookup<StructureTag> _structureTagLookup;
         [ReadOnly] private ComponentLookup<ResourceNodeTag> _resourceNodeTagLookup;
-        
+
         [BurstCompile]
         public void OnCreate(ref SystemState state)
         {
@@ -45,6 +45,7 @@ namespace Shared
             _structureTagLookup.Update(ref state);
             _resourceNodeTagLookup.Update(ref state);
 
+            // [중요] EnabledRefRW를 사용하되, 비활성화 상태도 쿼리하기 위해 IgnoreComponentEnabledState 사용
             foreach (var (inputBuffer, movementGoal, unitIntentState, waypointsEnabled, commandedEntity) in
                      SystemAPI.Query<
                              DynamicBuffer<UnitCommand>,
@@ -52,10 +53,22 @@ namespace Shared
                              RefRW<UnitIntentState>,
                              EnabledRefRW<MovementWaypoints>>()
                          .WithAll<Simulate>()
+                         .WithOptions(EntityQueryOptions.IgnoreComponentEnabledState)
                          .WithEntityAccess())
             {
                 if (!inputBuffer.GetDataAtTick(networkTime.ServerTick, out var inputCommand))
+                {
+                    // 명령이 없으면 스킵
                     continue;
+                }
+
+                // 빈 명령이면 스킵 (이전 명령 반복 방지)
+                if (inputCommand.CommandType == UnitCommandType.None)
+                {
+                    continue;
+                }
+
+                // UnityEngine.Debug.Log($"[{state.WorldUnmanaged.Name}] Entity {commandedEntity.Index}: 명령 처리 중! Type: {inputCommand.CommandType}, Pos: {inputCommand.GoalPosition}");
 
                 // ==========================================================
                 // 우클릭 (Command) 처리 로직
@@ -80,6 +93,7 @@ namespace Shared
                         // ------------------------------------------------------
                         if (math.distance(movementGoal.ValueRW.Destination, inputCommand.GoalPosition) > 0.1f)
                         {
+                            // UnityEngine.Debug.Log($"[{state.WorldUnmanaged.Name}] Entity {commandedEntity.Index}: 이동 명령 설정! Dest: {inputCommand.GoalPosition}");
                             SetUnitMovement(ref movementGoal.ValueRW, inputCommand.GoalPosition,  waypointsEnabled);
                             SetUnitIntentState(ref unitIntentState.ValueRW, Intent.Move, ref targetEntity); // targetEntity는 Null
                         }
@@ -94,7 +108,6 @@ namespace Shared
 
                 }
             }
-            
         }
 
         private void SetUnitMovement(ref MovementGoal goal, float3 position, EnabledRefRW<MovementWaypoints> enabledState)
@@ -102,7 +115,8 @@ namespace Shared
             goal.Destination = position;
             goal.IsPathDirty = true;
             goal.CurrentWaypointIndex = 0;
-            enabledState.ValueRW = true;
+            // 주의: PathfindingSystem이 경로 계산 후 활성화하므로 여기서는 활성화하지 않음
+            // enabledState.ValueRW = true;
         }
         
         // 코드 중복 방지를 위한 헬퍼 함수
