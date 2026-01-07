@@ -20,7 +20,7 @@ namespace Client
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<NetworkStreamInGame>();
-            state.RequireForUpdate<CurrentSelectionState>();
+            state.RequireForUpdate<SelectedEntityInfoState>();
             state.RequireForUpdate<UnitCatalog>();
             state.RequireForUpdate<UserState>();
             state.RequireForUpdate<UnitPrefabIndexMap>();
@@ -44,7 +44,7 @@ namespace Client
             _productionFacilityLookup.Update(ref state);
 
             ref var userState = ref SystemAPI.GetSingletonRW<UserState>().ValueRW;
-            var selection = SystemAPI.GetSingleton<CurrentSelectionState>();
+            var selection = SystemAPI.GetSingleton<SelectedEntityInfoState>();
 
             switch (userState.CurrentState)
             {
@@ -58,7 +58,7 @@ namespace Client
             }
         }
 
-        private void HandleCommandState(Keyboard keyboard, ref UserState userState, CurrentSelectionState selection)
+        private void HandleCommandState(Keyboard keyboard, ref UserState userState, SelectedEntityInfoState selection)
         {
             if (!keyboard.qKey.wasPressedThisFrame) return;
 
@@ -72,7 +72,7 @@ namespace Client
             userState.CurrentState = UserContext.StructureActionMenu;
         }
 
-        private void HandleMenuState(ref SystemState state, Keyboard keyboard, ref UserState userState, CurrentSelectionState selection)
+        private void HandleMenuState(ref SystemState state, Keyboard keyboard, ref UserState userState, SelectedEntityInfoState selection)
         {
             if (keyboard.escapeKey.wasPressedThisFrame)
             {

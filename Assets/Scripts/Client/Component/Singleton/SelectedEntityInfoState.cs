@@ -6,7 +6,7 @@ namespace Client
     /// 현재 선택 상태 싱글톤
     /// - UI 표시용 (선택된 엔티티 정보)
     /// </summary>
-    public struct CurrentSelectionState : IComponentData
+    public struct SelectedEntityInfoState : IComponentData
     {
         // 대표 선택 엔티티 (UI에서 정보 표시용, BuilderTag 등 체크에 사용)
         public Entity PrimaryEntity;

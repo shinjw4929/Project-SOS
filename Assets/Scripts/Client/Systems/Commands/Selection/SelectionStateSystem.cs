@@ -22,7 +22,7 @@ namespace Client
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<NetworkStreamInGame>();
-            state.RequireForUpdate<CurrentSelectionState>();
+            state.RequireForUpdate<SelectedEntityInfoState>();
             state.RequireForUpdate<NetworkId>();
         }
 
@@ -31,7 +31,7 @@ namespace Client
             if (!SystemAPI.TryGetSingleton<NetworkId>(out var myNetworkId)) return;
             int myTeamId = myNetworkId.Value;
 
-            ref var CurrentSelectionState = ref SystemAPI.GetSingletonRW<CurrentSelectionState>().ValueRW;
+            ref var CurrentSelectionState = ref SystemAPI.GetSingletonRW<SelectedEntityInfoState>().ValueRW;
 
             // 초기화
             CurrentSelectionState.PrimaryEntity = Entity.Null;

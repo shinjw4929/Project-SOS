@@ -25,7 +25,7 @@ namespace Client
             state.RequireForUpdate<StructurePreviewState>();
             state.RequireForUpdate<GridSettings>();
             state.RequireForUpdate<PhysicsWorldSingleton>();
-            state.RequireForUpdate<CurrentSelectionState>();
+            state.RequireForUpdate<SelectedEntityInfoState>();
 
             _footprintLookup = state.GetComponentLookup<StructureFootprint>(true);
             _gridCellLookup = state.GetBufferLookup<GridCell>(true);
@@ -74,7 +74,7 @@ namespace Client
 
             // 4. 유닛 물리 충돌 확인
             var physicsWorld = SystemAPI.GetSingleton<PhysicsWorldSingleton>();
-            var selectionState = SystemAPI.GetSingleton<CurrentSelectionState>();
+            var selectedEntityInfoState = SystemAPI.GetSingleton<SelectedEntityInfoState>();
             float3 buildingCenter = GridUtility.GridToWorld(previewState.GridPosition.x, previewState.GridPosition.y,
                 width, length, gridSettings);
 
@@ -84,7 +84,7 @@ namespace Client
                 length * gridSettings.CellSize * 0.5f
             );
 
-            Entity builderEntity = selectionState.PrimaryEntity;
+            Entity builderEntity = selectedEntityInfoState.PrimaryEntity;
 
             if (builderEntity == Entity.Null) return;
             

@@ -156,7 +156,7 @@ public class CommandUIController : MonoBehaviour
     {
         if (_CurrentSelectionStateQuery.IsEmptyIgnoreFilter) return false;
 
-        var selection = _CurrentSelectionStateQuery.GetSingleton<CurrentSelectionState>();
+        var selection = _CurrentSelectionStateQuery.GetSingleton<SelectedEntityInfoState>();
 
         // 정확히 1개만 선택, 내 소유여야 함 (다중 선택 시 건설 명령 중복 방지)
         if (selection.SelectedCount != 1 || !selection.IsOwnedSelection) return false;
@@ -183,7 +183,7 @@ public class CommandUIController : MonoBehaviour
                 _clientWorld = world;
                 _em = world.EntityManager;
 
-                _CurrentSelectionStateQuery = _em.CreateEntityQuery(typeof(CurrentSelectionState));
+                _CurrentSelectionStateQuery = _em.CreateEntityQuery(typeof(SelectedEntityInfoState));
                 _userStateQuery = _em.CreateEntityQuery(typeof(UserState));
                 _selectionStateQuery = _em.CreateEntityQuery(typeof(UserSelectionInputState));
                 _previewStateQuery = _em.CreateEntityQuery(typeof(StructurePreviewState));

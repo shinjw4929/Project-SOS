@@ -16,7 +16,7 @@ namespace Client
         {
             state.RequireForUpdate<NetworkId>();
             state.RequireForUpdate<UserState>();
-            state.RequireForUpdate<CurrentSelectionState>();
+            state.RequireForUpdate<SelectedEntityInfoState>();
             state.RequireForUpdate<EndSimulationEntityCommandBufferSystem.Singleton>();
         }
 
@@ -35,11 +35,11 @@ namespace Client
             if (!SystemAPI.TryGetSingletonEntity<NetworkId>(out Entity connectionEntity)) return;
 
             // 3. 선택된 대표 엔티티 가져오기
-            var selectionState = SystemAPI.GetSingleton<CurrentSelectionState>();
-            if (selectionState.PrimaryEntity == Entity.Null) return;
-            if (!selectionState.IsOwnedSelection) return;
+            var selectedEntityInfoState = SystemAPI.GetSingleton<SelectedEntityInfoState>();
+            if (selectedEntityInfoState.PrimaryEntity == Entity.Null) return;
+            if (!selectedEntityInfoState.IsOwnedSelection) return;
 
-            Entity shooter = selectionState.PrimaryEntity;
+            Entity shooter = selectedEntityInfoState.PrimaryEntity;
 
             // 4. 전투 능력 확인
             if (!SystemAPI.HasComponent<CombatStats>(shooter)) return;

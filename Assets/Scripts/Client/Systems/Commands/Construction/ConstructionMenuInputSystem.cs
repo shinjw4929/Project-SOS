@@ -15,7 +15,7 @@ namespace Client
             state.RequireForUpdate<NetworkStreamInGame>();
             state.RequireForUpdate<UserState>();
             state.RequireForUpdate<StructureCatalog>();
-            state.RequireForUpdate<CurrentSelectionState>();
+            state.RequireForUpdate<SelectedEntityInfoState>();
             state.RequireForUpdate<StructurePrefabIndexMap>();
         }
 
@@ -27,17 +27,17 @@ namespace Client
             // 1. 싱글톤 참조 가져오기
             ref var userState = ref SystemAPI.GetSingletonRW<UserState>().ValueRW;
             ref var previewState = ref SystemAPI.GetSingletonRW<StructurePreviewState>().ValueRW;
-            var selectionState = SystemAPI.GetSingleton<CurrentSelectionState>();
+            var selectedEntityInfoState = SystemAPI.GetSingleton<SelectedEntityInfoState>();
 
             // 2. 상태별 입력 처리
             switch (userState.CurrentState)
             {
                 case UserContext.Command:
-                    HandleCommandState(ref state, keyboard, ref userState, selectionState);
+                    HandleCommandState(ref state, keyboard, ref userState, selectedEntityInfoState);
                     break;
                     
                 case UserContext.BuildMenu:
-                    HandleBuildMenuState(ref state, keyboard, ref userState, ref previewState, selectionState);
+                    HandleBuildMenuState(ref state, keyboard, ref userState, ref previewState, selectedEntityInfoState);
                     break;
                     
                 case UserContext.Construction:
@@ -47,30 +47,30 @@ namespace Client
         }
 
         // [상태 1] 기본 명령 상태 -> 건설 메뉴 진입
-        private void HandleCommandState(ref SystemState state, Keyboard keyboard, ref UserState userState, CurrentSelectionState selectionState)
+        private void HandleCommandState(ref SystemState state, Keyboard keyboard, ref UserState userState, SelectedEntityInfoState selectedEntityInfoState)
         {
             if (!keyboard.qKey.wasPressedThisFrame) return;
 
             // 유효성 검사: 선택된 것이 있고, 1개이며, 내 소유여야 함
-            if (selectionState.PrimaryEntity == Entity.Null || 
-                selectionState.SelectedCount != 1 || 
-                !selectionState.IsOwnedSelection) return;
+            if (selectedEntityInfoState.PrimaryEntity == Entity.Null || 
+                selectedEntityInfoState.SelectedCount != 1 || 
+                !selectedEntityInfoState.IsOwnedSelection) return;
 
             // 엔티티가 실제로 존재하는지 확인
-            if (!state.EntityManager.Exists(selectionState.PrimaryEntity)) return;
+            if (!state.EntityManager.Exists(selectedEntityInfoState.PrimaryEntity)) return;
 
             // BuilderTag 확인
-            if (!state.EntityManager.HasComponent<BuilderTag>(selectionState.PrimaryEntity)) return;
+            if (!state.EntityManager.HasComponent<BuilderTag>(selectedEntityInfoState.PrimaryEntity)) return;
 
             // 건설 가능한 목록이 있는지 확인
-            if (state.EntityManager.HasBuffer<AvailableStructure>(selectionState.PrimaryEntity))
+            if (state.EntityManager.HasBuffer<AvailableStructure>(selectedEntityInfoState.PrimaryEntity))
             {
                 userState.CurrentState = UserContext.BuildMenu;
             }
         }
 
         // [상태 2] 건설 메뉴 -> 건물 선택
-        private void HandleBuildMenuState(ref SystemState state, Keyboard keyboard, ref UserState userState, ref StructurePreviewState previewState, CurrentSelectionState selection)
+        private void HandleBuildMenuState(ref SystemState state, Keyboard keyboard, ref UserState userState, ref StructurePreviewState previewState, SelectedEntityInfoState selection)
         {
             // ESC: 취소
             if (keyboard.escapeKey.wasPressedThisFrame)

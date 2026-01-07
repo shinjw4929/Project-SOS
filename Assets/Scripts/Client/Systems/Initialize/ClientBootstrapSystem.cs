@@ -73,10 +73,10 @@ namespace Client
             }
 
             // 4. CurrentSelectionState 생성
-            if (!SystemAPI.HasSingleton<CurrentSelectionState>())
+            if (!SystemAPI.HasSingleton<SelectedEntityInfoState>())
             {
-                var entity = entityManager.CreateEntity(typeof(CurrentSelectionState));
-                SystemAPI.SetComponent(entity, new CurrentSelectionState());
+                var entity = entityManager.CreateEntity(typeof(SelectedEntityInfoState));
+                SystemAPI.SetComponent(entity, new SelectedEntityInfoState());
 
 #if UNITY_EDITOR
                 entityManager.SetName(entity, "Singleton_CurrentSelectionState");
