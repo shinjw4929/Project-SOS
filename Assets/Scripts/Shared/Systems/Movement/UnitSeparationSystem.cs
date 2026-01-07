@@ -30,8 +30,8 @@ namespace Shared
                 // [필터 설정] 유닛끼리만 밀어내도록 설정
                 UnitFilter = new CollisionFilter
                 {
-                    BelongsTo = 1u << 0, // Unit
-                    CollidesWith = 1u << 0, // Unit
+                    BelongsTo = 1u << 11, // Unit
+                    CollidesWith = 1u << 11, // Unit
                     GroupIndex = 0
                 }
             };

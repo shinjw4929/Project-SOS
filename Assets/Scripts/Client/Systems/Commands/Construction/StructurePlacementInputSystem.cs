@@ -10,26 +10,31 @@ using Unity.Collections;
 namespace Client
 {
     [UpdateInGroup(typeof(GhostInputSystemGroup))]
-    [UpdateAfter(typeof(UserSelectionInputState))]
+    [UpdateAfter(typeof(UnitCommandInputSystem))]  // UnitCommandInputSystem 후에 실행 (None 덮어쓰기 방지)
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
     public partial class StructurePlacementInputSystem : SystemBase
     {
         private Camera _mainCamera;
         private int _groundMask;
+        private BufferLookup<UnitCommand> _unitCommandLookup;
 
         protected override void OnCreate()
         {
             RequireForUpdate<NetworkStreamInGame>();
+            RequireForUpdate<NetworkTime>();
             RequireForUpdate<UserState>();
             RequireForUpdate<GridSettings>();
             RequireForUpdate<SelectedEntityInfoState>();
             _groundMask = 1 << 3; // 3: Ground
+            _unitCommandLookup = GetBufferLookup<UnitCommand>(false);
         }
 
         protected override void OnUpdate()
         {
             var userState = SystemAPI.GetSingleton<UserState>();
             if (userState.CurrentState != UserContext.Construction) return;
+
+            _unitCommandLookup.Update(this);
 
             // 1. 카메라 캐싱 (매 프레임 FindObject 방지)
             if (_mainCamera == null)
@@ -190,30 +195,19 @@ namespace Client
                 ecb.AddComponent(builderEntity, pendingRequest);
             }
 
-            // UnitState 변경: MovingToBuild
-            if (EntityManager.HasComponent<UnitState>(builderEntity))
+            // UnitCommand 버퍼에 BuildKey 명령 추가
+            // CommandProcessingSystem에서 MovementGoal 설정 및 경로 계산 트리거
+            if (_unitCommandLookup.HasBuffer(builderEntity))
             {
-                ecb.SetComponent(builderEntity, new UnitState
+                var networkTime = SystemAPI.GetSingleton<NetworkTime>();
+                var inputBuffer = _unitCommandLookup[builderEntity];
+
+                inputBuffer.AddCommandData(new UnitCommand
                 {
-                    CurrentState = UnitContext.MovingToBuild
-                });
-            }
-            
-            if (EntityManager.HasComponent<MovementGoal>(builderEntity))
-            {
-                ecb.SetComponent(builderEntity, new MovementGoal
-                {
-                    // TargetPosition = moveTarget,
-                    // HasTarget = true
-                });
-            }
-            
-            if (EntityManager.HasComponent<MovementWaypoints>(builderEntity))
-            {
-                ecb.SetComponent(builderEntity, new MovementWaypoints
-                {
-                    // Position = moveTarget,
-                    // IsValid = true
+                    Tick = networkTime.ServerTick,
+                    CommandType = UnitCommandType.BuildKey,
+                    GoalPosition = moveTarget,
+                    TargetGhostId = 0
                 });
             }
         }

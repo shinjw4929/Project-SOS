@@ -17,7 +17,6 @@ namespace Client
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
     public partial struct PendingBuildExecuteSystem : ISystem
     {
-        private ComponentLookup<MovementWaypoints> _waypointsLookup;
         private ComponentLookup<ObstacleRadius> _obstacleRadiusLookup;
         [ReadOnly] private ComponentLookup<GhostInstance> _ghostInstanceLookup;
 
@@ -26,7 +25,6 @@ namespace Client
             state.RequireForUpdate<NetworkStreamInGame>();
             state.RequireForUpdate<EndSimulationEntityCommandBufferSystem.Singleton>();
 
-            _waypointsLookup = state.GetComponentLookup<MovementWaypoints>(false);
             _obstacleRadiusLookup = state.GetComponentLookup<ObstacleRadius>(true);
             _ghostInstanceLookup = state.GetComponentLookup<GhostInstance>(true);
         }
@@ -34,16 +32,20 @@ namespace Client
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
-            _waypointsLookup.Update(ref state);
             _obstacleRadiusLookup.Update(ref state);
             _ghostInstanceLookup.Update(ref state);
 
             var ecb = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>()
                 .CreateCommandBuffer(state.WorldUnmanaged);
 
-            foreach (var (transform, pending, unitState, entity) in
-                     SystemAPI.Query<RefRO<LocalTransform>, RefRO<PendingBuildRequest>, RefRW<UnitState>>()
+            foreach (var (transform, pending, unitState, waypointsEnabled, entity) in
+                     SystemAPI.Query<
+                         RefRO<LocalTransform>,
+                         RefRO<PendingBuildRequest>,
+                         RefRW<UnitState>,
+                         EnabledRefRW<MovementWaypoints>>()
                          .WithAll<GhostOwnerIsLocal, BuilderTag>()
+                         .WithOptions(EntityQueryOptions.IgnoreComponentEnabledState)
                          .WithEntityAccess())
             {
                 float3 unitPos = transform.ValueRO.Position;
@@ -92,16 +94,16 @@ namespace Client
                     // 유닛 상태 복원: Idle
                     unitState.ValueRW.CurrentState = UnitContext.Idle;
 
-                    // 이동 중지 (ComponentLookup으로 안전하게 접근)
-                    if (_waypointsLookup.HasComponent(entity))
+                    // 이동 중지: MovementWaypoints 비활성화
+                    waypointsEnabled.ValueRW = false;
+
+                    // UnitIntentState 복원: Idle
+                    ecb.SetComponent(entity, new UnitIntentState
                     {
-                        _waypointsLookup[entity] = new MovementWaypoints
-                        {
-                            Current = float3.zero,
-                            Next = float3.zero,
-                            HasNext = false,
-                        };
-                    }
+                        State = Intent.Idle,
+                        TargetEntity = Entity.Null,
+                        TargetLastKnownPos = float3.zero
+                    });
                 }
             }
         }

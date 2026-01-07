@@ -35,6 +35,10 @@ namespace Client
             var userState = SystemAPI.GetSingleton<UserState>();
             if (userState.CurrentState == UserContext.Dead) return;
 
+            // Construction 모드에서는 입력 처리하지 않음
+            // (StructurePlacementInputSystem에서 BuildKey 명령을 처리)
+            if (userState.CurrentState == UserContext.Construction) return;
+
             // Lookup 업데이트
             _pendingBuildLookup.Update(ref state);
             _ghostInstanceLookup.Update(ref state);
@@ -106,8 +110,6 @@ namespace Client
                 // 2. 버퍼에 추가 (Netcode가 서버로 전송함)
                 inputBuffer.AddCommandData(command);
 
-                // UnityEngine.Debug.Log($"[CLIENT] 명령 추가됨! Entity: {entity.Index}, Tick: {tick}, Pos: {goalPos}, BufferLength: {inputBuffer.Length}");
-
                 // 3. 건설 대기 상태였다면 취소 (이동 명령이 우선이므로)
                 if (_pendingBuildLookup.HasComponent(entity))
                 {
@@ -130,8 +132,10 @@ namespace Client
             var tick = networkTime.ServerTick;
 
             // 내 유닛들에게 빈 명령 전송 (이전 명령 반복 방지)
+            // PendingBuildRequest가 있는 유닛은 제외 (BuildKey 명령 보호)
             foreach (var inputBuffer in SystemAPI.Query<DynamicBuffer<UnitCommand>>()
-                .WithAll<GhostOwnerIsLocal>())
+                .WithAll<GhostOwnerIsLocal>()
+                .WithNone<PendingBuildRequest>())
             {
                 var emptyCommand = new UnitCommand
                 {

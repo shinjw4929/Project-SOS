@@ -6,8 +6,8 @@ using Unity.Mathematics;
 
 namespace Shared
 {
-    [UpdateInGroup(typeof(PredictedSimulationSystemGroup))]
     [BurstCompile]
+    [UpdateInGroup(typeof(PredictedSimulationSystemGroup))]
     partial struct CommandProcessingSystem : ISystem
     {
         // 다른 엔티티 정보 확인하기 위한 Lookup들
@@ -33,12 +33,12 @@ namespace Shared
         public void OnUpdate(ref SystemState state)
         {
             var networkTime = SystemAPI.GetSingleton<NetworkTime>();
-            
+
             if (!SystemAPI.TryGetSingleton<GhostIdMap>(out var ghostIdMapData))
                 return;
-            
+
             var ghostiDMap = ghostIdMapData.Map;
-            
+
             _teamLookup.Update(ref state);
             _unitTagLookup.Update(ref state);
             _enemyTagLookup.Update(ref state);
@@ -68,8 +68,6 @@ namespace Shared
                     continue;
                 }
 
-                // UnityEngine.Debug.Log($"[{state.WorldUnmanaged.Name}] Entity {commandedEntity.Index}: 명령 처리 중! Type: {inputCommand.CommandType}, Pos: {inputCommand.GoalPosition}");
-
                 // ==========================================================
                 // 우클릭 (Command) 처리 로직
                 // ==========================================================
@@ -85,7 +83,7 @@ namespace Shared
                             hasTargetEntity = false; // 타겟 소실
                         }
                     }
-                    
+
                     if (!hasTargetEntity)
                     {
                         // ------------------------------------------------------
@@ -93,8 +91,7 @@ namespace Shared
                         // ------------------------------------------------------
                         if (math.distance(movementGoal.ValueRW.Destination, inputCommand.GoalPosition) > 0.1f)
                         {
-                            // UnityEngine.Debug.Log($"[{state.WorldUnmanaged.Name}] Entity {commandedEntity.Index}: 이동 명령 설정! Dest: {inputCommand.GoalPosition}");
-                            SetUnitMovement(ref movementGoal.ValueRW, inputCommand.GoalPosition,  waypointsEnabled);
+                            SetUnitMovement(ref movementGoal.ValueRW, inputCommand.GoalPosition, waypointsEnabled);
                             SetUnitIntentState(ref unitIntentState.ValueRW, Intent.Move, ref targetEntity); // targetEntity는 Null
                         }
                     }
@@ -107,6 +104,19 @@ namespace Shared
                     }
 
                 }
+                // ==========================================================
+                // 건설키 (BuildKey) 처리 로직
+                // ==========================================================
+                else if (inputCommand.CommandType == UnitCommandType.BuildKey)
+                {
+                    // 건설 위치로 이동 (이동 목표가 변경되었을 때만)
+                    if (math.distance(movementGoal.ValueRW.Destination, inputCommand.GoalPosition) > 0.1f)
+                    {
+                        SetUnitMovement(ref movementGoal.ValueRW, inputCommand.GoalPosition, waypointsEnabled);
+                        Entity nullEntity = Entity.Null;
+                        SetUnitIntentState(ref unitIntentState.ValueRW, Intent.Build, ref nullEntity);
+                    }
+                }
             }
         }
 
@@ -118,7 +128,7 @@ namespace Shared
             // 주의: PathfindingSystem이 경로 계산 후 활성화하므로 여기서는 활성화하지 않음
             // enabledState.ValueRW = true;
         }
-        
+
         // 코드 중복 방지를 위한 헬퍼 함수
         private void SetUnitIntentState(ref UnitIntentState intentState, Intent intent, ref Entity target)
         {
@@ -127,4 +137,3 @@ namespace Shared
         }
     }
 }
-
