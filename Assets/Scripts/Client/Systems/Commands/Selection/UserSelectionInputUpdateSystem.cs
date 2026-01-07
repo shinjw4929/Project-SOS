@@ -2,12 +2,13 @@ using Unity.Entities;
 using Unity.NetCode;
 using Unity.Mathematics;
 using UnityEngine.InputSystem;
+using UnityEngine.EventSystems;
 using Shared;
 
 namespace Client
 {
 /// <summary>
-    /// 마우스 입력 → SelectionState 업데이트
+    /// 마우스 입력 → UserSelectionInputState 업데이트
     /// - Phase 기반 상태 머신
     /// - 드래그 임계값(5px) 기준으로 클릭/드래그 구분
     /// </summary>
@@ -29,7 +30,10 @@ namespace Client
             if (mouse == default) return;
 
             var userState = SystemAPI.GetSingleton<UserState>();
-            if (userState.CurrentState == UserContext.Construction || userState.CurrentState == UserContext.Dead) return;
+            if (userState.CurrentState != UserContext.Command && userState.CurrentState != UserContext.BuildMenu && userState.CurrentState != UserContext.StructureActionMenu) return;
+            
+            // UI 위에서 클릭 시 선택 입력 무시
+            if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject()) return;
 
             ref var selectionState = ref SystemAPI.GetSingletonRW<UserSelectionInputState>().ValueRW;
             float2 mousePos = mouse.position.ReadValue();

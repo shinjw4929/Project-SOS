@@ -18,6 +18,7 @@ namespace Client
         [ReadOnly] private ComponentLookup<LocalTransform> _transformLookup;
         [ReadOnly] private ComponentLookup<WorkRange> _workRangeLookup;
         [ReadOnly] private ComponentLookup<ObstacleRadius> _obstacleRadiusLookup;
+        [ReadOnly] private ComponentLookup<ProductionCost> _productionCostLookup;
 
         public void OnCreate(ref SystemState state)
         {
@@ -32,6 +33,7 @@ namespace Client
             _transformLookup = state.GetComponentLookup<LocalTransform>(true);
             _workRangeLookup = state.GetComponentLookup<WorkRange>(true);
             _obstacleRadiusLookup = state.GetComponentLookup<ObstacleRadius>(true);
+            _productionCostLookup = state.GetComponentLookup<ProductionCost>(true);
         }
 
         [BurstCompile]
@@ -142,7 +144,25 @@ namespace Client
 
             previewState.DistanceToBuilder = distanceToSurface;
 
-            // 9. 사거리 내/외 판단
+            // 9. 비용 확인
+            _productionCostLookup.Update(ref state);
+            bool hasEnoughCurrency = true;
+            if (_productionCostLookup.TryGetComponent(previewState.SelectedPrefab, out var cost))
+            {
+                if (SystemAPI.TryGetSingleton<UserCurrency>(out var userCurrency))
+                {
+                    hasEnoughCurrency = userCurrency.Amount >= cost.Cost;
+                }
+            }
+
+            // 10. 최종 상태 판단: 돈 부족 시 Invalid
+            if (!hasEnoughCurrency)
+            {
+                previewState.Status = PlacementStatus.Invalid;
+                return;
+            }
+
+            // 11. 사거리 내/외 판단
             // WorkRange는 이미 유닛 반지름이 포함되어 있음 (workRange + radius)
             if (distanceToSurface <= buildRange)
             {
