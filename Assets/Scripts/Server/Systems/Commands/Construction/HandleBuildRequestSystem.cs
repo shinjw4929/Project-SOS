@@ -235,6 +235,7 @@ namespace Server
                 RpcEntity = rpcEntity,
                 PrefabEntity = structurePrefab,
                 SourceNetworkId = sourceNetworkId,
+                SourceConnection = rpcReceive.ValueRO.SourceConnection,
                 GridPosition = gridPos,
                 TargetWorldPos = buildingCenter, // 계산된 최종 위치 전달
                 StructureCost = ProductionCostLookup[structurePrefab].Cost,
@@ -331,10 +332,17 @@ namespace Server
 
                 // 3. 자원 확인 및 차감 (직렬 실행으로 안전함)
                 var currency = UserCurrencyLookup[userCurrencyEntity];
-                
+
                 if (currency.Amount < request.StructureCost)
                 {
-                    Ecb.DestroyEntity(request.RpcEntity); // 자원 부족
+                    // 자원 부족 알림 RPC 전송
+                    if (request.SourceConnection != Entity.Null)
+                    {
+                        var notifyEntity = Ecb.CreateEntity();
+                        Ecb.AddComponent(notifyEntity, new NotificationRpc { Type = NotificationType.InsufficientFunds });
+                        Ecb.AddComponent(notifyEntity, new SendRpcCommandRequest { TargetConnection = request.SourceConnection });
+                    }
+                    Ecb.DestroyEntity(request.RpcEntity);
                     continue;
                 }
 

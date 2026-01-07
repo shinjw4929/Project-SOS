@@ -21,6 +21,9 @@ namespace Server
         /// <summary>건설을 요청한 유저의 NetworkId (자원 차감 및 소유권 설정용)</summary>
         public int SourceNetworkId;
 
+        /// <summary>요청을 보낸 연결 엔티티 (알림 RPC 전송용)</summary>
+        public Entity SourceConnection;
+
         /// <summary>건설할 그리드 좌표 (논리적 위치)</summary>
         public int2 GridPosition;
 

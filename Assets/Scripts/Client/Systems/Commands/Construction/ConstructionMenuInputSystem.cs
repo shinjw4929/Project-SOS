@@ -120,28 +120,18 @@ namespace Client
             Entity builderEntity,
             int localIndex)
         {
-            // 엔티티 및 버퍼 존재 여부 재확인
-            if (!entityManager.Exists(builderEntity) || !entityManager.HasBuffer<AvailableStructure>(builderEntity)) return;
-
-            var structureBuffer = entityManager.GetBuffer<AvailableStructure>(builderEntity);
-
-            if (localIndex < 0 || localIndex >= structureBuffer.Length) return;
-
-            Entity targetPrefab = structureBuffer[localIndex].PrefabEntity;
-
-            // 싱글톤에서 인덱스 맵 가져오기
+            // 인덱스 맵 가져오기
             var indexMap = SystemAPI.ManagedAPI.GetSingleton<StructurePrefabIndexMap>().Map;
 
-            // 전역 인덱스 맵에서 조회
-            if (indexMap.TryGetValue(targetPrefab, out int globalIndex))
-            {
-                userState.CurrentState = UserContext.Construction;
-
-                previewState.SelectedPrefab = targetPrefab;
-                previewState.SelectedPrefabIndex = globalIndex;
-                previewState.GridPosition = new int2(-9999, -9999); // 초기값 설정
-                previewState.IsValidPlacement = false;
-            }
+            // 공통 유틸리티 사용
+            BuildSelectionUtility.TrySelectStructure(
+                entityManager,
+                builderEntity,
+                localIndex,
+                ref userState,
+                ref previewState,
+                indexMap
+            );
         }
     }
 }
