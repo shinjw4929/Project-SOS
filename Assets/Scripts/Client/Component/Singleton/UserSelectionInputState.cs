@@ -8,7 +8,7 @@ namespace Client
     /// - 마우스 입력 상태 (Phase)
     /// - 드래그 박스 좌표
     /// </summary>
-    public struct SelectionState : IComponentData
+    public struct UserSelectionInputState : IComponentData
     {
         // 현재 선택 Phase
         public SelectionPhase Phase;

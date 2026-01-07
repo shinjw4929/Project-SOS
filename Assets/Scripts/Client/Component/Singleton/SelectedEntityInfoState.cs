@@ -14,7 +14,7 @@ namespace Client
         // 선택된 엔티티 수
         public int SelectedCount;
 
-        // 선택 타입 (유닛/건물/혼합)
+        // 선택 타입 (유닛/건물)
         public SelectionCategory Category;
 
         // 내 소유 엔티티만 선택되었는지

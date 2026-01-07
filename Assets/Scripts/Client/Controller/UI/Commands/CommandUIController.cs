@@ -90,10 +90,10 @@ public class CommandUIController : MonoBehaviour
         if (_selectionStateQuery.IsEmptyIgnoreFilter) return;
 
         ref var userState = ref _userStateQuery.GetSingletonRW<UserState>().ValueRW;
-        ref var selectionState = ref _selectionStateQuery.GetSingletonRW<SelectionState>().ValueRW;
+        ref var userSelectionInputState = ref _selectionStateQuery.GetSingletonRW<UserSelectionInputState>().ValueRW;
 
         // 선택 상태 초기화 후 건설 메뉴 진입
-        selectionState.Phase = SelectionPhase.Idle;
+        userSelectionInputState.Phase = SelectionPhase.Idle;
         userState.CurrentState = UserContext.BuildMenu;
     }
 
@@ -185,7 +185,7 @@ public class CommandUIController : MonoBehaviour
 
                 _CurrentSelectionStateQuery = _em.CreateEntityQuery(typeof(CurrentSelectionState));
                 _userStateQuery = _em.CreateEntityQuery(typeof(UserState));
-                _selectionStateQuery = _em.CreateEntityQuery(typeof(SelectionState));
+                _selectionStateQuery = _em.CreateEntityQuery(typeof(UserSelectionInputState));
                 _previewStateQuery = _em.CreateEntityQuery(typeof(StructurePreviewState));
                 _refsQuery = _em.CreateEntityQuery(typeof(StructureCatalog));
 

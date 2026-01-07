@@ -13,7 +13,7 @@ namespace Client
     /// </summary>
     [UpdateInGroup(typeof(GhostInputSystemGroup))]
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
-    partial struct SelectionInputSystem : ISystem
+    partial struct UserSelectionInputUpdateSystem : ISystem
     {
         private const float DragThreshold = 5f;
 
@@ -31,7 +31,7 @@ namespace Client
             var userState = SystemAPI.GetSingleton<UserState>();
             if (userState.CurrentState == UserContext.Construction || userState.CurrentState == UserContext.Dead) return;
 
-            ref var selectionState = ref SystemAPI.GetSingletonRW<SelectionState>().ValueRW;
+            ref var selectionState = ref SystemAPI.GetSingletonRW<UserSelectionInputState>().ValueRW;
             float2 mousePos = mouse.position.ReadValue();
 
             bool leftPressed = mouse.leftButton.wasPressedThisFrame;
