@@ -9,14 +9,14 @@ namespace Client
 {
     /// <summary>
     /// 선택 상태 계산 시스템
-    /// - Selected 엔티티 순회 → CurrentSelectionState 싱글톤 업데이트
+    /// - Selected 엔티티 순회 → SelectedEntityInfoState 싱글톤 업데이트
     /// - UI 표시 및 건설모드 진입 조건 체크에 사용
     /// </summary>
     [BurstCompile]
     [UpdateInGroup(typeof(GhostInputSystemGroup))]
     [UpdateAfter(typeof(EntitySelectionSystem))]
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
-    public partial struct SelectionStateSystem : ISystem
+    public partial struct SelectedEntityInfoUpdateSystem : ISystem
     {
         [BurstCompile]
         public void OnCreate(ref SystemState state)

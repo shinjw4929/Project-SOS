@@ -7,7 +7,7 @@ using Shared;
 namespace Client
 {
     [UpdateInGroup(typeof(GhostInputSystemGroup))]
-    [UpdateAfter(typeof(SelectionStateSystem))]
+    [UpdateAfter(typeof(SelectedEntityInfoUpdateSystem))]
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
     public partial struct StructureCommandInputSystem : ISystem
     {

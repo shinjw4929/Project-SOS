@@ -12,7 +12,7 @@ namespace Client
     /// 사용자의 마우스/키보드 입력을 UnitCommand로 변환하여 전송하는 시스템
     /// </summary>
     [UpdateInGroup(typeof(GhostInputSystemGroup))]
-    [UpdateAfter(typeof(SelectionStateSystem))]
+    [UpdateAfter(typeof(SelectedEntityInfoUpdateSystem))]
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
     public partial struct UnitCommandInputSystem : ISystem
     {
