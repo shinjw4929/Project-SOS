@@ -12,7 +12,7 @@ namespace Server
     /// 자원 채집 요청 RPC 처리 시스템 (서버)
     /// - 점유 가능 여부 확인
     /// - 점유 설정 및 GatheringTarget 설정
-    /// - UnitState = MovingToGather로 변경
+    /// - Intent.Gather + Action.Moving + Phase.MovingToNode 설정
     /// </summary>
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
@@ -28,7 +28,9 @@ namespace Server
 
         private ComponentLookup<ResourceNodeState> _resourceNodeStateLookup;
         private ComponentLookup<GatheringTarget> _gatheringTargetLookup;
-        private ComponentLookup<UnitState> _unitStateLookup;
+        private ComponentLookup<UnitIntentState> _unitIntentStateLookup;
+        private ComponentLookup<UnitActionState> _unitActionStateLookup;
+        private ComponentLookup<WorkerState> _workerStateLookup;
         private ComponentLookup<MovementGoal> _movementGoalLookup;
 
         public void OnCreate(ref SystemState state)
@@ -45,7 +47,9 @@ namespace Server
 
             _resourceNodeStateLookup = state.GetComponentLookup<ResourceNodeState>(false);
             _gatheringTargetLookup = state.GetComponentLookup<GatheringTarget>(false);
-            _unitStateLookup = state.GetComponentLookup<UnitState>(false);
+            _unitIntentStateLookup = state.GetComponentLookup<UnitIntentState>(false);
+            _unitActionStateLookup = state.GetComponentLookup<UnitActionState>(false);
+            _workerStateLookup = state.GetComponentLookup<WorkerState>(false);
             _movementGoalLookup = state.GetComponentLookup<MovementGoal>(false);
         }
 
@@ -60,7 +64,9 @@ namespace Server
             _resourceCenterTagLookup.Update(ref state);
             _resourceNodeStateLookup.Update(ref state);
             _gatheringTargetLookup.Update(ref state);
-            _unitStateLookup.Update(ref state);
+            _unitIntentStateLookup.Update(ref state);
+            _unitActionStateLookup.Update(ref state);
+            _workerStateLookup.Update(ref state);
             _movementGoalLookup.Update(ref state);
 
             var ecb = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>()
@@ -161,11 +167,24 @@ namespace Server
                 targetRW.ValueRW.AutoReturn = true;
             }
 
-            // 7. UnitState = MovingToGather
-            if (_unitStateLookup.HasComponent(workerEntity))
+            // 7. 상태 설정: Intent.Gather + Action.Moving + Phase.MovingToNode
+            if (_unitIntentStateLookup.HasComponent(workerEntity))
             {
-                RefRW<UnitState> stateRW = _unitStateLookup.GetRefRW(workerEntity);
-                stateRW.ValueRW.CurrentState = UnitContext.MovingToGather;
+                RefRW<UnitIntentState> intentRW = _unitIntentStateLookup.GetRefRW(workerEntity);
+                intentRW.ValueRW.State = Intent.Gather;
+                intentRW.ValueRW.TargetEntity = resourceNodeEntity;
+            }
+
+            if (_unitActionStateLookup.HasComponent(workerEntity))
+            {
+                RefRW<UnitActionState> actionRW = _unitActionStateLookup.GetRefRW(workerEntity);
+                actionRW.ValueRW.State = Action.Moving;
+            }
+
+            if (_workerStateLookup.HasComponent(workerEntity))
+            {
+                RefRW<WorkerState> workerStateRW = _workerStateLookup.GetRefRW(workerEntity);
+                workerStateRW.ValueRW.Phase = GatherPhase.MovingToNode;
             }
 
             // 8. PathfindingState 설정 (자원 노드 위치로 이동)

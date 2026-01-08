@@ -17,7 +17,7 @@ namespace Server
     [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
     public partial struct ResourceNodeCleanupSystem : ISystem
     {
-        private ComponentLookup<UnitState> _unitStateLookup;
+        private ComponentLookup<UnitActionState> _unitActionStateLookup;
         private ComponentLookup<Health> _healthLookup;
         private ComponentLookup<LocalTransform> _transformLookup;
 
@@ -25,7 +25,7 @@ namespace Server
         {
             state.RequireForUpdate<NetworkStreamInGame>();
 
-            _unitStateLookup = state.GetComponentLookup<UnitState>(true);
+            _unitActionStateLookup = state.GetComponentLookup<UnitActionState>(true);
             _healthLookup = state.GetComponentLookup<Health>(true);
             _transformLookup = state.GetComponentLookup<LocalTransform>(true);
         }
@@ -35,7 +35,7 @@ namespace Server
             // 이전 Job들이 완료될 때까지 대기 (ServerDeathSystem 등)
             state.Dependency.Complete();
 
-            _unitStateLookup.Update(ref state);
+            _unitActionStateLookup.Update(ref state);
             _healthLookup.Update(ref state);
             _transformLookup.Update(ref state);
 
@@ -47,16 +47,17 @@ namespace Server
                 Entity occupyingWorker = nodeState.ValueRO.OccupyingWorker;
                 if (occupyingWorker == Entity.Null) continue;
 
-                // Worker가 더 이상 존재하지 않거나 사망한 경우 점유 해제
-                if (!_unitStateLookup.HasComponent(occupyingWorker))
+                // Worker가 더 이상 존재하지 않는 경우 점유 해제
+                if (!_unitActionStateLookup.HasComponent(occupyingWorker))
                 {
                     nodeState.ValueRW.OccupyingWorker = Entity.Null;
                     continue;
                 }
 
-                var workerUnitState = _unitStateLookup[occupyingWorker];
-                if (workerUnitState.CurrentState == UnitContext.Dead ||
-                    workerUnitState.CurrentState == UnitContext.Dying)
+                // Worker가 사망한 경우 점유 해제
+                var workerActionState = _unitActionStateLookup[occupyingWorker];
+                if (workerActionState.State == Action.Dead ||
+                    workerActionState.State == Action.Dying)
                 {
                     nodeState.ValueRW.OccupyingWorker = Entity.Null;
                     continue;
@@ -73,37 +74,39 @@ namespace Server
             }
 
             // 2. 채집 관련 상태인 Worker들의 타겟 유효성 확인
-            foreach (var (unitState, gatherTarget, workerState, entity)
-                in SystemAPI.Query<RefRW<UnitState>, RefRW<GatheringTarget>, RefRW<WorkerState>>()
+            foreach (var (intentState, actionState, gatherTarget, workerState, entity)
+                in SystemAPI.Query<RefRW<UnitIntentState>, RefRW<UnitActionState>,
+                    RefRW<GatheringTarget>, RefRW<WorkerState>>()
                     .WithAll<WorkerTag>()
                     .WithEntityAccess())
             {
-                var currentState = unitState.ValueRO.CurrentState;
+                // Intent.Gather가 아니면 스킵
+                if (intentState.ValueRO.State != Intent.Gather) continue;
 
-                // MovingToGather 또는 Gathering 상태에서 ResourceNode 유효성 확인
-                if (currentState == UnitContext.MovingToGather ||
-                    currentState == UnitContext.Gathering)
+                var currentPhase = workerState.ValueRO.Phase;
+
+                // MovingToNode 또는 Gathering 상태에서 ResourceNode 유효성 확인
+                if (currentPhase == GatherPhase.MovingToNode ||
+                    currentPhase == GatherPhase.Gathering)
                 {
                     Entity nodeEntity = gatherTarget.ValueRO.ResourceNodeEntity;
                     if (nodeEntity == Entity.Null)
                     {
                         // 타겟이 없으면 Idle로
-                        unitState.ValueRW.CurrentState = UnitContext.Idle;
-                        workerState.ValueRW.IsInsideNode = false;
+                        SetIdleState(ref intentState.ValueRW, ref actionState.ValueRW, ref workerState.ValueRW);
                         continue;
                     }
 
                     // ResourceNode가 더 이상 존재하지 않는 경우
                     if (!_transformLookup.HasComponent(nodeEntity))
                     {
-                        unitState.ValueRW.CurrentState = UnitContext.Idle;
-                        workerState.ValueRW.IsInsideNode = false;
+                        SetIdleState(ref intentState.ValueRW, ref actionState.ValueRW, ref workerState.ValueRW);
                         gatherTarget.ValueRW.ResourceNodeEntity = Entity.Null;
                     }
                 }
 
                 // MovingToReturn 상태에서 ReturnPoint 유효성 확인
-                if (currentState == UnitContext.MovingToReturn)
+                if (currentPhase == GatherPhase.MovingToReturn)
                 {
                     Entity returnPoint = gatherTarget.ValueRO.ReturnPointEntity;
                     if (returnPoint == Entity.Null)
@@ -117,7 +120,7 @@ namespace Server
                         else
                         {
                             // ResourceCenter가 없으면 Idle로 (자원은 유지)
-                            unitState.ValueRW.CurrentState = UnitContext.Idle;
+                            SetIdleState(ref intentState.ValueRW, ref actionState.ValueRW, ref workerState.ValueRW);
                         }
                         continue;
                     }
@@ -133,11 +136,19 @@ namespace Server
                         }
                         else
                         {
-                            unitState.ValueRW.CurrentState = UnitContext.Idle;
+                            SetIdleState(ref intentState.ValueRW, ref actionState.ValueRW, ref workerState.ValueRW);
                         }
                     }
                 }
             }
+        }
+
+        private static void SetIdleState(ref UnitIntentState intentState, ref UnitActionState actionState, ref WorkerState workerState)
+        {
+            intentState.State = Intent.Idle;
+            actionState.State = Action.Idle;
+            workerState.Phase = GatherPhase.None;
+            workerState.IsInsideNode = false;
         }
 
         private Entity FindNearestResourceCenter(ref SystemState state, Entity workerEntity)

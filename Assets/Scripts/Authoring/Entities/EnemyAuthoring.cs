@@ -64,10 +64,9 @@ namespace Authoring
                 });
                 
                 // 추격, 공격 대상
-                AddComponent(entity, new Target
+                AddComponent(entity, new AggroTarget
                 {
                     TargetEntity = Entity.Null,
-                    HasTarget = false,
                     LastTargetPosition = Vector3.zero,
                 });
                 

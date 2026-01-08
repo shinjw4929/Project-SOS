@@ -138,7 +138,8 @@ namespace Authoring
                         CarriedAmount = 0,
                         CarriedType = ResourceType.None,
                         GatheringProgress = 0f,
-                        IsInsideNode = false
+                        IsInsideNode = false,
+                        Phase = GatherPhase.None
                     });
 
                     AddComponent(entity, new GatheringTarget
@@ -178,11 +179,10 @@ namespace Authoring
                 });
                 
                 // 채집, 추격, 공격 대상
-                AddComponent(entity, new Target
+                AddComponent(entity, new AggroTarget
                 {
                     TargetEntity = Entity.Null,
-                    HasTarget = false,
-                    LastTargetPosition = Vector3.zero,
+                    LastTargetPosition = float3.zero,
                 });
                 
                 // 방어력
@@ -217,13 +217,10 @@ namespace Authoring
                 }
                 
                 // =======================================================================
-                // 7. [상태 및 렌더링]
+                // 7. [렌더링]
                 // =======================================================================
-                AddComponent(entity, new UnitState
-                {
-                    CurrentState = UnitContext.Idle
-                });
-                
+                // UnitState 제거됨 - UnitIntentState + UnitActionState로 대체 (UnitMovementAuthoring에서 추가)
+
                 AddComponent(entity, new URPMaterialPropertyBaseColor
                 {
                     Value = new float4(1, 1, 1, 1)

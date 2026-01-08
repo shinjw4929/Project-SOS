@@ -10,7 +10,8 @@ namespace Server
 {
     /// <summary>
     /// Worker 채집 사이클 처리 시스템 (서버)
-    /// <para>순서: MovingToGather → Gathering → MovingToReturn → Unloading → (Waiting) → 반복</para>
+    /// <para>순서: MovingToNode → Gathering → MovingToReturn → Unloading → (WaitingForNode) → 반복</para>
+    /// <para>상태: Intent.Gather + WorkerState.Phase 조합으로 세부 단계 추적</para>
     /// </summary>
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
@@ -25,7 +26,7 @@ namespace Server
         private ComponentLookup<WorkRange> _workRangeLookup;
         private ComponentLookup<ResourceNodeSetting> _resourceNodeSettingLookup;
         private ComponentLookup<ObstacleRadius> _obstacleRadiusLookup;
-        
+
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<NetworkStreamInGame>();
@@ -55,19 +56,19 @@ namespace Server
                 networkIdToCurrency.TryAdd(ghostOwner.ValueRO.NetworkId, entity);
             }
 
-            // --- 1. 채집지로 이동 (MovingToGather) ---
+            // --- 1. 채집지로 이동 (Phase.MovingToNode) ---
             ProcessMovingToGather(ref state);
 
-            // --- 2. 채집 진행 (Gathering) ---
+            // --- 2. 채집 진행 (Phase.Gathering) ---
             ProcessGathering(ref state, deltaTime);
 
-            // --- 3. 반납지로 이동 (MovingToReturn) ---
+            // --- 3. 반납지로 이동 (Phase.MovingToReturn) ---
             ProcessMovingToReturn(ref state);
 
-            // --- 4. 자원 하차 및 정산 (Unloading) ---
+            // --- 4. 자원 하차 및 정산 (Phase.Unloading) ---
             ProcessUnloading(ref state, deltaTime, networkIdToCurrency);
 
-            // --- 5. 대기열 처리 (WaitingForNode) ---
+            // --- 5. 대기열 처리 (Phase.WaitingForNode) ---
             ProcessWaitingForNode(ref state);
 
             networkIdToCurrency.Dispose();
@@ -90,12 +91,15 @@ namespace Server
         [BurstCompile]
         private void ProcessMovingToGather(ref SystemState state)
         {
-            foreach (var (unitState, workerState, gatherTarget, transform, entity)
-                in SystemAPI.Query<RefRW<UnitState>, RefRW<WorkerState>, RefRO<GatheringTarget>, RefRO<LocalTransform>>()
+            foreach (var (intentState, actionState, workerState, gatherTarget, transform, entity)
+                in SystemAPI.Query<RefRW<UnitIntentState>, RefRW<UnitActionState>, RefRW<WorkerState>,
+                    RefRO<GatheringTarget>, RefRO<LocalTransform>>()
                     .WithAll<WorkerTag>()
                     .WithEntityAccess())
             {
-                if (unitState.ValueRO.CurrentState != UnitContext.MovingToGather) continue;
+                // Intent.Gather + Phase.MovingToNode 조합으로 상태 확인
+                if (intentState.ValueRO.State != Intent.Gather) continue;
+                if (workerState.ValueRO.Phase != GatherPhase.MovingToNode) continue;
 
                 Entity nodeEntity = gatherTarget.ValueRO.ResourceNodeEntity;
                 if (nodeEntity == Entity.Null || !_transformLookup.HasComponent(nodeEntity)) continue;
@@ -109,7 +113,9 @@ namespace Server
 
                 if (distance <= workRange)
                 {
-                    unitState.ValueRW.CurrentState = UnitContext.Gathering;
+                    // 도착: Gathering 상태로 전환
+                    workerState.ValueRW.Phase = GatherPhase.Gathering;
+                    actionState.ValueRW.State = Action.Working;
                     workerState.ValueRW.IsInsideNode = true;
                     workerState.ValueRW.GatheringProgress = 0f;
                 }
@@ -122,19 +128,20 @@ namespace Server
         [BurstCompile]
         private void ProcessGathering(ref SystemState state, float deltaTime)
         {
-            foreach (var (unitState, workerState, gatherTarget, ability, movementGoal, ghostOwner, entity)
-                in SystemAPI.Query<RefRW<UnitState>, RefRW<WorkerState>, RefRW<GatheringTarget>,
-                    RefRO<GatheringAbility>, RefRW<MovementGoal>, RefRO<GhostOwner>>()
+            foreach (var (intentState, actionState, workerState, gatherTarget, ability, movementGoal, ghostOwner, entity)
+                in SystemAPI.Query<RefRW<UnitIntentState>, RefRW<UnitActionState>, RefRW<WorkerState>,
+                    RefRW<GatheringTarget>, RefRO<GatheringAbility>, RefRW<MovementGoal>, RefRO<GhostOwner>>()
                     .WithAll<WorkerTag>()
                     .WithEntityAccess())
             {
-                if (unitState.ValueRO.CurrentState != UnitContext.Gathering) continue;
+                if (intentState.ValueRO.State != Intent.Gather) continue;
+                if (workerState.ValueRO.Phase != GatherPhase.Gathering) continue;
 
                 Entity nodeEntity = gatherTarget.ValueRO.ResourceNodeEntity;
                 if (nodeEntity == Entity.Null)
                 {
-                    unitState.ValueRW.CurrentState = UnitContext.Idle;
-                    workerState.ValueRW.IsInsideNode = false;
+                    // 노드가 없으면 Idle로 전환
+                    SetIdleState(ref intentState.ValueRW, ref actionState.ValueRW, ref workerState.ValueRW);
                     continue;
                 }
 
@@ -170,7 +177,8 @@ namespace Server
                     }
 
                     // 복귀 이동 시작
-                    unitState.ValueRW.CurrentState = UnitContext.MovingToReturn;
+                    workerState.ValueRW.Phase = GatherPhase.MovingToReturn;
+                    actionState.ValueRW.State = Action.Moving;
                     workerState.ValueRW.IsInsideNode = false;
 
                     Entity returnPoint = gatherTarget.ValueRO.ReturnPointEntity;
@@ -190,17 +198,19 @@ namespace Server
         [BurstCompile]
         private void ProcessMovingToReturn(ref SystemState state)
         {
-            foreach (var (unitState, workerState, gatherTarget, transform, entity)
-                in SystemAPI.Query<RefRW<UnitState>, RefRW<WorkerState>, RefRO<GatheringTarget>, RefRO<LocalTransform>>()
+            foreach (var (intentState, actionState, workerState, gatherTarget, transform, entity)
+                in SystemAPI.Query<RefRW<UnitIntentState>, RefRW<UnitActionState>, RefRW<WorkerState>,
+                    RefRO<GatheringTarget>, RefRO<LocalTransform>>()
                     .WithAll<WorkerTag>()
                     .WithEntityAccess())
             {
-                if (unitState.ValueRO.CurrentState != UnitContext.MovingToReturn) continue;
+                if (intentState.ValueRO.State != Intent.Gather) continue;
+                if (workerState.ValueRO.Phase != GatherPhase.MovingToReturn) continue;
 
                 Entity returnPoint = gatherTarget.ValueRO.ReturnPointEntity;
                 if (returnPoint == Entity.Null || !_transformLookup.HasComponent(returnPoint))
                 {
-                    unitState.ValueRW.CurrentState = UnitContext.Idle;
+                    SetIdleState(ref intentState.ValueRW, ref actionState.ValueRW, ref workerState.ValueRW);
                     continue;
                 }
 
@@ -229,7 +239,8 @@ namespace Server
                 if (distance <= touchingDistance)
                 {
                     // 도착: 하차(Unloading) 상태로 전환
-                    unitState.ValueRW.CurrentState = UnitContext.Unloading;
+                    workerState.ValueRW.Phase = GatherPhase.Unloading;
+                    actionState.ValueRW.State = Action.Working;
                     workerState.ValueRW.GatheringProgress = 0f;
                 }
             }
@@ -241,16 +252,17 @@ namespace Server
         [BurstCompile]
         private void ProcessUnloading(ref SystemState state, float deltaTime, NativeParallelHashMap<int, Entity> networkIdToCurrency)
         {
-            foreach (var (unitState, workerState, gatherTarget, ability, movementGoal, ghostOwner, entity)
-                in SystemAPI.Query<RefRW<UnitState>, RefRW<WorkerState>, RefRW<GatheringTarget>, 
-                    RefRO<GatheringAbility>, RefRW<MovementGoal>, RefRO<GhostOwner>>()
+            foreach (var (intentState, actionState, workerState, gatherTarget, ability, movementGoal, ghostOwner, entity)
+                in SystemAPI.Query<RefRW<UnitIntentState>, RefRW<UnitActionState>, RefRW<WorkerState>,
+                    RefRW<GatheringTarget>, RefRO<GatheringAbility>, RefRW<MovementGoal>, RefRO<GhostOwner>>()
                     .WithAll<WorkerTag>()
                     .WithEntityAccess())
             {
-                if (unitState.ValueRO.CurrentState != UnitContext.Unloading) continue;
+                if (intentState.ValueRO.State != Intent.Gather) continue;
+                if (workerState.ValueRO.Phase != GatherPhase.Unloading) continue;
 
                 float unloadDuration = ability.ValueRO.UnloadDuration > 0 ? ability.ValueRO.UnloadDuration : 1.0f;
-                
+
                 workerState.ValueRW.GatheringProgress += deltaTime / unloadDuration;
 
                 // 하차 완료
@@ -271,7 +283,8 @@ namespace Server
                     workerState.ValueRW.GatheringProgress = 0f;
 
                     // 다음 행동 결정
-                    DecideNextAction(unitState, gatherTarget, movementGoal, entity);
+                    DecideNextAction(ref intentState.ValueRW, ref actionState.ValueRW, ref workerState.ValueRW,
+                        gatherTarget, movementGoal, entity);
                 }
             }
         }
@@ -280,14 +293,16 @@ namespace Server
         /// 하차 후 자동 복귀 여부 및 대기 상태 결정
         /// </summary>
         private void DecideNextAction(
-            RefRW<UnitState> unitState,
+            ref UnitIntentState intentState,
+            ref UnitActionState actionState,
+            ref WorkerState workerState,
             RefRW<GatheringTarget> gatherTarget,
             RefRW<MovementGoal> movementGoal,
             Entity workerEntity)
         {
             if (!gatherTarget.ValueRO.AutoReturn || gatherTarget.ValueRO.ResourceNodeEntity == Entity.Null)
             {
-                unitState.ValueRW.CurrentState = UnitContext.Idle;
+                SetIdleStateRef(ref intentState, ref actionState, ref workerState);
                 return;
             }
 
@@ -296,7 +311,7 @@ namespace Server
             // 노드가 유효하지 않으면 중단
             if (!_transformLookup.HasComponent(nodeEntity) || !_resourceNodeStateLookup.HasComponent(nodeEntity))
             {
-                unitState.ValueRW.CurrentState = UnitContext.Idle;
+                SetIdleStateRef(ref intentState, ref actionState, ref workerState);
                 gatherTarget.ValueRW.ResourceNodeEntity = Entity.Null;
                 return;
             }
@@ -307,15 +322,20 @@ namespace Server
             if (nodeStateRW.ValueRO.OccupyingWorker == Entity.Null)
             {
                 nodeStateRW.ValueRW.OccupyingWorker = workerEntity;
-                unitState.ValueRW.CurrentState = UnitContext.MovingToGather;
-                
+                workerState.Phase = GatherPhase.MovingToNode;
+                actionState.State = Action.Moving;
+                // Intent는 Gather 유지
+
                 movementGoal.ValueRW.Destination = _transformLookup[nodeEntity].Position;
                 movementGoal.ValueRW.IsPathDirty = true;
             }
             // B. 노드가 찼으면 -> 대기 상태로 노드 근처 이동
             else
             {
-                unitState.ValueRW.CurrentState = UnitContext.WaitingForNode;
+                workerState.Phase = GatherPhase.WaitingForNode;
+                actionState.State = Action.Idle;
+                // Intent는 Gather 유지
+
                 movementGoal.ValueRW.Destination = _transformLookup[nodeEntity].Position;
                 movementGoal.ValueRW.IsPathDirty = true;
             }
@@ -327,18 +347,20 @@ namespace Server
         [BurstCompile]
         private void ProcessWaitingForNode(ref SystemState state)
         {
-            foreach (var (unitState, gatherTarget, movementGoal, entity)
-                in SystemAPI.Query<RefRW<UnitState>, RefRW<GatheringTarget>, RefRW<MovementGoal>>()
+            foreach (var (intentState, actionState, workerState, gatherTarget, movementGoal, entity)
+                in SystemAPI.Query<RefRW<UnitIntentState>, RefRW<UnitActionState>, RefRW<WorkerState>,
+                    RefRW<GatheringTarget>, RefRW<MovementGoal>>()
                     .WithAll<WorkerTag>()
                     .WithEntityAccess())
             {
-                if (unitState.ValueRO.CurrentState != UnitContext.WaitingForNode) continue;
+                if (intentState.ValueRO.State != Intent.Gather) continue;
+                if (workerState.ValueRO.Phase != GatherPhase.WaitingForNode) continue;
 
                 Entity nodeEntity = gatherTarget.ValueRO.ResourceNodeEntity;
 
                 if (nodeEntity == Entity.Null || !_resourceNodeStateLookup.HasComponent(nodeEntity))
                 {
-                    unitState.ValueRW.CurrentState = UnitContext.Idle;
+                    SetIdleState(ref intentState.ValueRW, ref actionState.ValueRW, ref workerState.ValueRW);
                     gatherTarget.ValueRW.ResourceNodeEntity = Entity.Null;
                     continue;
                 }
@@ -349,13 +371,36 @@ namespace Server
                 if (nodeStateRW.ValueRO.OccupyingWorker == Entity.Null)
                 {
                     nodeStateRW.ValueRW.OccupyingWorker = entity;
-                    unitState.ValueRW.CurrentState = UnitContext.MovingToGather;
-                    
+                    workerState.ValueRW.Phase = GatherPhase.MovingToNode;
+                    actionState.ValueRW.State = Action.Moving;
+
                     // 목적지 재확인 (이미 근처여도 확실하게)
                     movementGoal.ValueRW.Destination = _transformLookup[nodeEntity].Position;
                     movementGoal.ValueRW.IsPathDirty = true;
                 }
             }
+        }
+
+        /// <summary>
+        /// Idle 상태로 전환 (RefRW 버전)
+        /// </summary>
+        private static void SetIdleState(ref UnitIntentState intentState, ref UnitActionState actionState, ref WorkerState workerState)
+        {
+            intentState.State = Intent.Idle;
+            actionState.State = Action.Idle;
+            workerState.Phase = GatherPhase.None;
+            workerState.IsInsideNode = false;
+        }
+
+        /// <summary>
+        /// Idle 상태로 전환 (ref 버전)
+        /// </summary>
+        private static void SetIdleStateRef(ref UnitIntentState intentState, ref UnitActionState actionState, ref WorkerState workerState)
+        {
+            intentState.State = Intent.Idle;
+            actionState.State = Action.Idle;
+            workerState.Phase = GatherPhase.None;
+            workerState.IsInsideNode = false;
         }
     }
 }

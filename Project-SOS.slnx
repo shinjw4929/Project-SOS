@@ -1,8 +1,0 @@
-﻿<Solution>
-  <Project Path="Shared.csproj" />
-  <Project Path="Assembly-CSharp.csproj" />
-  <Project Path="Authoring.csproj" />
-  <Project Path="Client.csproj" />
-  <Project Path="Server.csproj" />
-  <Project Path="Assembly-CSharp-Editor.csproj" />
-</Solution>

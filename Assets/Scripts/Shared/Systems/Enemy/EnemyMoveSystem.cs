@@ -38,7 +38,7 @@ namespace Shared
             foreach (var (transform, target, chaseDistance, moveSpeed, enemyState) in
                 SystemAPI.Query<
                     RefRW<LocalTransform>,
-                    RefRO<Target>,
+                    RefRO<AggroTarget>,
                     RefRO<EnemyChaseDistance>,
                     RefRO<MovementSpeed>,
                     RefRO<EnemyState>>()
@@ -51,8 +51,8 @@ namespace Shared
                 if (currentState != EnemyContext.Chasing && currentState != EnemyContext.Wandering)
                     continue;
 
-                // 타겟이 없으면 이동하지 않음 (추가 안전장치)
-                if (!target.ValueRO.HasTarget)
+                // 타겟이 없으면 이동하지 않음 (Entity.Null 체크)
+                if (target.ValueRO.TargetEntity == Entity.Null)
                     continue;
 
                 float3 currentPos = transform.ValueRO.Position;

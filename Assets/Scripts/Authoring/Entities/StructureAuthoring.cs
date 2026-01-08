@@ -134,9 +134,10 @@ namespace Authoring
                             AttackRange = authoring.attackRange
                         });
                         
-                        AddComponent(entity, new Target
+                        AddComponent(entity, new AggroTarget
                         {
                             TargetEntity = Entity.Null,
+                            LastTargetPosition = float3.zero,
                         });
                     }
                 }

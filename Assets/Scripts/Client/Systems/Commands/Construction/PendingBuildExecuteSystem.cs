@@ -38,11 +38,11 @@ namespace Client
             var ecb = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>()
                 .CreateCommandBuffer(state.WorldUnmanaged);
 
-            foreach (var (transform, pending, unitState, waypointsEnabled, entity) in
+            foreach (var (transform, pending, actionState, waypointsEnabled, entity) in
                      SystemAPI.Query<
                          RefRO<LocalTransform>,
                          RefRO<PendingBuildRequest>,
-                         RefRW<UnitState>,
+                         RefRW<UnitActionState>,
                          EnabledRefRW<MovementWaypoints>>()
                          .WithAll<GhostOwnerIsLocal, BuilderTag>()
                          .WithOptions(EntityQueryOptions.IgnoreComponentEnabledState)
@@ -91,13 +91,13 @@ namespace Client
                     // PendingBuildRequest 제거
                     ecb.RemoveComponent<PendingBuildRequest>(entity);
 
-                    // 유닛 상태 복원: Idle
-                    unitState.ValueRW.CurrentState = UnitContext.Idle;
+                    // 유닛 상태 복원: Action.Idle
+                    actionState.ValueRW.State = Action.Idle;
 
                     // 이동 중지: MovementWaypoints 비활성화
                     waypointsEnabled.ValueRW = false;
 
-                    // UnitIntentState 복원: Idle
+                    // UnitIntentState 복원: Intent.Idle
                     ecb.SetComponent(entity, new UnitIntentState
                     {
                         State = Intent.Idle,

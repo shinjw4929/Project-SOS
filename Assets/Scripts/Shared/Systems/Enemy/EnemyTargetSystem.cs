@@ -69,7 +69,7 @@ public partial struct EnemyTargetSystem : ISystem
         [ReadOnly] [DeallocateOnJobCompletion] public NativeArray<Entity> PotentialTargets;
         [ReadOnly] [DeallocateOnJobCompletion] public NativeArray<LocalTransform> TargetTransforms;
         [ReadOnly] [DeallocateOnJobCompletion] public NativeArray<Team> TargetTeams;
-        
+
         [ReadOnly] public ComponentLookup<LocalTransform> TransformLookup;
 
         // 적군(Enemy)을 찾아서 실행
@@ -77,27 +77,26 @@ public partial struct EnemyTargetSystem : ISystem
         public void Execute(
             Entity entity,
             RefRO<LocalTransform> myTransform,
-            RefRW<Target> target,
-            RefRW<EnemyState> enemyState,  // EnemyState 추가
+            RefRW<AggroTarget> target,
+            RefRW<EnemyState> enemyState,
             RefRO<EnemyChaseDistance> chaseDistance,
             RefRO<Team> myTeam,
-            in EnemyTag enemyTag)  // EnemyTag 필터
+            in EnemyTag enemyTag)
         {
             float3 myPos = myTransform.ValueRO.Position;
             bool needNewTarget = false;
             float loseDistSq = chaseDistance.ValueRO.LoseTargetDistance * chaseDistance.ValueRO.LoseTargetDistance;
 
             // ---------------------------------------------------------
-            // 1. 현재 타겟 유효성 검사
+            // 1. 현재 타겟 유효성 검사 (TargetEntity != Entity.Null로 판단)
             // ---------------------------------------------------------
-            if (!target.ValueRO.HasTarget)
+            Entity currentTarget = target.ValueRO.TargetEntity;
+            if (currentTarget == Entity.Null)
             {
                 needNewTarget = true;
             }
             else
             {
-                Entity currentTarget = target.ValueRO.TargetEntity;
-
                 // TryGetComponent 패턴 적용 - 중복 조회 방지
                 if (!TransformLookup.TryGetComponent(currentTarget, out LocalTransform targetTransform))
                 {
@@ -129,16 +128,15 @@ public partial struct EnemyTargetSystem : ISystem
             // ---------------------------------------------------------
             Entity bestTarget = Entity.Null;
             float bestDistSq = float.MaxValue;
-            
-            // 참고: Config에 'AggroRange'(인식 범위)가 없으므로 
+
+            // 참고: Config에 'AggroRange'(인식 범위)가 없으므로
             // 일단 'LoseTargetDistance'를 인식 범위로도 사용합니다.
-            // (필요하다면 Config에 AggroRange 필드를 추가하는 것이 좋습니다)
-            float searchRadiusSq = loseDistSq; 
+            float searchRadiusSq = loseDistSq;
 
             for (int i = 0; i < PotentialTargets.Length; i++)
             {
                 Entity candidate = PotentialTargets[i];
-                
+
                 // 자기 자신 제외
                 if (candidate == entity) continue;
 
@@ -162,7 +160,6 @@ public partial struct EnemyTargetSystem : ISystem
             if (bestTarget != Entity.Null)
             {
                 target.ValueRW.TargetEntity = bestTarget;
-                target.ValueRW.HasTarget = true;
 
                 // TryGetComponent로 위치 조회
                 if (TransformLookup.TryGetComponent(bestTarget, out LocalTransform bestTargetTransform))
@@ -175,7 +172,6 @@ public partial struct EnemyTargetSystem : ISystem
             }
             else
             {
-                target.ValueRW.HasTarget = false;
                 target.ValueRW.TargetEntity = Entity.Null;
 
                 // EnemyState를 Idle로 변경
