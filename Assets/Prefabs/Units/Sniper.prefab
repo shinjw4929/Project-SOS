@@ -167,7 +167,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 63dc6ce2a0603a64892e7dfc66a30c36, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  unitType: 2
+  unitType: 5
   cost: 30
   populationCost: 1
   trainingTime: 3

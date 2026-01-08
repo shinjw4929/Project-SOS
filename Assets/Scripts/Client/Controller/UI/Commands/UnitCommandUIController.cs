@@ -13,13 +13,18 @@ namespace Client
     /// </summary>
     public class UnitCommandUIController : MonoBehaviour
     {
-        [Header("Main Panel")]
-        [SerializeField] private GameObject mainCommandPanel;
-        [SerializeField] private Button buildButton;
+        [Header("Unit Command Panel")]
+        [SerializeField] private GameObject unitCommandPanel;
+        [SerializeField] private Text unitNameText;
 
-        [Header("Build Menu Panel")]
+        [Header("Command Buttons (Command 상태 - 유닛 타입별 표시)")]
+        [SerializeField] private GameObject commandButtonPanel;
+        [SerializeField] private Button buildButton;  // 빌더 유닛용: Q -> 건설 메뉴
+        // 향후 추가: attackButton, stopButton, holdButton, gatherButton 등
+
+        [Header("Build Menu (BuildMenu 상태)")]
         [SerializeField] private GameObject buildMenuPanel;
-        [SerializeField] private CommandButton[] buildButtons; // Inspector에서 4개 할당
+        [SerializeField] private CommandButton[] buildButtons; // Inspector에서 4개 할당 (Q/W/E/R)
 
         private static readonly string[] ShortcutLabels = { "Q", "W", "E", "R" };
 
@@ -73,20 +78,56 @@ namespace Client
 
         private void HandleCommandState()
         {
-            if (CanShowBuildButton())
-            {
-                if (mainCommandPanel) mainCommandPanel.SetActive(true);
-                if (buildMenuPanel) buildMenuPanel.SetActive(false);
-            }
-            else
+            if (_selectedEntityInfoQuery.IsEmptyIgnoreFilter)
             {
                 HideAllPanels();
+                return;
+            }
+
+            var selection = _selectedEntityInfoQuery.GetSingleton<SelectedEntityInfoState>();
+
+            // 유닛 선택 확인
+            if (selection.Category != SelectionCategory.Units ||
+                !selection.IsOwnedSelection ||
+                selection.PrimaryEntity == Entity.Null ||
+                !_em.Exists(selection.PrimaryEntity))
+            {
+                HideAllPanels();
+                return;
+            }
+
+            Entity primaryEntity = selection.PrimaryEntity;
+
+            // 메인 패널 표시
+            if (unitCommandPanel) unitCommandPanel.SetActive(true);
+            if (commandButtonPanel) commandButtonPanel.SetActive(true);
+            if (buildMenuPanel) buildMenuPanel.SetActive(false);
+
+            // 유닛 타입별 버튼 표시
+            bool isBuilder = _em.HasComponent<BuilderTag>(primaryEntity);
+            bool isSingleSelection = selection.SelectedCount == 1;
+
+            // Build 버튼: 빌더 유닛 1개 선택 시만
+            if (buildButton) buildButton.gameObject.SetActive(isBuilder && isSingleSelection);
+
+            // 유닛 이름 표시
+            if (unitNameText)
+            {
+                if (isSingleSelection)
+                {
+                    unitNameText.text = GetUnitDisplayName(primaryEntity);
+                }
+                else
+                {
+                    unitNameText.text = $"Units ({selection.SelectedCount})";
+                }
             }
         }
 
         private void HandleBuildMenuState()
         {
-            if (mainCommandPanel) mainCommandPanel.SetActive(false);
+            if (unitCommandPanel) unitCommandPanel.SetActive(true);
+            if (commandButtonPanel) commandButtonPanel.SetActive(false);
             if (buildMenuPanel) buildMenuPanel.SetActive(true);
 
             // BuildMenu 진입 시 또는 선택 유닛 변경 시 버튼 갱신
@@ -143,8 +184,15 @@ namespace Client
         /// </summary>
         private void OnBuildButtonClicked()
         {
-            if (!CanShowBuildButton()) return;
             if (_userStateQuery.IsEmptyIgnoreFilter || _selectionInputQuery.IsEmptyIgnoreFilter) return;
+            if (_selectedEntityInfoQuery.IsEmptyIgnoreFilter) return;
+
+            var selection = _selectedEntityInfoQuery.GetSingleton<SelectedEntityInfoState>();
+
+            // 빌더 유닛 1개 선택 확인
+            if (selection.SelectedCount != 1 || !selection.IsOwnedSelection) return;
+            if (selection.PrimaryEntity == Entity.Null || !_em.Exists(selection.PrimaryEntity)) return;
+            if (!_em.HasComponent<BuilderTag>(selection.PrimaryEntity)) return;
 
             ref var userState = ref _userStateQuery.GetSingletonRW<UserState>().ValueRW;
             ref var selectionInput = ref _selectionInputQuery.GetSingletonRW<UserSelectionInputState>().ValueRW;
@@ -186,27 +234,23 @@ namespace Client
         }
 
         /// <summary>
-        /// Build 버튼 표시 가능 여부 확인
+        /// 유닛 표시 이름 조회
         /// </summary>
-        private bool CanShowBuildButton()
+        private string GetUnitDisplayName(Entity entity)
         {
-            if (_selectedEntityInfoQuery.IsEmptyIgnoreFilter) return false;
-
-            var selection = _selectedEntityInfoQuery.GetSingleton<SelectedEntityInfoState>();
-
-            // 1개만 선택, 내 소유
-            if (selection.SelectedCount != 1 || !selection.IsOwnedSelection) return false;
-
-            // BuilderTag 확인
-            if (selection.PrimaryEntity == Entity.Null || !_em.Exists(selection.PrimaryEntity))
-                return false;
-
-            return _em.HasComponent<BuilderTag>(selection.PrimaryEntity);
+            if (_em.HasComponent<HeroTag>(entity)) return "Hero";
+            if (_em.HasComponent<WorkerTag>(entity)) return "Worker";
+            if (_em.HasComponent<SwordsmanTag>(entity)) return "Swordsman";
+            if (_em.HasComponent<TrooperTag>(entity)) return "Trooper";
+            if (_em.HasComponent<SniperTag>(entity)) return "Sniper";
+            if (_em.HasComponent<SoldierTag>(entity)) return "Soldier";
+            return "Unit";
         }
 
         private void HideAllPanels()
         {
-            if (mainCommandPanel) mainCommandPanel.SetActive(false);
+            if (unitCommandPanel) unitCommandPanel.SetActive(false);
+            if (commandButtonPanel) commandButtonPanel.SetActive(false);
             if (buildMenuPanel) buildMenuPanel.SetActive(false);
         }
 
