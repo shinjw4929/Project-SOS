@@ -14,7 +14,10 @@ namespace Authoring
         {
             Hero,
             Worker,
-            Soldier
+            Soldier,    // 일반 병사 (폴백)
+            Swordsman,  // 근접 병사
+            Trooper,    // 중거리 병사
+            Sniper      // 장거리 병사
         }
 
         [Header("Identity")]
@@ -72,7 +75,6 @@ namespace Authoring
                         AddComponent(entity, new BuilderTag());
                         isWorker = true;
                         isBuilder =  true;
-                        //isSoldier =  true;
                         break;
                     case AuthoringUnitType.Worker:
                         AddComponent(entity, new WorkerTag());
@@ -82,7 +84,18 @@ namespace Authoring
                         break;
                     case AuthoringUnitType.Soldier:
                         AddComponent(entity, new SoldierTag());
-                        //isSoldier = true;
+                        break;
+                    case AuthoringUnitType.Swordsman:
+                        AddComponent(entity, new SoldierTag());
+                        AddComponent(entity, new SwordsmanTag());
+                        break;
+                    case AuthoringUnitType.Trooper:
+                        AddComponent(entity, new SoldierTag());
+                        AddComponent(entity, new TrooperTag());
+                        break;
+                    case AuthoringUnitType.Sniper:
+                        AddComponent(entity, new SoldierTag());
+                        AddComponent(entity, new SniperTag());
                         break;
                 }
                 

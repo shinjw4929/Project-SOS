@@ -49,7 +49,7 @@ namespace Client
             switch (userState.CurrentState)
             {
                 case UserContext.Command:
-                    HandleCommandState(keyboard, ref userState, selection);
+                    HandleCommandState(ref state, keyboard, ref userState, selection);
                     break;
 
                 case UserContext.StructureActionMenu:
@@ -58,10 +58,8 @@ namespace Client
             }
         }
 
-        private void HandleCommandState(Keyboard keyboard, ref UserState userState, SelectedEntityInfoState selection)
+        private void HandleCommandState(ref SystemState state, Keyboard keyboard, ref UserState userState, SelectedEntityInfoState selection)
         {
-            if (!keyboard.qKey.wasPressedThisFrame) return;
-
             if (selection.Category != SelectionCategory.Structure ||
                 !selection.IsOwnedSelection ||
                 selection.PrimaryEntity == Entity.Null)
@@ -69,7 +67,20 @@ namespace Client
                 return;
             }
 
-            userState.CurrentState = UserContext.StructureActionMenu;
+            Entity targetEntity = selection.PrimaryEntity;
+
+            // R키: 벽 자폭 (Command 상태에서 직접 실행)
+            if (keyboard.rKey.wasPressedThisFrame && _explosionDataLookup.HasComponent(targetEntity))
+            {
+                SendSelfDestructRpc(ref state, targetEntity);
+                return;
+            }
+
+            // Q키: 생산 시설만 메뉴 진입
+            if (keyboard.qKey.wasPressedThisFrame && _productionFacilityLookup.HasComponent(targetEntity))
+            {
+                userState.CurrentState = UserContext.StructureActionMenu;
+            }
         }
 
         private void HandleMenuState(ref SystemState state, Keyboard keyboard, ref UserState userState, SelectedEntityInfoState selection)
@@ -80,7 +91,7 @@ namespace Client
                 return;
             }
 
-            // 엔티티 존재 여부 확인 (Lookup 사용이 더 빠름)
+            // 엔티티 존재 여부 확인
             if (selection.PrimaryEntity == Entity.Null || !_ghostInstanceLookup.HasComponent(selection.PrimaryEntity))
             {
                 userState.CurrentState = UserContext.Command;
@@ -89,30 +100,21 @@ namespace Client
 
             Entity targetEntity = selection.PrimaryEntity;
 
-            // 3. 자폭 명령 (Lookup으로 컴포넌트 확인)
-            if (keyboard.rKey.wasPressedThisFrame && _explosionDataLookup.HasComponent(targetEntity))
-            {
-                SendSelfDestructRpc(ref state, targetEntity);
-                userState.CurrentState = UserContext.Command;
-                return;
-            }
-
-            // 4. 유닛 생산 (Lookup으로 태그 확인)
+            // 유닛 생산 (Q/W/E 키)
             if (_productionFacilityLookup.HasComponent(targetEntity))
             {
                 int localIndex = -1;
                 if (keyboard.qKey.wasPressedThisFrame) localIndex = 0;
                 else if (keyboard.wKey.wasPressedThisFrame) localIndex = 1;
                 else if (keyboard.eKey.wasPressedThisFrame) localIndex = 2;
-                
+
                 if (localIndex != -1)
                 {
                     int globalIndex = TryGetGlobalUnitIndex(targetEntity, localIndex);
-                    
+
                     if (globalIndex >= 0)
                     {
                         SendProduceUnitRpc(ref state, targetEntity, globalIndex);
-                        // userState.CurrentState = UserContext.Command; 
                     }
                 }
             }
