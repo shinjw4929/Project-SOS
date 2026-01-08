@@ -33,7 +33,7 @@ namespace Server
             int processedCount = 0;
 
             // [중요] IgnoreComponentEnabledState 추가하여 비활성화 상태의 MovementWaypoints도 쿼리
-            foreach (var (goal, pathBuffer, waypoints, waypointsEnabled, transform, entity) in
+            foreach (var (goal, pathBuffer, waypoints, waypointsEnabled, transform) in
                 SystemAPI.Query<
                     RefRW<MovementGoal>,
                     DynamicBuffer<PathWaypoint>,
@@ -41,8 +41,7 @@ namespace Server
                     EnabledRefRW<MovementWaypoints>,
                     RefRO<LocalTransform>>()
                     .WithAll<UnitTag>()
-                    .WithOptions(EntityQueryOptions.IgnoreComponentEnabledState)
-                    .WithEntityAccess())
+                    .WithOptions(EntityQueryOptions.IgnoreComponentEnabledState))
             {
                 if (!goal.ValueRO.IsPathDirty)
                     continue;
@@ -102,10 +101,10 @@ namespace Server
 
             // NavMesh 샘플링 (Vector3 변환 필요)
             NavMeshHit hit;
-            if (!NavMesh.SamplePosition(start, out hit, 2.0f, NavMesh.AllAreas)) return;
+            if (!NavMesh.SamplePosition(start, out hit, 5.0f, NavMesh.AllAreas)) return;
             Vector3 startPoint = hit.position;
 
-            if (!NavMesh.SamplePosition(end, out hit, 2.0f, NavMesh.AllAreas)) return;
+            if (!NavMesh.SamplePosition(end, out hit, 5.0f, NavMesh.AllAreas)) return;
             Vector3 endPoint = hit.position;
 
             NavMeshPath path = new NavMeshPath();

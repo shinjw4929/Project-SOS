@@ -16,6 +16,7 @@ namespace Shared
         [ReadOnly] private ComponentLookup<EnemyTag> _enemyTagLookup;
         [ReadOnly] private ComponentLookup<StructureTag> _structureTagLookup;
         [ReadOnly] private ComponentLookup<ResourceNodeTag> _resourceNodeTagLookup;
+        [ReadOnly] private ComponentLookup<WorkerTag> _workerTagLookup;
 
         [BurstCompile]
         public void OnCreate(ref SystemState state)
@@ -27,6 +28,7 @@ namespace Shared
             _enemyTagLookup = state.GetComponentLookup<EnemyTag>(true);
             _structureTagLookup = state.GetComponentLookup<StructureTag>(true);
             _resourceNodeTagLookup = state.GetComponentLookup<ResourceNodeTag>(true);
+            _workerTagLookup = state.GetComponentLookup<WorkerTag>(true);
         }
 
         [BurstCompile]
@@ -44,6 +46,7 @@ namespace Shared
             _enemyTagLookup.Update(ref state);
             _structureTagLookup.Update(ref state);
             _resourceNodeTagLookup.Update(ref state);
+            _workerTagLookup.Update(ref state);
 
             // [중요] EnabledRefRW를 사용하되, 비활성화 상태도 쿼리하기 위해 IgnoreComponentEnabledState 사용
             foreach (var (inputBuffer, movementGoal, unitIntentState, waypointsEnabled, commandedEntity) in
@@ -100,7 +103,47 @@ namespace Shared
                         // ------------------------------------------------------
                         // B. 무언가를 클릭한 경우 (스마트 판단)
                         // ------------------------------------------------------
-                        // TODO 자원, 적, 아군유닛, 건물 등 구현 필요
+
+                        // Case 1: 자원 노드 클릭 (Gather)
+                        if (_resourceNodeTagLookup.HasComponent(targetEntity))
+                        {
+                            // Worker만 Gather Intent 설정
+                            if (_workerTagLookup.HasComponent(commandedEntity))
+                            {
+                                SetUnitIntentState(ref unitIntentState.ValueRW, Intent.Gather, ref targetEntity);
+                                // MovementGoal은 서버가 HandleGatherRequestSystem에서 설정
+                            }
+                            else
+                            {
+                                // Worker가 아니면 이동으로 처리
+                                if (math.distance(movementGoal.ValueRW.Destination, inputCommand.GoalPosition) > 0.1f)
+                                {
+                                    SetUnitMovement(ref movementGoal.ValueRW, inputCommand.GoalPosition, waypointsEnabled);
+                                    SetUnitIntentState(ref unitIntentState.ValueRW, Intent.Move, ref targetEntity);
+                                }
+                            }
+                        }
+                        // Case 2: 적 클릭 (Attack) - 향후 구현
+                        else if (_enemyTagLookup.HasComponent(targetEntity))
+                        {
+                            // TODO: 공격 명령 구현
+                            // 현재는 이동으로 처리
+                            if (math.distance(movementGoal.ValueRW.Destination, inputCommand.GoalPosition) > 0.1f)
+                            {
+                                SetUnitMovement(ref movementGoal.ValueRW, inputCommand.GoalPosition, waypointsEnabled);
+                                SetUnitIntentState(ref unitIntentState.ValueRW, Intent.Move, ref targetEntity);
+                            }
+                        }
+                        // Case 3: 기타 (이동)
+                        else
+                        {
+                            if (math.distance(movementGoal.ValueRW.Destination, inputCommand.GoalPosition) > 0.1f)
+                            {
+                                SetUnitMovement(ref movementGoal.ValueRW, inputCommand.GoalPosition, waypointsEnabled);
+                                Entity nullEntity = Entity.Null;
+                                SetUnitIntentState(ref unitIntentState.ValueRW, Intent.Move, ref nullEntity);
+                            }
+                        }
                     }
 
                 }

@@ -1,4 +1,3 @@
-#if LEGACY_MOVEMENT_SYSTEM 
 using Unity.Entities;
 using Unity.NetCode;
 using Unity.Burst;
@@ -104,10 +103,10 @@ namespace Server
                 float3 workerPos = transform.ValueRO.Position;
                 float3 nodePos = _transformLookup[nodeEntity].Position;
                 float distance = math.distance(workerPos, nodePos);
-                
+
                 // WorkRange가 있으면 사용, 없으면 기본값 1.0f
                 float workRange = _workRangeLookup.HasComponent(entity) ? _workRangeLookup[entity].Value : 1.0f;
-                
+
                 if (distance <= workRange)
                 {
                     unitState.ValueRW.CurrentState = UnitContext.Gathering;
@@ -123,9 +122,9 @@ namespace Server
         [BurstCompile]
         private void ProcessGathering(ref SystemState state, float deltaTime)
         {
-            foreach (var (unitState, workerState, gatherTarget, ability, pathState, ghostOwner, entity)
+            foreach (var (unitState, workerState, gatherTarget, ability, movementGoal, ghostOwner, entity)
                 in SystemAPI.Query<RefRW<UnitState>, RefRW<WorkerState>, RefRW<GatheringTarget>,
-                    RefRO<GatheringAbility>, RefRW<PathfindingState>, RefRO<GhostOwner>>()
+                    RefRO<GatheringAbility>, RefRW<MovementGoal>, RefRO<GhostOwner>>()
                     .WithAll<WorkerTag>()
                     .WithEntityAccess())
             {
@@ -140,6 +139,7 @@ namespace Server
                 }
 
                 if (!_resourceNodeStateLookup.HasComponent(nodeEntity)) continue;
+                if (!_resourceNodeSettingLookup.HasComponent(nodeEntity)) continue;
 
                 // 노드 설정 가져오기
                 var setting = _resourceNodeSettingLookup[nodeEntity];
@@ -154,7 +154,7 @@ namespace Server
                 {
                     int newAmount = workerState.ValueRO.CarriedAmount + setting.AmountPerGather;
                     int maxAmount = ability.ValueRO.MaxCarryAmount;
-                    
+
                     workerState.ValueRW.CarriedAmount = math.min(newAmount, maxAmount);
                     workerState.ValueRW.CarriedType = setting.ResourceType;
                     workerState.ValueRW.GatheringProgress = 0f;
@@ -176,8 +176,9 @@ namespace Server
                     Entity returnPoint = gatherTarget.ValueRO.ReturnPointEntity;
                     if (returnPoint != Entity.Null && _transformLookup.HasComponent(returnPoint))
                     {
-                        pathState.ValueRW.FinalDestination = _transformLookup[returnPoint].Position;
-                        pathState.ValueRW.NeedsPath = true;
+                        float3 returnPos = _transformLookup[returnPoint].Position;
+                        movementGoal.ValueRW.Destination = returnPos;
+                        movementGoal.ValueRW.IsPathDirty = true;
                     }
                 }
             }
@@ -206,7 +207,7 @@ namespace Server
                 float3 workerPos = transform.ValueRO.Position;
                 float3 returnPos = _transformLookup[returnPoint].Position;
                 float distance = math.distance(workerPos, returnPos);
-                
+
                 float touchingDistance = 0.5f;
 
                 // 1. 타겟(건물)의 반지름 가져오기
@@ -218,12 +219,13 @@ namespace Server
 
                 // 2. 나(유닛)의 반지름 가져오기
                 float myRadius = 0.5f; // 컴포넌트 없을 때 기본값
-                if (_obstacleRadiusLookup.HasComponent(entity)) 
+                if (_obstacleRadiusLookup.HasComponent(entity))
                 {
                     myRadius = _obstacleRadiusLookup[entity].Radius;
                 }
-                
+
                 touchingDistance = targetRadius + myRadius + 0.1f;
+
                 if (distance <= touchingDistance)
                 {
                     // 도착: 하차(Unloading) 상태로 전환
@@ -239,9 +241,9 @@ namespace Server
         [BurstCompile]
         private void ProcessUnloading(ref SystemState state, float deltaTime, NativeParallelHashMap<int, Entity> networkIdToCurrency)
         {
-            foreach (var (unitState, workerState, gatherTarget, ability, pathState, ghostOwner, entity)
+            foreach (var (unitState, workerState, gatherTarget, ability, movementGoal, ghostOwner, entity)
                 in SystemAPI.Query<RefRW<UnitState>, RefRW<WorkerState>, RefRW<GatheringTarget>, 
-                    RefRO<GatheringAbility>, RefRW<PathfindingState>, RefRO<GhostOwner>>()
+                    RefRO<GatheringAbility>, RefRW<MovementGoal>, RefRO<GhostOwner>>()
                     .WithAll<WorkerTag>()
                     .WithEntityAccess())
             {
@@ -269,7 +271,7 @@ namespace Server
                     workerState.ValueRW.GatheringProgress = 0f;
 
                     // 다음 행동 결정
-                    DecideNextAction(unitState, gatherTarget, pathState, entity);
+                    DecideNextAction(unitState, gatherTarget, movementGoal, entity);
                 }
             }
         }
@@ -280,7 +282,7 @@ namespace Server
         private void DecideNextAction(
             RefRW<UnitState> unitState,
             RefRW<GatheringTarget> gatherTarget,
-            RefRW<PathfindingState> pathState,
+            RefRW<MovementGoal> movementGoal,
             Entity workerEntity)
         {
             if (!gatherTarget.ValueRO.AutoReturn || gatherTarget.ValueRO.ResourceNodeEntity == Entity.Null)
@@ -307,15 +309,15 @@ namespace Server
                 nodeStateRW.ValueRW.OccupyingWorker = workerEntity;
                 unitState.ValueRW.CurrentState = UnitContext.MovingToGather;
                 
-                pathState.ValueRW.FinalDestination = _transformLookup[nodeEntity].Position;
-                pathState.ValueRW.NeedsPath = true;
+                movementGoal.ValueRW.Destination = _transformLookup[nodeEntity].Position;
+                movementGoal.ValueRW.IsPathDirty = true;
             }
             // B. 노드가 찼으면 -> 대기 상태로 노드 근처 이동
             else
             {
                 unitState.ValueRW.CurrentState = UnitContext.WaitingForNode;
-                pathState.ValueRW.FinalDestination = _transformLookup[nodeEntity].Position;
-                pathState.ValueRW.NeedsPath = true;
+                movementGoal.ValueRW.Destination = _transformLookup[nodeEntity].Position;
+                movementGoal.ValueRW.IsPathDirty = true;
             }
         }
 
@@ -325,8 +327,8 @@ namespace Server
         [BurstCompile]
         private void ProcessWaitingForNode(ref SystemState state)
         {
-            foreach (var (unitState, gatherTarget, pathState, entity)
-                in SystemAPI.Query<RefRW<UnitState>, RefRW<GatheringTarget>, RefRW<PathfindingState>>()
+            foreach (var (unitState, gatherTarget, movementGoal, entity)
+                in SystemAPI.Query<RefRW<UnitState>, RefRW<GatheringTarget>, RefRW<MovementGoal>>()
                     .WithAll<WorkerTag>()
                     .WithEntityAccess())
             {
@@ -350,12 +352,10 @@ namespace Server
                     unitState.ValueRW.CurrentState = UnitContext.MovingToGather;
                     
                     // 목적지 재확인 (이미 근처여도 확실하게)
-                    pathState.ValueRW.FinalDestination = _transformLookup[nodeEntity].Position;
-                    pathState.ValueRW.NeedsPath = true;
+                    movementGoal.ValueRW.Destination = _transformLookup[nodeEntity].Position;
+                    movementGoal.ValueRW.IsPathDirty = true;
                 }
             }
         }
     }
 }
-
-#endif

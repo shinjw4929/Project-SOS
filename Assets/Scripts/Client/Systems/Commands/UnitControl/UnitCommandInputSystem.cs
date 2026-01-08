@@ -2,6 +2,9 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.NetCode;
 using Unity.Mathematics;
+using Unity.Transforms;
+using Unity.Physics;
+using Unity.Physics.Systems;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using Shared;
@@ -13,21 +16,30 @@ namespace Client
     /// </summary>
     [UpdateInGroup(typeof(GhostInputSystemGroup))]
     [UpdateAfter(typeof(SelectedEntityInfoUpdateSystem))]
+    [UpdateAfter(typeof(GhostIdLookupSystem))]
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
     public partial struct UnitCommandInputSystem : ISystem
     {
         private ComponentLookup<PendingBuildRequest> _pendingBuildLookup;
         private ComponentLookup<GhostInstance> _ghostInstanceLookup;
-
+        private ComponentLookup<ResourceNodeTag> _resourceNodeTagLookup;
+        private ComponentLookup<WorkerTag> _workerTagLookup;
+        private EntityQuery _physicsWorldQuery;
+        
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<NetworkStreamInGame>();
             state.RequireForUpdate<NetworkId>();
             state.RequireForUpdate<UserState>();
             state.RequireForUpdate<BeginSimulationEntityCommandBufferSystem.Singleton>();
+            state.RequireForUpdate<GhostIdMap>();
+            state.RequireForUpdate<NetworkTime>();
+            state.RequireForUpdate<PhysicsWorldSingleton>();
 
             _pendingBuildLookup = state.GetComponentLookup<PendingBuildRequest>(true);
             _ghostInstanceLookup = state.GetComponentLookup<GhostInstance>(true);
+            _resourceNodeTagLookup = state.GetComponentLookup<ResourceNodeTag>(true);
+            _workerTagLookup = state.GetComponentLookup<WorkerTag>(true);
         }
 
         public void OnUpdate(ref SystemState state)
@@ -42,6 +54,8 @@ namespace Client
             // Lookup 업데이트
             _pendingBuildLookup.Update(ref state);
             _ghostInstanceLookup.Update(ref state);
+            _resourceNodeTagLookup.Update(ref state);
+            _workerTagLookup.Update(ref state);
 
             ProcessMouseInput(ref state);
         }
@@ -49,31 +63,42 @@ namespace Client
         private void ProcessMouseInput(ref SystemState state)
         {
             var mouse = Mouse.current;
-            if (mouse == default) return;
-            if (!Camera.main) return;
+            if (mouse == default || !Camera.main) return;
 
             // 우클릭했을 때만 명령 전송
             if (mouse.rightButton.wasPressedThisFrame)
             {
-                // 1. Raycast 수행
+                // 1. 스크린 좌표를 월드 Ray로 변환 (Unity API 사용)
                 float2 mousePos = mouse.position.ReadValue();
-                UnityEngine.Ray ray = Camera.main.ScreenPointToRay(new Vector3(mousePos.x, mousePos.y, 0));
+                UnityEngine.Ray unityRay = Camera.main.ScreenPointToRay(new Vector3(mousePos.x, mousePos.y, 0));
 
-                // 레이어 마스크 (Ground, Unit, Resource 등)
-                int layerMask = (1 << 3) | (1 << 6) | (1 << 7); // 예시: 3=Ground, 6=Resource, 7=Structure
+                // 2. DOTS Physics Raycast 준비
+                // PhysicsWorldSingleton을 통해 ECS 물리 월드에 접근
+                var physicsWorld = SystemAPI.GetSingleton<PhysicsWorldSingleton>().CollisionWorld;
 
-                if (Physics.Raycast(ray, out UnityEngine.RaycastHit hit, 1000f, layerMask))
+                var rayInput = new RaycastInput
                 {
-                    // 2. 클릭된 대상 분석 (Entity 찾기)
-                    Entity targetEntity = Entity.Null;
+                    Start = unityRay.origin,
+                    End = unityRay.origin + unityRay.direction * 1000f,
+                    Filter = CollisionFilter.Default
+                };
+
+                // 3. CastRay 수행 (매우 빠름, O(1) ~ O(logN))
+                if (physicsWorld.CastRay(rayInput, out Unity.Physics.RaycastHit hit))
+                {
+                    // Hit된 Entity를 바로 가져옴 (루프 불필요!)
+                    Entity hitEntity = hit.Entity;
                     int targetGhostId = 0;
 
-                    // [간소화] 일단은 땅 클릭(이동)만 있다고 가정하고, 타겟 ID는 0으로 둠.
-                    // 나중에 '적 유닛 클릭' 등을 구현할 때 여기서 targetGhostId를 채우면 됨.
+                    // Hit된 엔티티가 Ghost(네트워크 객체)인지 확인
+                    if (_ghostInstanceLookup.HasComponent(hitEntity))
+                    {
+                        targetGhostId = _ghostInstanceLookup[hitEntity].ghostId;
+                    }
 
-                    // 3. 명령 전송
-                    SendCommandToSelectedUnits(ref state, hit.point, targetGhostId);
-                    return; // 명령 전송했으면 빈 명령 전송 스킵
+                    // 4. 명령 전송
+                    SendCommandToSelectedUnits(ref state, hit.Position, targetGhostId);
+                    return;
                 }
             }
 
@@ -88,6 +113,20 @@ namespace Client
 
             var ecb = SystemAPI.GetSingleton<BeginSimulationEntityCommandBufferSystem.Singleton>()
                 .CreateCommandBuffer(state.WorldUnmanaged);
+
+            // GhostIdMap 획득 (UpdateAfter로 Job 동기화 보장됨)
+            if (!SystemAPI.TryGetSingleton<GhostIdMap>(out var ghostIdMapData))
+                return;
+            var ghostIdMap = ghostIdMapData.Map;
+
+            // 타겟 엔티티 조회
+            Entity targetEntity = Entity.Null;
+            bool isResourceNode = false;
+
+            if (targetGhostId != 0 && ghostIdMap.TryGetValue(targetGhostId, out targetEntity))
+            {
+                isResourceNode = _resourceNodeTagLookup.HasComponent(targetEntity);
+            }
 
             int selectedCount = 0;
 
@@ -110,7 +149,23 @@ namespace Client
                 // 2. 버퍼에 추가 (Netcode가 서버로 전송함)
                 inputBuffer.AddCommandData(command);
 
-                // 3. 건설 대기 상태였다면 취소 (이동 명령이 우선이므로)
+                // 3. Worker + ResourceNode 조합일 때 GatherRequestRpc 전송
+                if (isResourceNode && _workerTagLookup.HasComponent(entity))
+                {
+                    if (_ghostInstanceLookup.TryGetComponent(entity, out var workerGhost))
+                    {
+                        Entity rpcEntity = ecb.CreateEntity();
+                        ecb.AddComponent(rpcEntity, new GatherRequestRpc
+                        {
+                            WorkerGhostId = workerGhost.ghostId,
+                            ResourceNodeGhostId = targetGhostId,
+                            ReturnPointGhostId = 0 // 자동 선택
+                        });
+                        ecb.AddComponent<SendRpcCommandRequest>(rpcEntity);
+                    }
+                }
+
+                // 4. 건설 대기 상태였다면 취소 (이동 명령이 우선이므로)
                 if (_pendingBuildLookup.HasComponent(entity))
                 {
                     ecb.RemoveComponent<PendingBuildRequest>(entity);

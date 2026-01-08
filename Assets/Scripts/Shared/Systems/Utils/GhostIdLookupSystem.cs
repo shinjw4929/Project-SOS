@@ -39,7 +39,7 @@ namespace Shared
         {
             // 싱글톤 데이터 가져오기 (RW 권한)
             var ghostIdMap = SystemAPI.GetSingletonRW<GhostIdMap>();
-            
+
             // 1. 맵 초기화 (메인 스레드에서 수행해야 함)
             // Clear는 빠르므로 병렬화 불필요
             ghostIdMap.ValueRW.Map.Clear();
@@ -56,6 +56,11 @@ namespace Shared
 
             // 싱글 스레드 처리 대신, 가용 가능한 모든 워커 스레드 사용
             state.Dependency = job.ScheduleParallel(state.Dependency);
+
+            // Job 완료 대기 (다른 SystemGroup에서 안전하게 접근 가능)
+            // GhostInputSystemGroup 등 다른 그룹의 시스템에서 GhostIdMap을 사용하므로
+            // Job이 완료되어야 안전하게 접근 가능
+            state.Dependency.Complete();
         }
     }
 

@@ -1,4 +1,3 @@
-#if LEGACY_MOVEMENT_SYSTEM
 using Unity.Entities;
 using Unity.NetCode;
 using Unity.Collections;
@@ -30,7 +29,7 @@ namespace Server
         private ComponentLookup<ResourceNodeState> _resourceNodeStateLookup;
         private ComponentLookup<GatheringTarget> _gatheringTargetLookup;
         private ComponentLookup<UnitState> _unitStateLookup;
-        private ComponentLookup<PathfindingState> _pathfindingStateLookup;
+        private ComponentLookup<MovementGoal> _movementGoalLookup;
 
         public void OnCreate(ref SystemState state)
         {
@@ -47,7 +46,7 @@ namespace Server
             _resourceNodeStateLookup = state.GetComponentLookup<ResourceNodeState>(false);
             _gatheringTargetLookup = state.GetComponentLookup<GatheringTarget>(false);
             _unitStateLookup = state.GetComponentLookup<UnitState>(false);
-            _pathfindingStateLookup = state.GetComponentLookup<PathfindingState>(false);
+            _movementGoalLookup = state.GetComponentLookup<MovementGoal>(false);
         }
 
         [BurstCompile]
@@ -62,7 +61,7 @@ namespace Server
             _resourceNodeStateLookup.Update(ref state);
             _gatheringTargetLookup.Update(ref state);
             _unitStateLookup.Update(ref state);
-            _pathfindingStateLookup.Update(ref state);
+            _movementGoalLookup.Update(ref state);
 
             var ecb = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>()
                 .CreateCommandBuffer(state.WorldUnmanaged);
@@ -170,13 +169,13 @@ namespace Server
             }
 
             // 8. PathfindingState 설정 (자원 노드 위치로 이동)
-            if (_pathfindingStateLookup.HasComponent(workerEntity) &&
+            if (_movementGoalLookup.HasComponent(workerEntity) &&
                 _transformLookup.HasComponent(resourceNodeEntity))
             {
                 float3 nodePosition = _transformLookup[resourceNodeEntity].Position;
-                RefRW<PathfindingState> pathRW = _pathfindingStateLookup.GetRefRW(workerEntity);
-                pathRW.ValueRW.FinalDestination = nodePosition;
-                pathRW.ValueRW.NeedsPath = true;
+                RefRW<MovementGoal> pathRW = _movementGoalLookup.GetRefRW(workerEntity);
+                pathRW.ValueRW.Destination = nodePosition;
+                pathRW.ValueRW.IsPathDirty = true;
             }
         }
 
@@ -206,4 +205,3 @@ namespace Server
         }
     }
 }
-#endif
