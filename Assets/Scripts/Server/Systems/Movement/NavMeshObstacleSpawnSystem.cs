@@ -53,7 +53,7 @@ namespace Server
                 NavMeshObstacle obstacle = obstacleObj.AddComponent<NavMeshObstacle>();
                 obstacle.shape = NavMeshObstacleShape.Box;
 
-                // 3. [수정됨] 크기 및 중심점 계산
+                // 3. 크기 및 중심점 계산
                 
                 // 중심점: 높이의 절반만큼 올려야 바닥에 묻히지 않음
                 obstacle.center = new Vector3(0, footprint.ValueRO.Height * 0.5f, 0);
@@ -98,18 +98,21 @@ namespace Server
 
         private void InvalidateNearbyPaths(float3 buildingPos)
         {
-            foreach (var (pathState, unitTransform, moveTarget) in
-                SystemAPI.Query<RefRW<PathfindingState>, RefRO<LocalTransform>, RefRO<MoveTarget>>()
-                    .WithAll<UnitTag>())
+            // 이동 중인 유닛(EnabledRefRW<MovementWaypoints>가 참인)을 찾아서 경로 갱신 요청
+            foreach (var (goalState, unitTransform, waypointsEnabled) in
+                     SystemAPI.Query<RefRW<MovementGoal>, RefRO<LocalTransform>, EnabledRefRW<MovementWaypoints>>()
+                         .WithAll<UnitTag>())
             {
-                if (!moveTarget.ValueRO.isValid)
+                // 이동 중이 아니면 스킵
+                if (!waypointsEnabled.ValueRO)
                     continue;
 
                 float distance = math.distance(unitTransform.ValueRO.Position, buildingPos);
 
                 if (distance < PathInvalidationRadius)
                 {
-                    pathState.ValueRW.NeedsPath = true;
+                    // 경로가 더러워졌으니(장애물 생김) 다시 계산해라
+                    goalState.ValueRW.IsPathDirty = true;
                 }
             }
         }

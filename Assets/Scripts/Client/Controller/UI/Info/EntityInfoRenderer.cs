@@ -40,17 +40,17 @@ namespace Client
                 return;
             }
 
-            var selectionState = _selectionQuery.GetSingleton<CurrentSelectionState>();
+            var selectedEntityInfoState = _selectionQuery.GetSingleton<SelectedEntityInfoState>();
 
             // 2. 선택된 유닛이 없으면 숨김
-            if (selectionState.SelectedCount == 0 || selectionState.PrimaryEntity == Entity.Null)
+            if (selectedEntityInfoState.SelectedCount == 0 || selectedEntityInfoState.PrimaryEntity == Entity.Null)
             {
                 SetPanelActive(false);
                 ResetCache(); // 선택 해제 시 캐시 초기화
                 return;
             }
 
-            Entity currentEntity = selectionState.PrimaryEntity;
+            Entity currentEntity = selectedEntityInfoState.PrimaryEntity;
 
             // 3. 엔티티 유효성 검사
             if (!_entityManager.Exists(currentEntity) ||
@@ -102,8 +102,8 @@ namespace Client
 
             // --- Attack Power (Optional) ---
             float currentAttack = 0f;
-            if (_entityManager.HasComponent<CombatStatus>(entity))
-                currentAttack = _entityManager.GetComponentData<CombatStatus>(entity).AttackPower;
+            if (_entityManager.HasComponent<CombatStats>(entity))
+                currentAttack = _entityManager.GetComponentData<CombatStats>(entity).AttackPower;
 
             if (_cachedAttackPower != currentAttack)
             {
@@ -166,7 +166,7 @@ namespace Client
                 {
                     _clientWorld = world;
                     _entityManager = world.EntityManager;
-                    _selectionQuery = _entityManager.CreateEntityQuery(typeof(CurrentSelectionState));
+                    _selectionQuery = _entityManager.CreateEntityQuery(typeof(SelectedEntityInfoState));
                     _networkIdQuery = _entityManager.CreateEntityQuery(typeof(NetworkId));
                     return true;
                 }

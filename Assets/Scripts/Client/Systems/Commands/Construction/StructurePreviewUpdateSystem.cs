@@ -18,6 +18,7 @@ namespace Client
         [ReadOnly] private ComponentLookup<LocalTransform> _transformLookup;
         [ReadOnly] private ComponentLookup<WorkRange> _workRangeLookup;
         [ReadOnly] private ComponentLookup<ObstacleRadius> _obstacleRadiusLookup;
+        [ReadOnly] private ComponentLookup<ProductionCost> _productionCostLookup;
 
         public void OnCreate(ref SystemState state)
         {
@@ -25,13 +26,14 @@ namespace Client
             state.RequireForUpdate<StructurePreviewState>();
             state.RequireForUpdate<GridSettings>();
             state.RequireForUpdate<PhysicsWorldSingleton>();
-            state.RequireForUpdate<CurrentSelectionState>();
+            state.RequireForUpdate<SelectedEntityInfoState>();
 
             _footprintLookup = state.GetComponentLookup<StructureFootprint>(true);
             _gridCellLookup = state.GetBufferLookup<GridCell>(true);
             _transformLookup = state.GetComponentLookup<LocalTransform>(true);
             _workRangeLookup = state.GetComponentLookup<WorkRange>(true);
             _obstacleRadiusLookup = state.GetComponentLookup<ObstacleRadius>(true);
+            _productionCostLookup = state.GetComponentLookup<ProductionCost>(true);
         }
 
         [BurstCompile]
@@ -74,7 +76,7 @@ namespace Client
 
             // 4. 유닛 물리 충돌 확인
             var physicsWorld = SystemAPI.GetSingleton<PhysicsWorldSingleton>();
-            var selectionState = SystemAPI.GetSingleton<CurrentSelectionState>();
+            var selectedEntityInfoState = SystemAPI.GetSingleton<SelectedEntityInfoState>();
             float3 buildingCenter = GridUtility.GridToWorld(previewState.GridPosition.x, previewState.GridPosition.y,
                 width, length, gridSettings);
 
@@ -84,7 +86,7 @@ namespace Client
                 length * gridSettings.CellSize * 0.5f
             );
 
-            Entity builderEntity = selectionState.PrimaryEntity;
+            Entity builderEntity = selectedEntityInfoState.PrimaryEntity;
 
             if (builderEntity == Entity.Null) return;
             
@@ -142,7 +144,25 @@ namespace Client
 
             previewState.DistanceToBuilder = distanceToSurface;
 
-            // 9. 사거리 내/외 판단
+            // 9. 비용 확인
+            _productionCostLookup.Update(ref state);
+            bool hasEnoughCurrency = true;
+            if (_productionCostLookup.TryGetComponent(previewState.SelectedPrefab, out var cost))
+            {
+                if (SystemAPI.TryGetSingleton<UserCurrency>(out var userCurrency))
+                {
+                    hasEnoughCurrency = userCurrency.Amount >= cost.Cost;
+                }
+            }
+
+            // 10. 최종 상태 판단: 돈 부족 시 Invalid
+            if (!hasEnoughCurrency)
+            {
+                previewState.Status = PlacementStatus.Invalid;
+                return;
+            }
+
+            // 11. 사거리 내/외 판단
             // WorkRange는 이미 유닛 반지름이 포함되어 있음 (workRange + radius)
             if (distanceToSurface <= buildRange)
             {

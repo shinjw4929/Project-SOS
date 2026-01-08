@@ -25,10 +25,11 @@ public class ProjectileAuthoring : MonoBehaviour
                 Speed = authoring.speed,
                 RemainingDistance = authoring.maxDistance
             });
-            AddComponent(entity, new CombatStatus
+            AddComponent(entity, new CombatStats
             {
                 AttackPower = authoring.attackPower,
                 AttackSpeed = 1.0f,
+                AttackRange = 3.0f
             });
         }
     }

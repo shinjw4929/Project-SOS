@@ -134,9 +134,18 @@ namespace Server
             if (networkIdToCurrencyMap.TryGetValue(ownerId, out Entity userCurrencyEntity))
             {
                 RefRW<UserCurrency> currencyRW = _userCurrencyLookup.GetRefRW(userCurrencyEntity);
-                
+
                 if (currencyRW.ValueRO.Amount < constructionCost)
+                {
+                    // 자원 부족 알림 RPC 전송
+                    if (sourceConnection != Entity.Null)
+                    {
+                        var notifyEntity = ecb.CreateEntity();
+                        ecb.AddComponent(notifyEntity, new NotificationRpc { Type = NotificationType.InsufficientFunds });
+                        ecb.AddComponent(notifyEntity, new SendRpcCommandRequest { TargetConnection = sourceConnection });
+                    }
                     return;
+                }
 
                 // 5. [최종 승인] 자원 차감
                 currencyRW.ValueRW.Amount -= constructionCost;

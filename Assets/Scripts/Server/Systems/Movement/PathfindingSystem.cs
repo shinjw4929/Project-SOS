@@ -3,126 +3,128 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Transforms;
+using UnityEngine;
 using UnityEngine.AI;
-using UnityEngine.Experimental.AI;
 using Shared;
 
 namespace Server
 {
     /// <summary>
-    /// NavMesh 기반 경로 계산 시스템 (서버 전용)
-    /// - PathfindingState.NeedsPath가 true인 유닛의 경로 계산
-    /// - 프레임당 최대 10개 처리 (부하 분산)
-    /// - 결과를 PathWaypoint 버퍼에 저장
+    /// NavMesh 경로 계산 시스템 (Server Only)
+    /// - MovementGoal.IsPathDirty == true일 때 경로를 계산하고 버퍼에 담음
+    /// - 계산 직후 첫 번째 웨이포인트를 MovementWaypoints에 주입하여 즉시 이동 시작
     /// </summary>
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
     public partial class PathfindingSystem : SystemBase
     {
-        private const int MaxPathRequestsPerFrame = 10;
-        private const int MaxPathLength = 128;
-        private const float PathNodeDistance = 1.0f; // 경로 노드 간 거리
-
+        private const int MaxPathRequestsPerFrame = 15; 
+        private const int MaxPathLength = 64; 
+        
         protected override void OnCreate()
         {
-            RequireForUpdate<PathfindingState>();
+            RequireForUpdate<MovementGoal>();
         }
 
         protected override void OnUpdate()
         {
+            if (NavMesh.GetSettingsCount() == 0) return;
+
             int processedCount = 0;
 
-            // NavMesh가 준비되었는지 확인 (특정 위치가 아닌 NavMesh 자체 존재 여부 확인)
-            if (NavMesh.GetSettingsCount() == 0)
-            {
-                // NavMesh가 아직 로드되지 않음
-                return;
-            }
-
-            foreach (var (pathState, pathBuffer, moveTarget, transform, entity) in
-                SystemAPI.Query<RefRW<PathfindingState>, DynamicBuffer<PathWaypoint>, RefRW<MoveTarget>, RefRO<LocalTransform>>()
+            // [중요] IgnoreComponentEnabledState 추가하여 비활성화 상태의 MovementWaypoints도 쿼리
+            foreach (var (goal, pathBuffer, waypoints, waypointsEnabled, transform, entity) in
+                SystemAPI.Query<
+                    RefRW<MovementGoal>,
+                    DynamicBuffer<PathWaypoint>,
+                    RefRW<MovementWaypoints>,
+                    EnabledRefRW<MovementWaypoints>,
+                    RefRO<LocalTransform>>()
                     .WithAll<UnitTag>()
+                    .WithOptions(EntityQueryOptions.IgnoreComponentEnabledState)
                     .WithEntityAccess())
             {
-                if (!pathState.ValueRO.NeedsPath)
+                if (!goal.ValueRO.IsPathDirty)
                     continue;
 
                 if (processedCount >= MaxPathRequestsPerFrame)
                     break;
 
+                // 1. 경로 계산
                 float3 startPos = transform.ValueRO.Position;
-                float3 endPos = pathState.ValueRO.FinalDestination;
+                float3 endPos = goal.ValueRO.Destination;
 
-                // 경로 계산
-                bool pathFound = CalculatePath(startPos, endPos, pathBuffer);
+                CalculatePath(startPos, endPos, pathBuffer);
 
-                if (pathFound && pathBuffer.Length > 0)
+                // 2. 경로 계산 후 처리
+                // NavMesh 경로의 0번은 항상 '현재 위치'이므로, 실제 목표는 1번부터임
+                if (pathBuffer.Length > 1)
                 {
-                    pathState.ValueRW.TotalWaypoints = (byte)math.min(pathBuffer.Length, 255);
-                    pathState.ValueRW.CurrentWaypointIndex = 0;
+                    int firstTargetIndex = 1;
 
-                    // 첫 번째 웨이포인트를 MoveTarget에 설정
-                    moveTarget.ValueRW.position = pathBuffer[0].Position;
-                    moveTarget.ValueRW.isValid = true;
+                    // Goal 상태 업데이트
+                    goal.ValueRW.CurrentWaypointIndex = (byte)firstTargetIndex;
+
+                    // 즉시 이동 시작을 위해 MovementWaypoints 초기화
+                    waypoints.ValueRW.Current = pathBuffer[firstTargetIndex].Position;
+
+                    // 다음 웨이포인트가 있다면 미리 세팅 (코너링용)
+                    if (pathBuffer.Length > firstTargetIndex + 1)
+                    {
+                        waypoints.ValueRW.Next = pathBuffer[firstTargetIndex + 1].Position;
+                        waypoints.ValueRW.HasNext = true;
+                    }
+                    else
+                    {
+                        waypoints.ValueRW.HasNext = false;
+                    }
+
+                    // 컴포넌트 활성화 -> PredictedMovementSystem이 작동 시작
+                    waypointsEnabled.ValueRW = true;
                 }
                 else
                 {
-                    // 경로를 찾을 수 없으면 직선 이동
+                    // 경로가 없거나 제자리인 경우
                     pathBuffer.Clear();
-                    pathBuffer.Add(new PathWaypoint { Position = endPos });
-                    pathState.ValueRW.TotalWaypoints = 1;
-                    pathState.ValueRW.CurrentWaypointIndex = 0;
-
-                    moveTarget.ValueRW.position = endPos;
-                    moveTarget.ValueRW.isValid = true;
+                    waypointsEnabled.ValueRW = false; // 이동 정지
                 }
 
-                pathState.ValueRW.NeedsPath = false;
+                goal.ValueRW.IsPathDirty = false;
                 processedCount++;
             }
         }
 
-        /// <summary>
-        /// NavMesh 경로 계산
-        /// </summary>
-        private bool CalculatePath(float3 start, float3 end, DynamicBuffer<PathWaypoint> pathBuffer)
+        private void CalculatePath(float3 start, float3 end, DynamicBuffer<PathWaypoint> pathBuffer)
         {
             pathBuffer.Clear();
 
-            // 좌표 유효성 검사 (NaN, Infinity 방지)
-            if (!math.isfinite(start.x) || !math.isfinite(start.y) || !math.isfinite(start.z) ||
-                !math.isfinite(end.x) || !math.isfinite(end.y) || !math.isfinite(end.z))
-            {
-                return false;
-            }
+            if (!math.isfinite(start.x) || !math.isfinite(end.x)) return;
 
-            //            // 시작점이 NavMesh 위에 있는지 확인
-            if (!NavMesh.SamplePosition(start, out NavMeshHit startHit, 2f, NavMesh.AllAreas))
-                return false;
+            // NavMesh 샘플링 (Vector3 변환 필요)
+            NavMeshHit hit;
+            if (!NavMesh.SamplePosition(start, out hit, 2.0f, NavMesh.AllAreas)) return;
+            Vector3 startPoint = hit.position;
 
-            // 끝점이 NavMesh 위에 있는지 확인
-            if (!NavMesh.SamplePosition(end, out NavMeshHit endHit, 2f, NavMesh.AllAreas))
-                return false;
+            if (!NavMesh.SamplePosition(end, out hit, 2.0f, NavMesh.AllAreas)) return;
+            Vector3 endPoint = hit.position;
 
-            // NavMeshPath 계산
             NavMeshPath path = new NavMeshPath();
-            if (!NavMesh.CalculatePath(startHit.position, endHit.position, NavMesh.AllAreas, path))
-                return false;
-
-            if (path.status == NavMeshPathStatus.PathInvalid)
-                return false;
-
-            // 경로를 PathWaypoint 버퍼에 저장
-            var corners = path.corners;
-            for (int i = 0; i < corners.Length && i < MaxPathLength; i++)
+            if (NavMesh.CalculatePath(startPoint, endPoint, NavMesh.AllAreas, path) && 
+                path.status != NavMeshPathStatus.PathInvalid)
             {
-                pathBuffer.Add(new PathWaypoint
+                var corners = path.corners;
+                int count = math.min(corners.Length, MaxPathLength);
+                for (int i = 0; i < count; i++)
                 {
-                    Position = corners[i]
-                });
+                    pathBuffer.Add(new PathWaypoint { Position = corners[i] });
+                }
             }
-
-            return pathBuffer.Length > 0;
+            else
+            {
+                // 실패 시 직선 경로 Fallback (0: 시작점, 1: 끝점)
+                pathBuffer.Add(new PathWaypoint { Position = start });
+                pathBuffer.Add(new PathWaypoint { Position = end });
+            }
         }
     }
 }

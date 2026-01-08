@@ -12,13 +12,12 @@ GameObject:
   - component: {fileID: 3842597775487614233}
   - component: {fileID: 5311303963870271693}
   - component: {fileID: 2618216604821846599}
+  - component: {fileID: 3272844813672822570}
+  - component: {fileID: -4651169352919892588}
   - component: {fileID: -8389805907187040619}
   - component: {fileID: 6436938495033817077}
-  - component: {fileID: -6579359648565810101}
   - component: {fileID: 7138247794112937167}
   - component: {fileID: -3200572469814136834}
-  - component: {fileID: 3272844813672822570}
-  - component: {fileID: -994233781190505702}
   m_Layer: 11
   m_Name: Swordsman
   m_TagString: Untagged
@@ -117,6 +116,45 @@ CapsuleCollider:
   m_Height: 2
   m_Direction: 1
   m_Center: {x: 0, y: 0, z: 0}
+--- !u!54 &3272844813672822570
+Rigidbody:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5905964026690146530}
+  serializedVersion: 4
+  m_Mass: 1
+  m_Drag: 0
+  m_AngularDrag: 0.05
+  m_CenterOfMass: {x: 0, y: 0, z: 0}
+  m_InertiaTensor: {x: 1, y: 1, z: 1}
+  m_InertiaRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ImplicitCom: 1
+  m_ImplicitTensor: 1
+  m_UseGravity: 0
+  m_IsKinematic: 1
+  m_Interpolate: 0
+  m_Constraints: 0
+  m_CollisionDetection: 0
+--- !u!114 &-4651169352919892588
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5905964026690146530}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a71c64b884ae6f64c963a8a8ad5f364d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!114 &-8389805907187040619
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -133,7 +171,6 @@ MonoBehaviour:
   cost: 30
   populationCost: 1
   trainingTime: 3
-  moveSpeed: 10
   maxHealth: 100
   defense: 0
   visionRange: 10
@@ -154,21 +191,12 @@ MonoBehaviour:
   m_GameObject: {fileID: 5905964026690146530}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c2e7876e32d2ec0408790590305e4439, type: 3}
+  m_Script: {fileID: 11500000, guid: d77a6b574ac39f44b952b5803ddaf254, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
---- !u!114 &-6579359648565810101
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5905964026690146530}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: a71c64b884ae6f64c963a8a8ad5f364d, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
+  MoveSpeed: 15
+  TurnSpeed: 10
+  ArrivalRadius: 0.5
 --- !u!114 &7138247794112937167
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -207,42 +235,3 @@ MonoBehaviour:
   UseSingleBaseline: 0
   RollbackPredictedSpawnedGhostState: 0
   RollbackPredictionOnStructuralChanges: 1
---- !u!54 &3272844813672822570
-Rigidbody:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5905964026690146530}
-  serializedVersion: 4
-  m_Mass: 1
-  m_Drag: 0
-  m_AngularDrag: 0.05
-  m_CenterOfMass: {x: 0, y: 0, z: 0}
-  m_InertiaTensor: {x: 1, y: 1, z: 1}
-  m_InertiaRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ImplicitCom: 1
-  m_ImplicitTensor: 1
-  m_UseGravity: 0
-  m_IsKinematic: 1
-  m_Interpolate: 0
-  m_Constraints: 0
-  m_CollisionDetection: 0
---- !u!114 &-994233781190505702
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5905964026690146530}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: a830eb9722e44354886808049793769d, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 

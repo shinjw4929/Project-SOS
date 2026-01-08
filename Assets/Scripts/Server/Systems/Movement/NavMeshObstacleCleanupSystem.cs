@@ -29,7 +29,7 @@ namespace Server
                 // 1. GameObject 파괴
                 if (obstacleRef.ObstacleObject != null)
                 {
-                    Object.Destroy(obstacleRef.ObstacleObject);
+                    UnityEngine.Object.Destroy(obstacleRef.ObstacleObject);
                 }
 
                 // 2. Cleanup 컴포넌트 제거 (이제 엔티티가 완전히 소멸됨)

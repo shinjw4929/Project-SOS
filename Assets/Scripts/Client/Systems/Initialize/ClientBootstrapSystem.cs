@@ -56,11 +56,11 @@ namespace Client
 #endif
             }
 
-            // 3. SelectionState 생성
-            if (!SystemAPI.HasSingleton<SelectionState>())
+            // 3. UserSelectionInputState 생성
+            if (!SystemAPI.HasSingleton<UserSelectionInputState>())
             {
-                var entity = entityManager.CreateEntity(typeof(SelectionState));
-                SystemAPI.SetComponent(entity, new SelectionState
+                var entity = entityManager.CreateEntity(typeof(UserSelectionInputState));
+                SystemAPI.SetComponent(entity, new UserSelectionInputState
                 {
                     Phase = SelectionPhase.Idle,
                     StartScreenPos = float2.zero,
@@ -68,15 +68,15 @@ namespace Client
                 });
 
 #if UNITY_EDITOR
-                entityManager.SetName(entity, "Singleton_SelectionState");
+                entityManager.SetName(entity, "Singleton_UserSelectionInputState");
 #endif
             }
 
             // 4. CurrentSelectionState 생성
-            if (!SystemAPI.HasSingleton<CurrentSelectionState>())
+            if (!SystemAPI.HasSingleton<SelectedEntityInfoState>())
             {
-                var entity = entityManager.CreateEntity(typeof(CurrentSelectionState));
-                SystemAPI.SetComponent(entity, new CurrentSelectionState());
+                var entity = entityManager.CreateEntity(typeof(SelectedEntityInfoState));
+                SystemAPI.SetComponent(entity, new SelectedEntityInfoState());
 
 #if UNITY_EDITOR
                 entityManager.SetName(entity, "Singleton_CurrentSelectionState");

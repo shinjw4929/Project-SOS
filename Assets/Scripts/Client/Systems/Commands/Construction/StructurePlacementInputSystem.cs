@@ -10,26 +10,31 @@ using Unity.Collections;
 namespace Client
 {
     [UpdateInGroup(typeof(GhostInputSystemGroup))]
-    [UpdateAfter(typeof(SelectionInputSystem))]
+    [UpdateAfter(typeof(UnitCommandInputSystem))]  // UnitCommandInputSystem 후에 실행 (None 덮어쓰기 방지)
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
     public partial class StructurePlacementInputSystem : SystemBase
     {
         private Camera _mainCamera;
         private int _groundMask;
+        private BufferLookup<UnitCommand> _unitCommandLookup;
 
         protected override void OnCreate()
         {
             RequireForUpdate<NetworkStreamInGame>();
+            RequireForUpdate<NetworkTime>();
             RequireForUpdate<UserState>();
             RequireForUpdate<GridSettings>();
-            RequireForUpdate<CurrentSelectionState>();
+            RequireForUpdate<SelectedEntityInfoState>();
             _groundMask = 1 << 3; // 3: Ground
+            _unitCommandLookup = GetBufferLookup<UnitCommand>(false);
         }
 
         protected override void OnUpdate()
         {
             var userState = SystemAPI.GetSingleton<UserState>();
             if (userState.CurrentState != UserContext.Construction) return;
+
+            _unitCommandLookup.Update(this);
 
             // 1. 카메라 캐싱 (매 프레임 FindObject 방지)
             if (_mainCamera == null)
@@ -74,7 +79,7 @@ namespace Client
                 .CreateCommandBuffer(World.Unmanaged);
 
             // Builder entity의 GhostId 조회
-            var selectionState = SystemAPI.GetSingleton<CurrentSelectionState>();
+            var selectionState = SystemAPI.GetSingleton<SelectedEntityInfoState>();
             Entity builderEntity = selectionState.PrimaryEntity;
             int builderGhostId = 0;
 
@@ -113,7 +118,7 @@ namespace Client
 
         private void IssueMoveAndBuildCommand(EntityCommandBuffer ecb, StructurePreviewState previewState, int2 gridPos, GridSettings gridSettings)
         {
-            var selectionState = SystemAPI.GetSingleton<CurrentSelectionState>();
+            var selectionState = SystemAPI.GetSingleton<SelectedEntityInfoState>();
             Entity builderEntity = selectionState.PrimaryEntity;
 
             if (builderEntity == Entity.Null)
@@ -190,32 +195,19 @@ namespace Client
                 ecb.AddComponent(builderEntity, pendingRequest);
             }
 
-            // UnitState 변경: MovingToBuild
-            if (EntityManager.HasComponent<UnitState>(builderEntity))
+            // UnitCommand 버퍼에 BuildKey 명령 추가
+            // CommandProcessingSystem에서 MovementGoal 설정 및 경로 계산 트리거
+            if (_unitCommandLookup.HasBuffer(builderEntity))
             {
-                ecb.SetComponent(builderEntity, new UnitState
-                {
-                    CurrentState = UnitContext.MovingToBuild
-                });
-            }
+                var networkTime = SystemAPI.GetSingleton<NetworkTime>();
+                var inputBuffer = _unitCommandLookup[builderEntity];
 
-            // 이동 명령 발행: RTSInputState 업데이트
-            if (EntityManager.HasComponent<RTSInputState>(builderEntity))
-            {
-                ecb.SetComponent(builderEntity, new RTSInputState
+                inputBuffer.AddCommandData(new UnitCommand
                 {
-                    TargetPosition = moveTarget,
-                    HasTarget = true
-                });
-            }
-
-            // MoveTarget 설정 (이동 시스템에서 사용)
-            if (EntityManager.HasComponent<MoveTarget>(builderEntity))
-            {
-                ecb.SetComponent(builderEntity, new MoveTarget
-                {
-                    position = moveTarget,
-                    isValid = true
+                    Tick = networkTime.ServerTick,
+                    CommandType = UnitCommandType.BuildKey,
+                    GoalPosition = moveTarget,
+                    TargetGhostId = 0
                 });
             }
         }

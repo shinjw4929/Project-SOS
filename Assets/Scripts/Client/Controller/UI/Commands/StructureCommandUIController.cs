@@ -31,7 +31,7 @@ public class StructureCommandUIController : MonoBehaviour
 
     private World _clientWorld;
     private EntityManager _em;
-    private EntityQuery _CurrentSelectionStateQuery;
+    private EntityQuery _SelectedEntityInfoStateQuery;
     private EntityQuery _userStateQuery;
     private EntityQuery _unitCatalogQuery; // [추가] 전역 카탈로그 조회용
 
@@ -52,26 +52,26 @@ public class StructureCommandUIController : MonoBehaviour
         if (!TryInitClientWorld()) return;
         
         // 필수 싱글톤 확인
-        if (_userStateQuery.IsEmptyIgnoreFilter || _CurrentSelectionStateQuery.IsEmptyIgnoreFilter)
+        if (_userStateQuery.IsEmptyIgnoreFilter || _SelectedEntityInfoStateQuery.IsEmptyIgnoreFilter)
         {
             HideAllPanels();
             return;
         }
 
         var userState = _userStateQuery.GetSingleton<UserState>();
-        var selection = _CurrentSelectionStateQuery.GetSingleton<CurrentSelectionState>();
+        var selectedEntityInfoState = _SelectedEntityInfoStateQuery.GetSingleton<SelectedEntityInfoState>();
 
         // 1. 선택 유효성 검사 (시스템과 동일)
-        if (selection.Category != SelectionCategory.Structure || 
-            !selection.IsOwnedSelection || 
-            selection.PrimaryEntity == Entity.Null ||
-            !_em.Exists(selection.PrimaryEntity))
+        if (selectedEntityInfoState.Category != SelectionCategory.Structure || 
+            !selectedEntityInfoState.IsOwnedSelection || 
+            selectedEntityInfoState.PrimaryEntity == Entity.Null ||
+            !_em.Exists(selectedEntityInfoState.PrimaryEntity))
         {
             HideAllPanels();
             return;
         }
 
-        Entity primaryEntity = selection.PrimaryEntity;
+        Entity primaryEntity = selectedEntityInfoState.PrimaryEntity;
 
         // 2. 상태별 UI 표시
         if (userState.CurrentState == UserContext.Command)
@@ -149,8 +149,8 @@ public class StructureCommandUIController : MonoBehaviour
         if (wallCommandsPanel) wallCommandsPanel.SetActive(true);
         if (barracksCommandsPanel) barracksCommandsPanel.SetActive(false);
 
-        var selection = _CurrentSelectionStateQuery.GetSingleton<CurrentSelectionState>();
-        UpdateSelfDestructProgress(selection.PrimaryEntity, updateButton: true);
+        var selectedEntityInfoState = _SelectedEntityInfoStateQuery.GetSingleton<SelectedEntityInfoState>();
+        UpdateSelfDestructProgress(selectedEntityInfoState.PrimaryEntity, updateButton: true);
     }
 
     private void ShowBarracksCommands(Entity barracksEntity)
@@ -165,9 +165,9 @@ public class StructureCommandUIController : MonoBehaviour
     // [Action] 유닛 생산 버튼 클릭 (Q/W키와 동일 역할)
     private void OnProduceUnitClicked(int localIndex)
     {
-        if (_CurrentSelectionStateQuery.IsEmptyIgnoreFilter) return;
-        var selection = _CurrentSelectionStateQuery.GetSingleton<CurrentSelectionState>();
-        var entity = selection.PrimaryEntity;
+        if (_SelectedEntityInfoStateQuery.IsEmptyIgnoreFilter) return;
+        var selectedEntityInfoState = _SelectedEntityInfoStateQuery.GetSingleton<SelectedEntityInfoState>();
+        var entity = selectedEntityInfoState.PrimaryEntity;
 
         // 유효성 검사
         if (entity == Entity.Null || !_em.Exists(entity)) return;
@@ -210,8 +210,8 @@ public class StructureCommandUIController : MonoBehaviour
     // [Action] 자폭 버튼 클릭 (R키와 동일 역할)
     private void OnSelfDestructClicked()
     {
-        if (_CurrentSelectionStateQuery.IsEmptyIgnoreFilter) return;
-        var selection = _CurrentSelectionStateQuery.GetSingleton<CurrentSelectionState>();
+        if (_SelectedEntityInfoStateQuery.IsEmptyIgnoreFilter) return;
+        var selection = _SelectedEntityInfoStateQuery.GetSingleton<SelectedEntityInfoState>();
         var entity = selection.PrimaryEntity;
 
         if (entity == Entity.Null || !_em.Exists(entity)) return;
@@ -336,7 +336,7 @@ public class StructureCommandUIController : MonoBehaviour
                 _clientWorld = world;
                 _em = world.EntityManager;
 
-                _CurrentSelectionStateQuery = _em.CreateEntityQuery(typeof(CurrentSelectionState));
+                _SelectedEntityInfoStateQuery = _em.CreateEntityQuery(typeof(SelectedEntityInfoState));
                 _userStateQuery = _em.CreateEntityQuery(typeof(UserState));
                 _unitCatalogQuery = _em.CreateEntityQuery(typeof(UnitCatalog)); // [추가]
 
