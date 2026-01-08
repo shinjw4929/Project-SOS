@@ -66,8 +66,8 @@ namespace Client
                 return "Unknown";
 
             if (em.HasComponent<WallTag>(prefab)) return "Wall";
+            if (em.HasComponent<ResourceCenterTag>(prefab)) return "Resource Center"; // ProductionFacilityTag보다 먼저 체크
             if (em.HasComponent<ProductionFacilityTag>(prefab)) return "Barracks";
-            if (em.HasComponent<ResourceCenterTag>(prefab)) return "Resource Center";
             if (em.HasComponent<TurretTag>(prefab)) return "Turret";
 
             return "Structure";

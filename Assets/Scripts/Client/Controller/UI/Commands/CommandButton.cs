@@ -103,7 +103,7 @@ namespace Client
 
             // 이름 텍스트 색상 변경
             if (nameText != null)
-                nameText.color = unlocked ? normalColor : disabledColor;
+                nameText.color = disabledColor;  //unlocked ? normalColor : disabledColor;
         }
 
         private void OnButtonClicked()
