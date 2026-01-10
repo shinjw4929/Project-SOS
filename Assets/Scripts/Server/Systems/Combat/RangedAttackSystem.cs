@@ -26,6 +26,7 @@ namespace Server
         private ComponentLookup<Health> _healthLookup;
         private ComponentLookup<Defense> _defenseLookup;
         private ComponentLookup<Team> _teamLookup;
+        private ComponentLookup<MovementGoal> _movementGoalLookup;
         private BufferLookup<DamageEvent> _damageEventLookup;
 
         private EntityQuery _projectilePrefabQuery;
@@ -40,6 +41,7 @@ namespace Server
             _healthLookup = state.GetComponentLookup<Health>(true);
             _defenseLookup = state.GetComponentLookup<Defense>(true);
             _teamLookup = state.GetComponentLookup<Team>(true);
+            _movementGoalLookup = state.GetComponentLookup<MovementGoal>(false);
             _damageEventLookup = state.GetBufferLookup<DamageEvent>(false);
 
             _projectilePrefabQuery = state.GetEntityQuery(ComponentType.ReadOnly<ProjectilePrefabRef>());
@@ -55,6 +57,7 @@ namespace Server
             _healthLookup.Update(ref state);
             _defenseLookup.Update(ref state);
             _teamLookup.Update(ref state);
+            _movementGoalLookup.Update(ref state);
             _damageEventLookup.Update(ref state);
 
             var ecbSingleton = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>();
@@ -91,7 +94,8 @@ namespace Server
                     myTeam.ValueRO,
                     deltaTime,
                     ecb,
-                    projectilePrefab);
+                    projectilePrefab,
+                    ref _movementGoalLookup);
             }
         }
 
@@ -111,7 +115,8 @@ namespace Server
             Team myTeam,
             float deltaTime,
             EntityCommandBuffer ecb,
-            Entity projectilePrefab)
+            Entity projectilePrefab,
+            ref ComponentLookup<MovementGoal> movementGoalLookup)
         {
             // 쿨다운 감소
             cooldown.RemainingTime = math.max(0, cooldown.RemainingTime - deltaTime);
@@ -187,11 +192,23 @@ namespace Server
             // 공격 사거리 체크
             if (distance > stats.AttackRange)
             {
-                // 사거리 밖 → 이동 활성화
+                // 사거리 밖 → 타겟 위치로 이동 요청
                 actionState.State = Action.Moving;
 
-                // MovementWaypoints 활성화 (이동 재개)
-                ecb.SetComponentEnabled<MovementWaypoints>(unitEntity, true);
+                // MovementGoal 업데이트 (타겟 위치로 새 경로 계산 트리거)
+                // PathfindingSystem이 경로를 찾으면 MovementWaypoints를 활성화함
+                if (movementGoalLookup.HasComponent(unitEntity))
+                {
+                    var goal = movementGoalLookup[unitEntity];
+                    // 목적지가 변경되었을 때만 새 경로 계산 (떨림 방지)
+                    if (math.distancesq(goal.Destination, targetPos) > 1.0f)
+                    {
+                        goal.Destination = targetPos;
+                        goal.IsPathDirty = true;
+                        goal.CurrentWaypointIndex = 0;
+                        movementGoalLookup[unitEntity] = goal;
+                    }
+                }
                 return;
             }
 
