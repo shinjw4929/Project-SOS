@@ -17,5 +17,8 @@ namespace Shared
 
         // 자동 복귀 여부 (true: 반납 후 자동으로 ResourceNode로 돌아감)
         [GhostField] public bool AutoReturn;
+
+        // 마지막으로 채굴한 노드 (반납 후 복귀용)
+        [GhostField] public Entity LastGatheredNodeEntity;
     }
 }

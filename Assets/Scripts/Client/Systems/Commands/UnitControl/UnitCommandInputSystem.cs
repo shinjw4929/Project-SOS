@@ -24,6 +24,8 @@ namespace Client
         private ComponentLookup<GhostInstance> _ghostInstanceLookup;
         private ComponentLookup<ResourceNodeTag> _resourceNodeTagLookup;
         private ComponentLookup<WorkerTag> _workerTagLookup;
+        private ComponentLookup<ResourceCenterTag> _resourceCenterTagLookup;
+        private ComponentLookup<WorkerState> _workerStateLookup;
         private EntityQuery _physicsWorldQuery;
         
         public void OnCreate(ref SystemState state)
@@ -40,6 +42,8 @@ namespace Client
             _ghostInstanceLookup = state.GetComponentLookup<GhostInstance>(true);
             _resourceNodeTagLookup = state.GetComponentLookup<ResourceNodeTag>(true);
             _workerTagLookup = state.GetComponentLookup<WorkerTag>(true);
+            _resourceCenterTagLookup = state.GetComponentLookup<ResourceCenterTag>(true);
+            _workerStateLookup = state.GetComponentLookup<WorkerState>(true);
         }
 
         public void OnUpdate(ref SystemState state)
@@ -56,6 +60,8 @@ namespace Client
             _ghostInstanceLookup.Update(ref state);
             _resourceNodeTagLookup.Update(ref state);
             _workerTagLookup.Update(ref state);
+            _resourceCenterTagLookup.Update(ref state);
+            _workerStateLookup.Update(ref state);
 
             ProcessMouseInput(ref state);
         }
@@ -122,10 +128,12 @@ namespace Client
             // 타겟 엔티티 조회
             Entity targetEntity = Entity.Null;
             bool isResourceNode = false;
+            bool isResourceCenter = false;
 
             if (targetGhostId != 0 && ghostIdMap.TryGetValue(targetGhostId, out targetEntity))
             {
                 isResourceNode = _resourceNodeTagLookup.HasComponent(targetEntity);
+                isResourceCenter = _resourceCenterTagLookup.HasComponent(targetEntity);
             }
 
             int selectedCount = 0;
@@ -165,7 +173,27 @@ namespace Client
                     }
                 }
 
-                // 4. 건설 대기 상태였다면 취소 (이동 명령이 우선이므로)
+                // 4. Worker + ResourceCenter + 자원 소지 시 ReturnResourceRequestRpc 전송
+                if (isResourceCenter && _workerTagLookup.HasComponent(entity))
+                {
+                    // 자원을 들고 있는지 확인
+                    if (_workerStateLookup.TryGetComponent(entity, out var workerState) &&
+                        workerState.CarriedAmount > 0)
+                    {
+                        if (_ghostInstanceLookup.TryGetComponent(entity, out var workerGhost))
+                        {
+                            Entity rpcEntity = ecb.CreateEntity();
+                            ecb.AddComponent(rpcEntity, new ReturnResourceRequestRpc
+                            {
+                                WorkerGhostId = workerGhost.ghostId,
+                                ResourceCenterGhostId = targetGhostId
+                            });
+                            ecb.AddComponent<SendRpcCommandRequest>(rpcEntity);
+                        }
+                    }
+                }
+
+                // 5. 건설 대기 상태였다면 취소 (이동 명령이 우선이므로)
                 if (_pendingBuildLookup.HasComponent(entity))
                 {
                     ecb.RemoveComponent<PendingBuildRequest>(entity);

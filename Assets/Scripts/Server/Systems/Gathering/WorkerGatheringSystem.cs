@@ -108,13 +108,14 @@ namespace Server
         /// <summary>
         /// [단계 1] 자원 노드로 이동 중 도착 감지
         /// 도착 판정: 목적지(MovementGoal.Destination)와의 거리 기준
+        /// 이미 자원을 들고 있으면 채굴 없이 바로 반납으로 전환
         /// </summary>
         [BurstCompile]
         private void ProcessMovingToGather(ref SystemState state)
         {
             foreach (var (intentState, actionState, workerState, gatherTarget, movementGoal, transform, entity)
                 in SystemAPI.Query<RefRW<UnitIntentState>, RefRW<UnitActionState>, RefRW<WorkerState>,
-                    RefRO<GatheringTarget>, RefRO<MovementGoal>, RefRO<LocalTransform>>()
+                    RefRW<GatheringTarget>, RefRW<MovementGoal>, RefRO<LocalTransform>>()
                     .WithAll<WorkerTag>()
                     .WithEntityAccess())
             {
@@ -137,11 +138,52 @@ namespace Server
 
                 if (distance <= arrivalDistance)
                 {
-                    // 도착: Gathering 상태로 전환
-                    workerState.ValueRW.Phase = GatherPhase.Gathering;
-                    actionState.ValueRW.State = Action.Working;
-                    workerState.ValueRW.IsInsideNode = true;
-                    workerState.ValueRW.GatheringProgress = 0f;
+                    // 이미 자원을 들고 있으면 채굴 없이 바로 반납으로 전환
+                    if (workerState.ValueRO.CarriedAmount > 0)
+                    {
+                        // 현재 노드를 LastGatheredNodeEntity로 저장 (반납 후 복귀용)
+                        gatherTarget.ValueRW.LastGatheredNodeEntity = nodeEntity;
+
+                        // 복귀 이동 시작
+                        workerState.ValueRW.Phase = GatherPhase.MovingToReturn;
+                        actionState.ValueRW.State = Action.Moving;
+
+                        // 이동 활성화
+                        SystemAPI.SetComponentEnabled<MovementWaypoints>(entity, true);
+
+                        // ReturnPoint 재계산 (현재 위치에서 가장 가까운 ResourceCenter)
+                        Entity nearestCenter = FindNearestResourceCenter(ref state, entity);
+                        Entity returnPoint = gatherTarget.ValueRO.ReturnPointEntity;
+
+                        if (nearestCenter != Entity.Null)
+                        {
+                            gatherTarget.ValueRW.ReturnPointEntity = nearestCenter;
+                            returnPoint = nearestCenter;
+                        }
+
+                        if (returnPoint != Entity.Null && _transformLookup.HasComponent(returnPoint))
+                        {
+                            float3 nodePos = _transformLookup[nodeEntity].Position;
+                            float3 centerPos = _transformLookup[returnPoint].Position;
+                            float3 returnTargetPos = CalculateReturnTargetPosition(nodePos, centerPos, returnPoint, entity);
+
+                            movementGoal.ValueRW.Destination = returnTargetPos;
+                            movementGoal.ValueRW.IsPathDirty = true;
+                        }
+                        else
+                        {
+                            // ResourceCenter가 없으면 Idle (자원은 유지)
+                            SetIdleState(ref intentState.ValueRW, ref actionState.ValueRW, ref workerState.ValueRW);
+                        }
+                    }
+                    else
+                    {
+                        // 도착: Gathering 상태로 전환
+                        workerState.ValueRW.Phase = GatherPhase.Gathering;
+                        actionState.ValueRW.State = Action.Working;
+                        workerState.ValueRW.IsInsideNode = true;
+                        workerState.ValueRW.GatheringProgress = 0f;
+                    }
                 }
             }
         }
@@ -214,6 +256,9 @@ namespace Server
                             nodeStateRW.ValueRW.OccupyingWorker = Entity.Null;
                         }
                     }
+
+                    // 현재 노드를 LastGatheredNodeEntity로 저장 (반납 후 복귀용)
+                    gatherTarget.ValueRW.LastGatheredNodeEntity = nodeEntity;
 
                     // 복귀 이동 시작
                     workerState.ValueRW.Phase = GatherPhase.MovingToReturn;
@@ -359,6 +404,7 @@ namespace Server
 
         /// <summary>
         /// 하차 후 자동 복귀 여부 및 대기 상태 결정
+        /// LastGatheredNodeEntity가 유효하면 해당 노드로 복귀
         /// </summary>
         private void DecideNextAction(
             ref UnitIntentState intentState,
@@ -368,21 +414,37 @@ namespace Server
             RefRW<MovementGoal> movementGoal,
             Entity workerEntity)
         {
-            if (!gatherTarget.ValueRO.AutoReturn || gatherTarget.ValueRO.ResourceNodeEntity == Entity.Null)
+            if (!gatherTarget.ValueRO.AutoReturn)
             {
                 SetIdleStateRef(ref intentState, ref actionState, ref workerState);
                 return;
             }
 
+            // ResourceNodeEntity가 Null이면 LastGatheredNodeEntity 사용
             Entity nodeEntity = gatherTarget.ValueRO.ResourceNodeEntity;
+            if (nodeEntity == Entity.Null)
+            {
+                nodeEntity = gatherTarget.ValueRO.LastGatheredNodeEntity;
+            }
+
+            // 둘 다 없으면 Idle
+            if (nodeEntity == Entity.Null)
+            {
+                SetIdleStateRef(ref intentState, ref actionState, ref workerState);
+                return;
+            }
 
             // 노드가 유효하지 않으면 중단
             if (!_transformLookup.HasComponent(nodeEntity) || !_resourceNodeStateLookup.HasComponent(nodeEntity))
             {
                 SetIdleStateRef(ref intentState, ref actionState, ref workerState);
                 gatherTarget.ValueRW.ResourceNodeEntity = Entity.Null;
+                gatherTarget.ValueRW.LastGatheredNodeEntity = Entity.Null;
                 return;
             }
+
+            // ResourceNodeEntity 동기화 (LastGatheredNodeEntity에서 가져온 경우)
+            gatherTarget.ValueRW.ResourceNodeEntity = nodeEntity;
 
             RefRW<ResourceNodeState> nodeStateRW = _resourceNodeStateLookup.GetRefRW(nodeEntity);
 
@@ -391,8 +453,9 @@ namespace Server
             float3 nodePos = _transformLookup[nodeEntity].Position;
             float3 targetPos = CalculateNodeTargetPosition(workerPos, nodePos, nodeEntity, workerEntity);
 
-            // A. 노드가 비었으면 -> 즉시 점유 및 이동
-            if (nodeStateRW.ValueRO.OccupyingWorker == Entity.Null)
+            // A. 노드가 비었거나 자기 자신이 점유 중이면 -> 즉시 점유 및 이동
+            if (nodeStateRW.ValueRO.OccupyingWorker == Entity.Null ||
+                nodeStateRW.ValueRO.OccupyingWorker == workerEntity)
             {
                 nodeStateRW.ValueRW.OccupyingWorker = workerEntity;
                 workerState.Phase = GatherPhase.MovingToNode;
@@ -402,7 +465,7 @@ namespace Server
                 movementGoal.ValueRW.Destination = targetPos;
                 movementGoal.ValueRW.IsPathDirty = true;
             }
-            // B. 노드가 찼으면 -> 대기 상태로 노드 근처 이동
+            // B. 다른 워커가 점유 중이면 -> 대기 상태로 노드 근처 이동
             else
             {
                 workerState.Phase = GatherPhase.WaitingForNode;
