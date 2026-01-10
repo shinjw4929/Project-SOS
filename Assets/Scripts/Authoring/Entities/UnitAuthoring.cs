@@ -214,6 +214,12 @@ namespace Authoring
                         AttackSpeed = authoring.attackSpeed,
                         AttackRange = authoring.attackRange + authoring.radius
                     });
+
+                    // 공격 쿨다운 (초기값 0 = 즉시 공격 가능)
+                    AddComponent(entity, new AttackCooldown
+                    {
+                        RemainingTime = 0f
+                    });
                 }
                 
                 // =======================================================================

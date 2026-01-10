@@ -49,11 +49,12 @@ namespace Shared
             _workerTagLookup.Update(ref state);
 
             // [중요] EnabledRefRW를 사용하되, 비활성화 상태도 쿼리하기 위해 IgnoreComponentEnabledState 사용
-            foreach (var (inputBuffer, movementGoal, unitIntentState, waypointsEnabled, commandedEntity) in
+            foreach (var (inputBuffer, movementGoal, unitIntentState, aggroTarget, waypointsEnabled, commandedEntity) in
                      SystemAPI.Query<
                              DynamicBuffer<UnitCommand>,
                              RefRW<MovementGoal>,
                              RefRW<UnitIntentState>,
+                             RefRW<AggroTarget>,
                              EnabledRefRW<MovementWaypoints>>()
                          .WithAll<Simulate>()
                          .WithOptions(EntityQueryOptions.IgnoreComponentEnabledState)
@@ -123,15 +124,20 @@ namespace Shared
                                 }
                             }
                         }
-                        // Case 2: 적 클릭 (Attack) - 향후 구현
+                        // Case 2: 적 클릭 (Attack)
                         else if (_enemyTagLookup.HasComponent(targetEntity))
                         {
-                            // TODO: 공격 명령 구현
-                            // 현재는 이동으로 처리
+                            // 공격 명령 설정
+                            SetUnitIntentState(ref unitIntentState.ValueRW, Intent.Attack, ref targetEntity);
+
+                            // AggroTarget 설정 (적과 동일한 타겟팅 시스템 공유)
+                            aggroTarget.ValueRW.TargetEntity = targetEntity;
+                            aggroTarget.ValueRW.LastTargetPosition = inputCommand.GoalPosition;
+
+                            // 타겟 위치로 이동 (추격)
                             if (math.distance(movementGoal.ValueRW.Destination, inputCommand.GoalPosition) > 0.1f)
                             {
                                 SetUnitMovement(ref movementGoal.ValueRW, inputCommand.GoalPosition, waypointsEnabled);
-                                SetUnitIntentState(ref unitIntentState.ValueRW, Intent.Move, ref targetEntity);
                             }
                         }
                         // Case 3: 기타 (이동)
