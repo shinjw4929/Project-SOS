@@ -92,10 +92,12 @@ namespace Authoring
                     case AuthoringUnitType.Trooper:
                         AddComponent(entity, new SoldierTag());
                         AddComponent(entity, new TrooperTag());
+                        AddComponent(entity, new RangedUnitTag());
                         break;
                     case AuthoringUnitType.Sniper:
                         AddComponent(entity, new SoldierTag());
                         AddComponent(entity, new SniperTag());
+                        AddComponent(entity, new RangedUnitTag());
                         break;
                 }
                 

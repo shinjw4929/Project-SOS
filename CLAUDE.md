@@ -90,14 +90,15 @@ Client/
 │       └── ToastNotificationController.cs   # 토스트 알림 UI
 ├── Systems/
 │   ├── Combat/
-│   │   └── ClientDeathSystem.cs             # 클라이언트 사망 처리
+│   │   ├── ClientDeathSystem.cs             # 클라이언트 사망 처리
+│   │   └── ProjectileVisualSystem.cs        # 투사체 시각 효과 시스템 (Ghost 복제 투사체 이동)
 │   ├── Commands/
 │   │   ├── Construction/
 │   │   │   ├── ConstructionMenuInputSystem.cs   # Q키 건설 메뉴 (BuildSelectionUtility 사용)
 │   │   │   ├── PendingBuildExecuteSystem.cs     # 대기 건설 요청 실행
 │   │   │   ├── StructurePlacementInputSystem.cs # 건설 배치 입력
 │   │   │   └── StructurePreviewUpdateSystem.cs  # 프리뷰 업데이트
-│   │   ├── FireProjectileClientRpcSystem.cs # 투사체 발사 RPC 처리 (클라이언트)
+│   │   ├── FireProjectileClientRpcSystem.cs # [비활성화] 수동 투사체 발사 (DisableAutoCreation)
 │   │   ├── Selection/
 │   │   │   ├── EntitySelectionSystem.cs     # Selected 컴포넌트 토글
 │   │   │   ├── SelectedEntityInfoUpdateSystem.cs  # 선택된 엔티티 정보 업데이트
@@ -177,18 +178,21 @@ Shared/
 │   │   └── WorkRange.cs                     # 작업 사거리
 │   └── Tags/
 │       ├── IdentityTags.cs                  # UnitTag, StructureTag
+│       ├── RangedUnitTag.cs                 # 원거리 유닛 태그 (Trooper, Sniper)
 │       ├── SelfDestructTag.cs               # 자폭 태그
 │       ├── StructureTypeTags.cs             # WallTag, ProductionFacilityTag, ResourceCenterTag 등
 │       ├── Team.cs                          # 팀 태그
 │       ├── UnitTypeTags.cs                  # HeroTag, WorkerTag, BuilderTag, SwordsmanTag, TrooperTag, SniperTag 등
-│       └── UserEconomyTag.cs                # 유저 경제 엔티티 태그
+│       ├── UserEconomyTag.cs                # 유저 경제 엔티티 태그
+│       └── VisualOnlyTag.cs                 # 시각 전용 태그 (데미지 없는 투사체)
 ├── RPCs/
 │   ├── BuildRequestRpc.cs                   # 건설 요청 RPC
-│   ├── FireProjectileRpc.cs                 # 투사체 발사 RPC
+│   ├── FireProjectileRpc.cs                 # [미사용] 투사체 발사 요청 RPC
 │   ├── GatherRequestRpc.cs                  # 자원 채집 요청 RPC
 │   ├── GoInGameRequestRpc.cs                # 게임 진입 요청 RPC
 │   ├── NotificationRpc.cs                   # 서버 알림 RPC (자원 부족 등)
 │   ├── ProduceUnitRequestRpc.cs             # 유닛 생산 요청 RPC
+│   ├── ProjectileVisualRpc.cs               # [미사용] 투사체 시각 효과 RPC
 │   └── SelfDestructRequestRpc.cs            # 자폭 요청 RPC
 ├── Singletons/
 │   ├── GhostIdMap.cs                        # Ghost ID 맵 싱글톤
@@ -226,9 +230,10 @@ Server/
 ├── GoInGameServerSystem.cs
 └── Systems/
     ├── Combat/
-    │   ├── CombatDamageSystem.cs            # 투사체 데미지 시스템 (DamageEvent 버퍼)
+    │   ├── CombatDamageSystem.cs            # 투사체 충돌 데미지 시스템 (Physics Trigger, VisualOnlyTag 제외)
     │   ├── DamageApplySystem.cs             # 데미지 적용 시스템 (버퍼 → Health)
-    │   ├── MeleeAttackSystem.cs             # 근접 공격 시스템 (거리 기반)
+    │   ├── MeleeAttackSystem.cs             # 근접 공격 시스템 (거리 기반, RangedUnitTag 제외)
+    │   ├── RangedAttackSystem.cs            # 원거리 공격 시스템 (필중, 시각 투사체 생성)
     │   └── ServerDeathSystem.cs             # 서버 사망 처리
     ├── Commands/
     │   ├── Construction/
@@ -331,9 +336,11 @@ MovementArrivalSystem
 ```
 PhysicsSimulationGroup
     ↓ UpdateAfter
-CombatDamageSystem (투사체 충돌 → DamageEvent)
+CombatDamageSystem (투사체 충돌 → DamageEvent, VisualOnlyTag 제외)
     ↓ UpdateAfter
-MeleeAttackSystem (거리 판정 → DamageEvent, CompleteDependency 1회)
+MeleeAttackSystem (근접 거리 판정 → DamageEvent, RangedUnitTag 제외)
+    ↓ UpdateAfter
+RangedAttackSystem (원거리 필중 → DamageEvent + 시각 투사체 생성)
     ↓ UpdateAfter
 DamageApplySystem (DamageEvent → Health 적용)
 ```
@@ -364,6 +371,7 @@ DamageApplySystem (DamageEvent → Health 적용)
 
 **Client:**
 - NotificationReceiveSystem, GoInGameClientSystem, ClientDeathSystem
+- ProjectileVisualSystem (시각 투사체 이동), ClientProjectileMoveSystem (시각 투사체 이동 처리)
 
 #### 6. LateSimulationSystemGroup
 
@@ -396,7 +404,10 @@ CarriedResourceVisualizationSystem (OrderLast)
     → UnitSeparationSystem → PredictedMovementSystem → MovementArrivalSystem
 
 [전투] FixedStepSimulationSystemGroup (Server)
-    → CombatDamageSystem → MeleeAttackSystem → DamageApplySystem
+    → CombatDamageSystem → MeleeAttackSystem → RangedAttackSystem → DamageApplySystem
+
+[시각 효과] SimulationSystemGroup (Client)
+    → ProjectileVisualSystem → ClientProjectileMoveSystem
 
 [후처리] LateSimulationSystemGroup
     → GridOccupancyEventSystem, WorkerGatheringSystem, ProductionProgressSystem
@@ -432,19 +443,25 @@ UnitCommandInputSystem               → 우클릭 명령 생성 (이동/공격)
 **Combat System Flow** (DamageEvent 버퍼 패턴):
 ```
 [FixedStepSimulationSystemGroup - Server]
-├── CombatDamageSystem      → 투사체 충돌 시 DamageEvent 버퍼에 추가
-├── MeleeAttackSystem       → 거리 판정 후 DamageEvent 버퍼에 추가
+├── CombatDamageSystem      → 투사체 충돌 시 DamageEvent 버퍼에 추가 (VisualOnlyTag 제외)
+├── MeleeAttackSystem       → 근접 거리 판정 후 DamageEvent 버퍼에 추가 (RangedUnitTag 제외)
+├── RangedAttackSystem      → 원거리 필중 데미지 + 시각 투사체 생성
 └── DamageApplySystem       → DamageEvent 버퍼 합산 → Health 적용
 
 [SimulationSystemGroup - Server]
 └── ServerDeathSystem       → Health ≤ 0 엔티티 삭제
+
+[SimulationSystemGroup - Client]
+├── ProjectileVisualSystem      → Ghost 복제된 시각 투사체 수신
+└── ClientProjectileMoveSystem  → 시각 투사체 이동 및 삭제
 ```
 
 **공격 유형별 처리:**
-- **투사체 공격**: Physics Trigger → CombatDamageSystem → DamageEvent 버퍼
-- **근접 공격**: 거리 계산 (distance ≤ AttackRange) → MeleeAttackSystem → DamageEvent 버퍼
+- **근접 공격**: 거리 계산 (distance ≤ AttackRange) → MeleeAttackSystem → DamageEvent 버퍼 (Swordsman 등)
+- **원거리 공격**: 거리 계산 → RangedAttackSystem → 즉시 DamageEvent + 시각 투사체 (Trooper, Sniper)
+- **투사체 공격**: Physics Trigger → CombatDamageSystem → DamageEvent 버퍼 (VisualOnlyTag 제외)
 - **데미지 적용**: DamageApplySystem이 모든 DamageEvent를 Health에 적용
-- **성능**: CompleteDependency() 1회만 호출 (MeleeAttackSystem)
+- **시각 투사체**: 서버에서 생성 → Ghost로 클라이언트 복제 → 목표 도달 시 자동 삭제
 
 **Network RPCs** (in `Shared/RPCs/`):
 - `GoInGameRequestRpc` - Client join request
@@ -510,10 +527,14 @@ structureCommandPanel
 - `Shared/Singletons/Ref/ProjectilePrefabRef.cs` - 투사체 프리팹 참조
 
 **Combat Systems:**
-- `Server/Systems/Combat/CombatDamageSystem.cs` - 투사체 충돌 데미지 (Physics Trigger)
-- `Server/Systems/Combat/MeleeAttackSystem.cs` - 근접 공격 (거리 기반, AggroTarget)
+- `Server/Systems/Combat/CombatDamageSystem.cs` - 투사체 충돌 데미지 (Physics Trigger, VisualOnlyTag 제외)
+- `Server/Systems/Combat/MeleeAttackSystem.cs` - 근접 공격 (거리 기반, RangedUnitTag 제외)
+- `Server/Systems/Combat/RangedAttackSystem.cs` - 원거리 공격 (필중, 시각 투사체 생성, RangedUnitTag 대상)
 - `Server/Systems/Combat/DamageApplySystem.cs` - DamageEvent 버퍼를 Health에 적용
+- `Client/Systems/Combat/ProjectileVisualSystem.cs` - 시각 투사체 이동 (클라이언트)
 - `Shared/Buffers/DamageEvent.cs` - 지연 데미지 적용 버퍼
+- `Shared/Components/Tags/RangedUnitTag.cs` - 원거리 유닛 태그 (Trooper, Sniper)
+- `Shared/Components/Tags/VisualOnlyTag.cs` - 시각 전용 투사체 태그 (데미지 없음)
 - `Shared/Components/State/AttackCooldown.cs` - 공격 쿨다운 타이머
 - `Shared/Components/State/AggroTarget.cs` - 유닛/적 공통 타겟 추적
 - `Shared/Utilities/DamageUtility.cs` - 데미지 계산 (방어력 적용)
@@ -669,3 +690,27 @@ Wave 단계마다 적대 유닛의 수, 종류가 증가하며 난이도 상승
 3. **공격 타겟 추적**: 유닛과 적 모두 `AggroTarget` 컴포넌트를 공유하여 일관된 타겟팅 시스템 사용
    - `AggroTarget.TargetEntity`: 공격/추적할 대상
    - `AggroTarget.LastTargetPosition`: 타겟의 마지막 알려진 위치
+
+4. **원거리 공격 시스템**: RangedUnitTag 기반 자동 원거리 공격
+   - **대상 유닛**: Trooper (AttackRange: 6), Sniper (AttackRange: 12)
+   - **필중 메커니즘**: 거리 판정 후 즉시 DamageEvent 버퍼에 추가 (Physics 불필요)
+   - **시각 효과**: 서버에서 투사체 엔티티 생성 → Ghost로 클라이언트 복제
+   - **이동 제어**: 사거리 내 → MovementWaypoints 비활성화 (멈춤), 사거리 밖 → 활성화 (추적)
+   ```csharp
+   // 사거리 내 → 멈추고 공격
+   if (distance <= stats.AttackRange)
+   {
+       ecb.SetComponentEnabled<MovementWaypoints>(entity, false);  // 이동 중지
+       // 타겟 방향 회전
+       myTransform.Rotation = quaternion.LookRotationSafe(direction, math.up());
+       // 즉시 데미지 적용 (필중)
+       damageBuffer.Add(new DamageEvent { Damage = finalDamage });
+       // 시각 투사체 생성 (VisualOnlyTag 포함)
+       Entity projectile = ecb.Instantiate(projectilePrefab);
+       ecb.AddComponent(projectile, new VisualOnlyTag());
+   }
+   else
+   {
+       ecb.SetComponentEnabled<MovementWaypoints>(entity, true);   // 이동 재개
+   }
+   ```

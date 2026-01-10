@@ -59,7 +59,7 @@ namespace Server
             // =====================================================================
             foreach (var (transform, aggroTarget, combatStats, cooldown, enemyState, myTeam) in
                      SystemAPI.Query<
-                         RefRO<LocalTransform>,
+                         RefRW<LocalTransform>,
                          RefRO<AggroTarget>,
                          RefRO<CombatStats>,
                          RefRW<AttackCooldown>,
@@ -68,7 +68,7 @@ namespace Server
                      .WithAll<EnemyTag>())
             {
                 ProcessMeleeAttack(
-                    transform.ValueRO,
+                    ref transform.ValueRW,
                     aggroTarget.ValueRO.TargetEntity,
                     combatStats.ValueRO,
                     ref cooldown.ValueRW,
@@ -92,18 +92,19 @@ namespace Server
             }
 
             // =====================================================================
-            // 2. 아군 유닛 근접 공격 처리
+            // 2. 아군 유닛 근접 공격 처리 (원거리 유닛 제외)
             // =====================================================================
             foreach (var (transform, aggroTarget, combatStats, cooldown, intentState, actionState, myTeam) in
                      SystemAPI.Query<
-                         RefRO<LocalTransform>,
+                         RefRW<LocalTransform>,
                          RefRW<AggroTarget>,
                          RefRO<CombatStats>,
                          RefRW<AttackCooldown>,
                          RefRW<UnitIntentState>,
                          RefRW<UnitActionState>,
                          RefRO<Team>>()
-                     .WithAll<UnitTag>())
+                     .WithAll<UnitTag>()
+                     .WithNone<RangedUnitTag>())
             {
                 // Intent.Attack 상태일 때만 공격 처리
                 if (intentState.ValueRO.State != Intent.Attack)
@@ -128,7 +129,7 @@ namespace Server
                 }
 
                 ProcessMeleeAttack(
-                    transform.ValueRO,
+                    ref transform.ValueRW,
                     targetEntity,
                     combatStats.ValueRO,
                     ref cooldown.ValueRW,
@@ -170,10 +171,11 @@ namespace Server
 
         /// <summary>
         /// 근접 공격 처리 (공통 로직)
+        /// - 타겟 방향 회전
         /// - 데미지를 DamageEvent 버퍼에 추가 (ECB 패턴)
         /// </summary>
         private void ProcessMeleeAttack(
-            LocalTransform myTransform,
+            ref LocalTransform myTransform,
             Entity targetEntity,
             CombatStats stats,
             ref AttackCooldown cooldown,
@@ -204,7 +206,8 @@ namespace Server
 
             // 거리 계산
             float3 targetPos = _transformLookup[targetEntity].Position;
-            float distance = math.distance(myTransform.Position, targetPos);
+            float3 myPos = myTransform.Position;
+            float distance = math.distance(myPos, targetPos);
 
             // 공격 사거리 체크
             if (distance > stats.AttackRange)
@@ -214,6 +217,14 @@ namespace Server
             }
 
             isInRange = true;
+
+            // 타겟 방향 회전 (Y축만)
+            float3 direction = math.normalize(targetPos - myPos);
+            direction.y = 0;
+            if (math.lengthsq(direction) > 0.001f)
+            {
+                myTransform.Rotation = quaternion.LookRotationSafe(direction, math.up());
+            }
 
             // 쿨다운 체크
             if (cooldown.RemainingTime > 0) return;

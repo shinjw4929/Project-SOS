@@ -37,6 +37,7 @@ namespace Server
             var combatStatusLookup = SystemAPI.GetComponentLookup<CombatStats>(true);
             var teamLookup = SystemAPI.GetComponentLookup<Team>(true);
             var damageEventLookup = SystemAPI.GetBufferLookup<DamageEvent>(true);
+            var visualOnlyLookup = SystemAPI.GetComponentLookup<VisualOnlyTag>(true);
 
             var commandBuffer = ecbSingleton.ValueRW.CreateCommandBuffer(state.WorldUnmanaged);
 
@@ -51,6 +52,7 @@ namespace Server
                 CombatStatusLookup = combatStatusLookup,
                 TeamLookup = teamLookup,
                 DamageEventLookup = damageEventLookup,
+                VisualOnlyLookup = visualOnlyLookup,
                 CommandBuffer = commandBuffer,
                 ProcessedProjectiles = processedProjectiles.AsParallelWriter()
             };
@@ -70,6 +72,7 @@ namespace Server
             [ReadOnly] public ComponentLookup<CombatStats> CombatStatusLookup;
             [ReadOnly] public ComponentLookup<Team> TeamLookup;
             [ReadOnly] public BufferLookup<DamageEvent> DamageEventLookup;
+            [ReadOnly] public ComponentLookup<VisualOnlyTag> VisualOnlyLookup;
 
             public EntityCommandBuffer CommandBuffer;
             public NativeParallelHashSet<Entity>.ParallelWriter ProcessedProjectiles;
@@ -84,6 +87,10 @@ namespace Server
                 bool isBProjectile = ProjectileTagLookup.HasComponent(entityB);
 
                 if (!isAProjectile && !isBProjectile) return;
+
+                // 시각 전용 투사체는 데미지를 주지 않음
+                Entity projectileCandidate = isAProjectile ? entityA : entityB;
+                if (VisualOnlyLookup.HasComponent(projectileCandidate)) return;
 
                 // 2. 공격자(투사체)와 피격자(대상) 구분
                 Entity projectileEntity = isAProjectile ? entityA : entityB;
