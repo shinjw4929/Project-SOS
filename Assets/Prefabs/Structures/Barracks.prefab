@@ -17,7 +17,7 @@ GameObject:
   - component: {fileID: -8661522934057390685}
   - component: {fileID: 5410318307187832568}
   - component: {fileID: 1579858311290981489}
-  m_Layer: 6
+  m_Layer: 7
   m_Name: Barracks
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -102,12 +102,12 @@ BoxCollider:
   m_Material: {fileID: 0}
   m_IncludeLayers:
     serializedVersion: 2
-    m_Bits: 0
+    m_Bits: 6336
   m_ExcludeLayers:
     serializedVersion: 2
     m_Bits: 0
   m_LayerOverridePriority: 0
-  m_IsTrigger: 1
+  m_IsTrigger: 0
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
@@ -166,13 +166,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   structureType: 1
   producibleUnits:
+  - {fileID: 5905964026690146530, guid: 651b861b56245724fb3a19b935eb52be, type: 3}
+  - {fileID: 5905964026690146530, guid: 9c9f697d86458054c9b87dcf4b0085a7, type: 3}
   - {fileID: 5905964026690146530, guid: 0e27e05ade413924eafedc9d64c33da1, type: 3}
-  - {fileID: 4751367205981193261, guid: 047b80508dffac04ab41dd3cad0eead3, type: 3}
   width: 3
   length: 3
   height: 3
+  radius: 2.13
   cost: 100
-  buildTime: 5
+  buildTime: 3
   maxHealth: 100
   defense: 0
   visionRange: 10

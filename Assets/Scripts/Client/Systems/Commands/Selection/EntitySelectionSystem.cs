@@ -15,14 +15,14 @@ namespace Client
     /// - 처리 후 Phase를 Idle로 복귀
     /// </summary>
     [UpdateInGroup(typeof(GhostInputSystemGroup))]
-    [UpdateAfter(typeof(SelectionInputSystem))]
+    [UpdateAfter(typeof(UserSelectionInputUpdateSystem))]
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
     public partial struct EntitySelectionSystem : ISystem
     {
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<NetworkStreamInGame>();
-            state.RequireForUpdate<SelectionState>();
+            state.RequireForUpdate<UserSelectionInputState>();
             state.RequireForUpdate<PhysicsWorldSingleton>();
             state.RequireForUpdate<EndSimulationEntityCommandBufferSystem.Singleton>();
             state.RequireForUpdate<UserState>();
@@ -31,7 +31,7 @@ namespace Client
 
         public void OnUpdate(ref SystemState state)
         {
-            ref var selectionState = ref SystemAPI.GetSingletonRW<SelectionState>().ValueRW;
+            ref var userSelectionInputState = ref SystemAPI.GetSingletonRW<UserSelectionInputState>().ValueRW;
             ref var userState = ref SystemAPI.GetSingletonRW<UserState>().ValueRW;
             // ESC 키 → 선택 해제
             var keyboard = Keyboard.current;
@@ -48,27 +48,27 @@ namespace Client
             }
 
             // 이벤트 기반: PendingClick 또는 PendingBox일 때만 처리
-            if (selectionState.Phase == SelectionPhase.PendingClick)
+            if (userSelectionInputState.Phase == SelectionPhase.PendingClick)
             {
                 SetUserStateIdle(ref userState);
-                HandleSingleClick(ref state, ref selectionState);
-                selectionState.Phase = SelectionPhase.Idle;
+                HandleSingleClick(ref state, ref userSelectionInputState);
+                userSelectionInputState.Phase = SelectionPhase.Idle;
             }
-            else if (selectionState.Phase == SelectionPhase.PendingBox)
+            else if (userSelectionInputState.Phase == SelectionPhase.PendingBox)
             {
                 SetUserStateIdle(ref userState);
-                HandleBoxSelection(ref state, ref selectionState);
-                selectionState.Phase = SelectionPhase.Idle;
+                HandleBoxSelection(ref state, ref userSelectionInputState);
+                userSelectionInputState.Phase = SelectionPhase.Idle;
             }
         }
 
-        private void HandleSingleClick(ref SystemState state, ref SelectionState selectionState)
+        private void HandleSingleClick(ref SystemState state, ref UserSelectionInputState userSelectionInputState)
         {
             if (!Camera.main) return; // Unity Object는 implicit bool 사용
             if (!SystemAPI.TryGetSingleton<NetworkId>(out var myNetworkId)) return;
 
             // 클릭 위치에서 레이캐스트
-            float2 clickPos = selectionState.StartScreenPos;
+            float2 clickPos = userSelectionInputState.StartScreenPos;
             UnityEngine.Ray ray = Camera.main.ScreenPointToRay(new Vector3(clickPos.x, clickPos.y, 0));
 
             if (!SystemAPI.TryGetSingleton<PhysicsWorldSingleton>(out var physicsWorld)) return;
@@ -113,7 +113,7 @@ namespace Client
             }
         }
 
-        private void HandleBoxSelection(ref SystemState state, ref SelectionState selectionState)
+        private void HandleBoxSelection(ref SystemState state, ref UserSelectionInputState userSelectionInputState)
         {
             if (!Camera.main) return; // Unity Object는 implicit bool 사용
             if (!SystemAPI.TryGetSingleton<NetworkId>(out var myNetworkId)) return;
@@ -121,8 +121,8 @@ namespace Client
             int myTeamId = myNetworkId.Value;
             var mainCamera = Camera.main;
 
-            float2 min = math.min(selectionState.StartScreenPos, selectionState.CurrentScreenPos);
-            float2 max = math.max(selectionState.StartScreenPos, selectionState.CurrentScreenPos);
+            float2 min = math.min(userSelectionInputState.StartScreenPos, userSelectionInputState.CurrentScreenPos);
+            float2 max = math.max(userSelectionInputState.StartScreenPos, userSelectionInputState.CurrentScreenPos);
 
             var ecb = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>()
                 .CreateCommandBuffer(state.WorldUnmanaged);

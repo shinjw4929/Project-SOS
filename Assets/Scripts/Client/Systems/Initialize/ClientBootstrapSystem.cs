@@ -9,18 +9,7 @@ namespace Client
 {
     /// <summary>
     /// [Client 전용] 게임에 필요한 싱글톤 엔티티를 일괄 생성합니다.
-    ///
-    /// [싱글톤 초기화 중앙 집중]
-    /// 새로운 클라이언트 싱글톤 추가 시 이 시스템에서 초기화하세요.
-    /// - UserState: 유저 컨텍스트 상태
-    /// - StructurePreviewState: 건설 프리뷰 상태
-    /// - SelectionState: 선택 입력 상태
-    /// - CurrentSelectionState: 현재 선택 정보
-    ///
-    /// 예외: Managed 컴포넌트나 카탈로그 의존성이 있는 싱글톤은 CatalogIndexMapInitSystem에서 초기화
     /// </summary>
-    
-    //초기화 단계에서 가장 먼저 실행되도록 설정
     [BurstCompile]
     [UpdateInGroup(typeof(InitializationSystemGroup), OrderFirst = true)]
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
@@ -29,51 +18,70 @@ namespace Client
         [BurstCompile]
         public void OnCreate(ref SystemState state)
         {
-            state.RequireForUpdate<BeginInitializationEntityCommandBufferSystem.Singleton>();
+            // 이 시스템은 EntityManager를 직접 사용하므로 별도의 RequireForUpdate가 필요 없습니다.
         }
-
-        [BurstCompile]
+        
         public void OnUpdate(ref SystemState state)
         {
-            // 1회만 실행하고 시스템 꺼버림 (성능 낭비 방지)
+            // 1회 실행 후 즉시 비활성화
             state.Enabled = false;
             
+            // 반복적인 EntityManager 접근을 줄이기 위해 로컬 변수 사용 (구조체 복사 비용 절감)
             var entityManager = state.EntityManager;
-            
-            // [싱글톤 생성]
+
+            // 1. UserState 생성
             if (!SystemAPI.HasSingleton<UserState>())
             {
-                var singletonUserState = entityManager.CreateEntity();
-                entityManager.AddComponentData(singletonUserState, new UserState { CurrentState = UserContext.Command });
-                entityManager.SetName(singletonUserState, "Singleton_UserState");
-            }
-            
-            if (!SystemAPI.HasSingleton<StructurePreviewState>())
-            {
-                var singletonStructurePreviewState = entityManager.CreateEntity();
-                state.EntityManager.AddComponentData(singletonStructurePreviewState, new StructurePreviewState());
-                entityManager.SetName(singletonStructurePreviewState, "Singleton_StructurePreviewState");
+                // 최적화: 엔티티 생성과 컴포넌트 추가를 아키타입으로 한 번에 처리
+                var entity = entityManager.CreateEntity(typeof(UserState));
+                
+                // 데이터 값 설정
+                SystemAPI.SetComponent(entity, new UserState { CurrentState = UserContext.Command });
+
+#if UNITY_EDITOR
+                // 최적화: 문자열 할당은 에디터에서만 수행 (빌드 시 오버헤드 제거)
+                entityManager.SetName(entity, "Singleton_UserState");
+#endif
             }
 
-            if (!SystemAPI.HasSingleton<SelectionState>())
+            // 2. StructurePreviewState 생성
+            if (!SystemAPI.HasSingleton<StructurePreviewState>())
             {
-                var singletonSelectionState = state.EntityManager.CreateEntity();
-                state.EntityManager.AddComponentData(singletonSelectionState, new SelectionState
+                var entity = entityManager.CreateEntity(typeof(StructurePreviewState));
+                // 기본 생성자 사용 시 SetComponent 생략 가능 (0으로 초기화됨)하거나 명시적 초기화
+                SystemAPI.SetComponent(entity, new StructurePreviewState());
+
+#if UNITY_EDITOR
+                entityManager.SetName(entity, "Singleton_StructurePreviewState");
+#endif
+            }
+
+            // 3. UserSelectionInputState 생성
+            if (!SystemAPI.HasSingleton<UserSelectionInputState>())
+            {
+                var entity = entityManager.CreateEntity(typeof(UserSelectionInputState));
+                SystemAPI.SetComponent(entity, new UserSelectionInputState
                 {
                     Phase = SelectionPhase.Idle,
                     StartScreenPos = float2.zero,
                     CurrentScreenPos = float2.zero
                 });
-                entityManager.SetName(singletonSelectionState, "Singleton_SelectionState");
+
+#if UNITY_EDITOR
+                entityManager.SetName(entity, "Singleton_UserSelectionInputState");
+#endif
             }
 
-            if (!SystemAPI.HasSingleton<CurrentSelectionState>())
+            // 4. CurrentSelectionState 생성
+            if (!SystemAPI.HasSingleton<SelectedEntityInfoState>())
             {
-                var singletonCurrentSelectionState = state.EntityManager.CreateEntity();
-                state.EntityManager.AddComponentData(singletonCurrentSelectionState, new CurrentSelectionState());
-                entityManager.SetName(singletonCurrentSelectionState, "Singleton_CurrentSelectionState");
+                var entity = entityManager.CreateEntity(typeof(SelectedEntityInfoState));
+                SystemAPI.SetComponent(entity, new SelectedEntityInfoState());
+
+#if UNITY_EDITOR
+                entityManager.SetName(entity, "Singleton_CurrentSelectionState");
+#endif
             }
         }
     }
 }
-

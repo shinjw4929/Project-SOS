@@ -5,44 +5,50 @@ using Unity.NetCode;
 using Shared;
 using Client;
 
+/// <summary>
+/// 건물 커맨드 UI 컨트롤러
+/// - Function 버튼, 유닛 생산 버튼, 자폭 버튼 등 건물 명령 UI 관리
+/// - AvailableUnit 버퍼 기반으로 생산 가능 유닛 표시
+/// </summary>
 public class StructureCommandUIController : MonoBehaviour
 {
     [Header("Structure Command Panel")]
     [SerializeField] private GameObject structureCommandPanel;
     [SerializeField] private Text structureNameText;
 
-    [Header("Function Button (Command 상태)")]
-    [SerializeField] private GameObject functionButtonPanel;
-    [SerializeField] private Button functionButton;
+    [Header("Command Buttons (Command 상태 - 건물 타입별 표시)")]
+    [SerializeField] private GameObject commandButtonPanel;
+    [SerializeField] private Button produceButton;       // 생산 시설용: Q -> 생산 메뉴
+    [SerializeField] private Button selfDestructButton;  // 벽용: R -> 자폭
+    // 향후 추가: rallyPointButton, autoGatherButton, attackTargetButton 등
 
-    [Header("Wall Commands (Menu 상태)")]
-    [SerializeField] private GameObject wallCommandsPanel;
-    [SerializeField] private Button selfDestructButton;
-
-    [Header("Barracks Commands (Menu 상태)")]
-    [SerializeField] private GameObject barracksCommandsPanel;
-    [SerializeField] private Button produceSoldierButton; // Index 0
-    [SerializeField] private Button produceUnit2Button;   // Index 1
+    [Header("Production Menu (StructureActionMenu 상태)")]
+    [SerializeField] private GameObject productionMenuPanel;
+    [SerializeField] private CommandButton[] produceButtons; // Inspector에서 3개 할당 (Q/W/E)
 
     [Header("Production Progress")]
     [SerializeField] private GameObject productionProgressPanel;
     [SerializeField] private Slider productionProgressBar;
     [SerializeField] private Text productionProgressText;
 
+    // 생산 버튼 단축키 (R은 벽 자폭용으로 예약)
+    private static readonly string[] ShortcutLabels = { "Q", "W", "E" };
+
+    // ECS 참조
     private World _clientWorld;
     private EntityManager _em;
-    private EntityQuery _CurrentSelectionStateQuery;
+    private EntityQuery _selectedEntityInfoStateQuery;
     private EntityQuery _userStateQuery;
-    private EntityQuery _unitCatalogQuery; // [추가] 전역 카탈로그 조회용
+    private EntityQuery _unitIndexMapQuery;
+
+    // 캐시
+    private Entity _lastProducerEntity = Entity.Null;
+    private UserContext _lastState = UserContext.Dead;
 
     private void Start()
     {
-        if (functionButton) functionButton.onClick.AddListener(OnFunctionButtonClicked);
+        if (produceButton) produceButton.onClick.AddListener(OnProduceButtonClicked);
         if (selfDestructButton) selfDestructButton.onClick.AddListener(OnSelfDestructClicked);
-        
-        // 람다로 인덱스 전달
-        if (produceSoldierButton) produceSoldierButton.onClick.AddListener(() => OnProduceUnitClicked(0));
-        if (produceUnit2Button) produceUnit2Button.onClick.AddListener(() => OnProduceUnitClicked(1));
 
         HideAllPanels();
     }
@@ -50,28 +56,28 @@ public class StructureCommandUIController : MonoBehaviour
     private void Update()
     {
         if (!TryInitClientWorld()) return;
-        
+
         // 필수 싱글톤 확인
-        if (_userStateQuery.IsEmptyIgnoreFilter || _CurrentSelectionStateQuery.IsEmptyIgnoreFilter)
+        if (_userStateQuery.IsEmptyIgnoreFilter || _selectedEntityInfoStateQuery.IsEmptyIgnoreFilter)
         {
             HideAllPanels();
             return;
         }
 
         var userState = _userStateQuery.GetSingleton<UserState>();
-        var selection = _CurrentSelectionStateQuery.GetSingleton<CurrentSelectionState>();
+        var selectedEntityInfoState = _selectedEntityInfoStateQuery.GetSingleton<SelectedEntityInfoState>();
 
-        // 1. 선택 유효성 검사 (시스템과 동일)
-        if (selection.Category != SelectionCategory.Structure || 
-            !selection.IsOwnedSelection || 
-            selection.PrimaryEntity == Entity.Null ||
-            !_em.Exists(selection.PrimaryEntity))
+        // 1. 선택 유효성 검사
+        if (selectedEntityInfoState.Category != SelectionCategory.Structure ||
+            !selectedEntityInfoState.IsOwnedSelection ||
+            selectedEntityInfoState.PrimaryEntity == Entity.Null ||
+            !_em.Exists(selectedEntityInfoState.PrimaryEntity))
         {
             HideAllPanels();
             return;
         }
 
-        Entity primaryEntity = selection.PrimaryEntity;
+        Entity primaryEntity = selectedEntityInfoState.PrimaryEntity;
 
         // 2. 상태별 UI 표시
         if (userState.CurrentState == UserContext.Command)
@@ -86,25 +92,36 @@ public class StructureCommandUIController : MonoBehaviour
         {
             HideAllPanels();
         }
+
+        _lastState = userState.CurrentState;
     }
 
     private void ShowCommandStateUI(Entity primaryEntity)
     {
         if (structureCommandPanel) structureCommandPanel.SetActive(true);
-        if (functionButtonPanel) functionButtonPanel.SetActive(true); // Function 버튼 보임
+        if (commandButtonPanel) commandButtonPanel.SetActive(true);
+        if (productionMenuPanel) productionMenuPanel.SetActive(false);
 
-        if (wallCommandsPanel) wallCommandsPanel.SetActive(false);
-        if (barracksCommandsPanel) barracksCommandsPanel.SetActive(false);
+        // 건물 타입별 명령 버튼 표시
+        bool isWall = _em.HasComponent<WallTag>(primaryEntity);
+        bool isProductionFacility = _em.HasComponent<ProductionFacilityTag>(primaryEntity);
 
-        // 태그에 따른 정보 표시
-        if (_em.HasComponent<WallTag>(primaryEntity))
+        // 생산 버튼: 생산 시설만
+        if (produceButton) produceButton.gameObject.SetActive(isProductionFacility);
+
+        // 자폭 버튼: 벽만
+        if (selfDestructButton) selfDestructButton.gameObject.SetActive(isWall);
+
+        // 건물 이름 및 프로그레스 표시
+        if (isWall)
         {
             if (structureNameText) structureNameText.text = "Wall";
-            UpdateSelfDestructProgress(primaryEntity);
+            UpdateSelfDestructProgress(primaryEntity, updateButton: true);
         }
-        else if (_em.HasComponent<ProductionFacilityTag>(primaryEntity))
+        else if (isProductionFacility)
         {
-            if (structureNameText) structureNameText.text = "Barracks";
+            string name = GetStructureDisplayName(primaryEntity);
+            if (structureNameText) structureNameText.text = name;
             UpdateProductionProgress(primaryEntity);
         }
         else
@@ -117,25 +134,22 @@ public class StructureCommandUIController : MonoBehaviour
     private void ShowStructureMenuUI(Entity primaryEntity)
     {
         if (structureCommandPanel) structureCommandPanel.SetActive(true);
-        if (functionButtonPanel) functionButtonPanel.SetActive(false); // Function 버튼 숨김 (메뉴 진입했으므로)
+        if (commandButtonPanel) commandButtonPanel.SetActive(false);
 
-        if (_em.HasComponent<WallTag>(primaryEntity))
+        // 생산 시설만 메뉴 상태 지원 (벽은 Command 상태에서 직접 자폭)
+        if (_em.HasComponent<ProductionFacilityTag>(primaryEntity))
         {
-            ShowWallCommands();
-        }
-        else if (_em.HasComponent<ProductionFacilityTag>(primaryEntity))
-        {
-            ShowBarracksCommands(primaryEntity);
+            ShowProductionMenu(primaryEntity);
         }
         else
         {
-            // 태그가 없으면 메뉴를 표시할 수 없음
-            HideAllPanels();
+            // 메뉴 상태를 지원하지 않는 건물은 Command로 복귀
+            ReturnToCommandState();
         }
     }
 
-    // [Action] Function 버튼 클릭 (Q키와 동일 역할)
-    private void OnFunctionButtonClicked()
+    // [Action] Produce 버튼 클릭 (Q키와 동일 역할) -> 생산 메뉴 진입
+    private void OnProduceButtonClicked()
     {
         if (_userStateQuery.IsEmptyIgnoreFilter) return;
 
@@ -143,75 +157,90 @@ public class StructureCommandUIController : MonoBehaviour
         userState.CurrentState = UserContext.StructureActionMenu;
     }
 
-    private void ShowWallCommands()
+    /// <summary>
+    /// 생산 메뉴 표시 - AvailableUnit 버퍼 기반
+    /// </summary>
+    private void ShowProductionMenu(Entity producerEntity)
     {
-        if (structureNameText) structureNameText.text = "Wall";
-        if (wallCommandsPanel) wallCommandsPanel.SetActive(true);
-        if (barracksCommandsPanel) barracksCommandsPanel.SetActive(false);
+        string name = GetStructureDisplayName(producerEntity);
+        if (structureNameText) structureNameText.text = name;
 
-        var selection = _CurrentSelectionStateQuery.GetSingleton<CurrentSelectionState>();
-        UpdateSelfDestructProgress(selection.PrimaryEntity, updateButton: true);
+        if (productionMenuPanel) productionMenuPanel.SetActive(true);
+
+        // 메뉴 진입 시 또는 선택 엔티티 변경 시 버튼 갱신
+        if (_lastState != UserContext.StructureActionMenu || _lastProducerEntity != producerEntity)
+        {
+            RefreshProductionButtons(producerEntity);
+            _lastProducerEntity = producerEntity;
+        }
+
+        UpdateProductionProgress(producerEntity, updateButtons: true);
     }
 
-    private void ShowBarracksCommands(Entity barracksEntity)
+    /// <summary>
+    /// 생산 버튼 갱신 - AvailableUnit 버퍼 기반
+    /// </summary>
+    private void RefreshProductionButtons(Entity producerEntity)
     {
-        if (structureNameText) structureNameText.text = "Barracks";
-        if (wallCommandsPanel) wallCommandsPanel.SetActive(false);
-        if (barracksCommandsPanel) barracksCommandsPanel.SetActive(true);
+        // 모든 버튼 비활성화
+        foreach (var btn in produceButtons)
+        {
+            if (btn != null) btn.SetActive(false);
+        }
 
-        UpdateProductionProgress(barracksEntity, updateButtons: true);
+        // 버퍼 확인
+        if (producerEntity == Entity.Null || !_em.Exists(producerEntity))
+            return;
+
+        if (!_em.HasBuffer<AvailableUnit>(producerEntity))
+            return;
+
+        var units = _em.GetBuffer<AvailableUnit>(producerEntity);
+
+        for (int i = 0; i < units.Length && i < produceButtons.Length; i++)
+        {
+            var btn = produceButtons[i];
+            if (btn == null) continue;
+
+            Entity prefab = units[i].PrefabEntity;
+            if (prefab == Entity.Null || !_em.Exists(prefab)) continue;
+
+            // 버튼 설정
+            string unitName = ProduceSelectionUtility.GetUnitName(_em, prefab);
+            int cost = ProduceSelectionUtility.GetUnitCost(_em, prefab);
+            bool isUnlocked = ProduceSelectionUtility.CheckUnitUnlocked(_em, prefab);
+            string shortcut = i < ShortcutLabels.Length ? ShortcutLabels[i] : "";
+
+            int localIndex = i; // 클로저용 로컬 변수
+            btn.Setup(unitName, shortcut, cost, isUnlocked, () => OnProduceUnitClicked(localIndex));
+            btn.SetActive(true);
+        }
     }
 
-    // [Action] 유닛 생산 버튼 클릭 (Q/W키와 동일 역할)
+    /// <summary>
+    /// 유닛 생산 버튼 클릭 -> RPC 전송
+    /// </summary>
     private void OnProduceUnitClicked(int localIndex)
     {
-        if (_CurrentSelectionStateQuery.IsEmptyIgnoreFilter) return;
-        var selection = _CurrentSelectionStateQuery.GetSingleton<CurrentSelectionState>();
-        var entity = selection.PrimaryEntity;
+        if (_selectedEntityInfoStateQuery.IsEmptyIgnoreFilter) return;
+        if (_unitIndexMapQuery.IsEmptyIgnoreFilter) return;
 
-        // 유효성 검사
-        if (entity == Entity.Null || !_em.Exists(entity)) return;
-        if (!_em.HasComponent<ProductionFacilityTag>(entity)) return;
-        if (!_em.HasBuffer<AvailableUnit>(entity)) return; // [수정] AvailableUnit 버퍼 확인
+        var selection = _selectedEntityInfoStateQuery.GetSingleton<SelectedEntityInfoState>();
+        var indexMap = _unitIndexMapQuery.GetSingleton<UnitPrefabIndexMap>().Map;
 
-        // 1. 로컬 인덱스로 프리팹 찾기
-        var unitBuffer = _em.GetBuffer<AvailableUnit>(entity);
-        if (localIndex >= unitBuffer.Length) return;
-
-        Entity targetPrefab = unitBuffer[localIndex].PrefabEntity;
-
-        // 2. [핵심] 전역 카탈로그 인덱스 찾기 (InputSystem의 _prefabIndexMap 역할)
-        int globalIndex = GetGlobalUnitIndex(targetPrefab);
-
-        if (globalIndex == -1)
-        {
-            Debug.LogError($"[UI] Prefab {targetPrefab} not found in UnitCatalog!");
-            return;
-        }
-
-        // 3. RPC 전송
-        if (_em.HasComponent<GhostInstance>(entity))
-        {
-            var ghostInstance = _em.GetComponentData<GhostInstance>(entity);
-            var rpcEntity = _em.CreateEntity();
-            _em.AddComponentData(rpcEntity, new ProduceUnitRequestRpc
-            {
-                StructureGhostId = ghostInstance.ghostId,
-                UnitIndex = globalIndex // 반드시 Global Index여야 함
-            });
-            _em.AddComponent<SendRpcCommandRequest>(rpcEntity);
-        }
-
-        // 4. Command 상태로 복귀 (InputSystem과 동일하게)
-        // (연속 생산을 원하면 이 줄을 주석 처리)
-        // ReturnToCommandState(); 
+        ProduceSelectionUtility.TryProduceUnit(
+            _em,
+            selection.PrimaryEntity,
+            localIndex,
+            indexMap
+        );
     }
 
-    // [Action] 자폭 버튼 클릭 (R키와 동일 역할)
+    // [Action] 자폭 버튼 클릭 (R키와 동일 역할) - Command 상태에서 직접 실행
     private void OnSelfDestructClicked()
     {
-        if (_CurrentSelectionStateQuery.IsEmptyIgnoreFilter) return;
-        var selection = _CurrentSelectionStateQuery.GetSingleton<CurrentSelectionState>();
+        if (_selectedEntityInfoStateQuery.IsEmptyIgnoreFilter) return;
+        var selection = _selectedEntityInfoStateQuery.GetSingleton<SelectedEntityInfoState>();
         var entity = selection.PrimaryEntity;
 
         if (entity == Entity.Null || !_em.Exists(entity)) return;
@@ -227,26 +256,19 @@ public class StructureCommandUIController : MonoBehaviour
             });
             _em.AddComponent<SendRpcCommandRequest>(rpcEntity);
         }
-
-        ReturnToCommandState();
+        // 자폭 명령 후에도 Command 상태 유지 (상태 변경 없음)
     }
 
-    // [Helper] 전역 유닛 인덱스 조회
-    private int GetGlobalUnitIndex(Entity prefabEntity)
+    /// <summary>
+    /// 건물 표시 이름 조회
+    /// </summary>
+    private string GetStructureDisplayName(Entity entity)
     {
-        if (_unitCatalogQuery.IsEmptyIgnoreFilter) return -1;
-
-        var catalogEntity = _unitCatalogQuery.GetSingletonEntity();
-        var buffer = _em.GetBuffer<UnitCatalogElement>(catalogEntity);
-
-        for (int i = 0; i < buffer.Length; i++)
-        {
-            if (buffer[i].PrefabEntity == prefabEntity)
-            {
-                return i;
-            }
-        }
-        return -1;
+        if (_em.HasComponent<ResourceCenterTag>(entity)) return "Resource Center";
+        if (_em.HasComponent<ProductionFacilityTag>(entity)) return "Barracks";
+        if (_em.HasComponent<WallTag>(entity)) return "Wall";
+        if (_em.HasComponent<TurretTag>(entity)) return "Turret";
+        return "Structure";
     }
 
     private void ReturnToCommandState()
@@ -255,7 +277,7 @@ public class StructureCommandUIController : MonoBehaviour
         ref var userState = ref _userStateQuery.GetSingletonRW<UserState>().ValueRW;
         userState.CurrentState = UserContext.Command;
     }
-    
+
     private void UpdateSelfDestructProgress(Entity wallEntity, bool updateButton = false)
     {
          if (!_em.HasComponent<SelfDestructTag>(wallEntity) || !_em.HasComponent<ExplosionData>(wallEntity))
@@ -282,15 +304,15 @@ public class StructureCommandUIController : MonoBehaviour
         if (updateButton && selfDestructButton) selfDestructButton.interactable = false;
     }
 
-    private void UpdateProductionProgress(Entity barracksEntity, bool updateButtons = false)
+    private void UpdateProductionProgress(Entity producerEntity, bool updateButtons = false)
     {
-        if (!_em.HasComponent<ProductionQueue>(barracksEntity))
+        if (!_em.HasComponent<ProductionQueue>(producerEntity))
         {
             if (productionProgressPanel) productionProgressPanel.SetActive(false);
             return;
         }
 
-        var queue = _em.GetComponentData<ProductionQueue>(barracksEntity);
+        var queue = _em.GetComponentData<ProductionQueue>(producerEntity);
 
         if (queue.IsActive && queue.Duration > 0)
         {
@@ -298,11 +320,13 @@ public class StructureCommandUIController : MonoBehaviour
             float progress = queue.Progress / queue.Duration;
             if (productionProgressBar) productionProgressBar.value = progress;
             if (productionProgressText) productionProgressText.text = $"{(int)(progress * 100)}%";
-            
+
             if (updateButtons)
             {
-                if (produceSoldierButton) produceSoldierButton.interactable = false;
-                if (produceUnit2Button) produceUnit2Button.interactable = false;
+                foreach (var btn in produceButtons)
+                {
+                    if (btn != null) btn.SetUnlocked(false);
+                }
             }
         }
         else
@@ -310,8 +334,10 @@ public class StructureCommandUIController : MonoBehaviour
             if (productionProgressPanel) productionProgressPanel.SetActive(false);
             if (updateButtons)
             {
-                if (produceSoldierButton) produceSoldierButton.interactable = true;
-                if (produceUnit2Button) produceUnit2Button.interactable = true;
+                foreach (var btn in produceButtons)
+                {
+                    if (btn != null) btn.SetUnlocked(true);
+                }
             }
         }
     }
@@ -319,9 +345,8 @@ public class StructureCommandUIController : MonoBehaviour
     private void HideAllPanels()
     {
         if (structureCommandPanel) structureCommandPanel.SetActive(false);
-        if (functionButtonPanel) functionButtonPanel.SetActive(false);
-        if (wallCommandsPanel) wallCommandsPanel.SetActive(false);
-        if (barracksCommandsPanel) barracksCommandsPanel.SetActive(false);
+        if (commandButtonPanel) commandButtonPanel.SetActive(false);
+        if (productionMenuPanel) productionMenuPanel.SetActive(false);
         if (productionProgressPanel) productionProgressPanel.SetActive(false);
     }
 
@@ -336,9 +361,9 @@ public class StructureCommandUIController : MonoBehaviour
                 _clientWorld = world;
                 _em = world.EntityManager;
 
-                _CurrentSelectionStateQuery = _em.CreateEntityQuery(typeof(CurrentSelectionState));
+                _selectedEntityInfoStateQuery = _em.CreateEntityQuery(typeof(SelectedEntityInfoState));
                 _userStateQuery = _em.CreateEntityQuery(typeof(UserState));
-                _unitCatalogQuery = _em.CreateEntityQuery(typeof(UnitCatalog)); // [추가]
+                _unitIndexMapQuery = _em.CreateEntityQuery(typeof(UnitPrefabIndexMap));
 
                 return true;
             }

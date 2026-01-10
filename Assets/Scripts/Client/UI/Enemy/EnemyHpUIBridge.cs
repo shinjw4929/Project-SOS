@@ -8,10 +8,10 @@ public class EnemyHpUIBridge : MonoBehaviour
     [Header("TextMeshPro 3D Prefab")]
     public TextMeshPro text3dPrefab;
 
-    [Header("¸Ó¸® À§ ³ôÀÌ")]
+    [Header("ë¨¸ë¦¬ ìœ„ ë†’ì´")]
     public float heightOffset = 2.0f;
 
-    [Header("Å©±â")]
+    [Header("í¬ê¸°")]
     public float uniformScale = 1.0f;
 
     private void OnEnable()

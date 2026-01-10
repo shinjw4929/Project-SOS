@@ -13,10 +13,8 @@ GameObject:
   - component: {fileID: 8153628656085380791}
   - component: {fileID: 5405135760150382516}
   - component: {fileID: 2686639574529153825}
-  - component: {fileID: 7073778679494178404}
   - component: {fileID: 161177204499816075}
   - component: {fileID: 6908516712286196834}
-  - component: {fileID: 8777118988857291566}
   m_Layer: 0
   m_Name: Projectile
   m_TagString: Untagged
@@ -123,20 +121,11 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3fb8308b9f830d74aa838184812f66a8, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
---- !u!114 &7073778679494178404
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4644459745882235068}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c16549610bfe4458aa9389201d072bb6, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
+  m_Name:
+  m_EditorClassIdentifier:
+  speed: 20
+  maxDistance: 30
+  damage: 10
 --- !u!114 &161177204499816075
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -147,8 +136,8 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 7c79d771cedb4794bf100ce60df5f764, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
+  m_Name:
+  m_EditorClassIdentifier:
   DefaultGhostMode: 1
   SupportedGhostModes: 2
   OptimizationMode: 0
@@ -190,16 +179,3 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 0
   m_CollisionDetection: 2
---- !u!114 &8777118988857291566
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4644459745882235068}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: cc37ffd04e0be024ea419e5c95b0158d, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  defaultDamage: 1

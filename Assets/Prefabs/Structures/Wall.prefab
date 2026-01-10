@@ -17,7 +17,7 @@ GameObject:
   - component: {fileID: -4113397192932736312}
   - component: {fileID: 8807275880046581674}
   - component: {fileID: 4894673168845304372}
-  m_Layer: 6
+  m_Layer: 7
   m_Name: Wall
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -102,12 +102,12 @@ BoxCollider:
   m_Material: {fileID: 0}
   m_IncludeLayers:
     serializedVersion: 2
-    m_Bits: 0
+    m_Bits: 6336
   m_ExcludeLayers:
     serializedVersion: 2
     m_Bits: 0
   m_LayerOverridePriority: 0
-  m_IsTrigger: 1
+  m_IsTrigger: 0
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
@@ -165,11 +165,13 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   structureType: 0
+  producibleUnits: []
   width: 2
   length: 2
   height: 2
-  cost: 100
-  buildTime: 5
+  radius: 1.42
+  cost: 0
+  buildTime: 1
   maxHealth: 100
   defense: 0
   visionRange: 10
@@ -179,7 +181,6 @@ MonoBehaviour:
   explosionRadius: 3
   explosionDamage: 100
   explosionDelay: 1
-  producibleUnitPrefabs: []
 --- !u!114 &8807275880046581674
 MonoBehaviour:
   m_ObjectHideFlags: 0

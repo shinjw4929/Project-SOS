@@ -50,13 +50,13 @@ public class SelectionBoxRenderer : MonoBehaviour
             return;
         }
 
-        var selectionState = _selectionStateQuery.GetSingleton<SelectionState>();
+        var userSelectionInputState = _selectionStateQuery.GetSingleton<UserSelectionInputState>();
 
         // Dragging 상태일 때만 박스 표시
-        if (selectionState.Phase == SelectionPhase.Dragging)
+        if (userSelectionInputState.Phase == SelectionPhase.Dragging)
         {
             ShowBox();
-            UpdateBoxRect(selectionState.StartScreenPos, selectionState.CurrentScreenPos);
+            UpdateBoxRect(userSelectionInputState.StartScreenPos, userSelectionInputState.CurrentScreenPos);
         }
         else
         {
@@ -70,7 +70,7 @@ public class SelectionBoxRenderer : MonoBehaviour
         {
             if (!world.IsCreated) continue;
 
-            var query = world.EntityManager.CreateEntityQuery(typeof(SelectionState));
+            var query = world.EntityManager.CreateEntityQuery(typeof(UserSelectionInputState));
             if (!query.IsEmptyIgnoreFilter)
             {
                 _entityManager = world.EntityManager;

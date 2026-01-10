@@ -11,21 +11,21 @@ TagManager:
   - Ground
   - Water
   - UI
+  - Resource
   - Structure
+  - 
+  - 
+  - 
   - Unit
   - Enemy
   - FlyingUnit
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
   - Fog
-  - 
-  - EnemyDamage
-  - 
-  - 
-  - 
-  - 
-  - 
-  - 
-  - 
-  - 
   - 
   - 
   - 

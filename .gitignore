@@ -97,4 +97,29 @@ InitTestScene*.unity*
 
 # Auto-generated scenes by play mode tests
 /[Aa]ssets/[Ii]nit[Tt]est[Ss]cene*.unity*
-CLAUDE.md
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+
+# Unity WebGL builds
+/[Aa]ssets/StreamingAssets/buildlog.txt
+
+# PlasticSCM / Unity Version Control temporary files
+/cm/
+
+# --- 사용자 정의 추가 영역 ---
+
+# IDEs and Editors
+.idea/
+.vscode/
+.vsconfig
+*.slnx
+
+# Claude & AI Tools
+.claude/
+
+# Others
+/nul
