@@ -171,6 +171,9 @@ namespace Authoring
                     CurrentValue = authoring.maxHealth,
                     MaxValue = authoring.maxHealth
                 });
+
+                // 데미지 이벤트 버퍼 (지연 데미지 적용용)
+                AddBuffer<DamageEvent>(entity);
                 
                 // 사거리
                 AddComponent(entity, new WorkRange
