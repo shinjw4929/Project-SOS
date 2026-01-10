@@ -53,7 +53,15 @@ namespace Server
                 float3 startPos = transform.ValueRO.Position;
                 float3 endPos = goal.ValueRO.Destination;
 
-                CalculatePath(startPos, endPos, pathBuffer);
+                bool pathValid = CalculatePath(startPos, endPos, pathBuffer);
+
+                // 경로 계산 실패 (NavMesh 업데이트 대기 중) - 다음 프레임에 재시도
+                if (!pathValid)
+                {
+                    // IsPathDirty는 true로 유지되어 다음 프레임에 재시도됨
+                    processedCount++;  // 무한 루프 방지를 위해 카운트 증가
+                    continue;
+                }
 
                 // 2. 경로 계산 후 처리
                 // NavMesh 경로의 0번은 항상 '현재 위치'이므로, 실제 목표는 1번부터임
@@ -93,37 +101,47 @@ namespace Server
             }
         }
 
-        private void CalculatePath(float3 start, float3 end, DynamicBuffer<PathWaypoint> pathBuffer)
+        /// <summary>
+        /// NavMesh 경로 계산
+        /// </summary>
+        /// <returns>true: 완전한 경로 계산 성공, false: 재시도 필요 (NavMesh 업데이트 대기)</returns>
+        private bool CalculatePath(float3 start, float3 end, DynamicBuffer<PathWaypoint> pathBuffer)
         {
             pathBuffer.Clear();
 
-            if (!math.isfinite(start.x) || !math.isfinite(end.x)) return;
+            if (!math.isfinite(start.x) || !math.isfinite(end.x)) return false;
 
             // NavMesh 샘플링 (Vector3 변환 필요)
             NavMeshHit hit;
-            if (!NavMesh.SamplePosition(start, out hit, 5.0f, NavMesh.AllAreas)) return;
+            if (!NavMesh.SamplePosition(start, out hit, 5.0f, NavMesh.AllAreas)) return false;
             Vector3 startPoint = hit.position;
 
-            if (!NavMesh.SamplePosition(end, out hit, 5.0f, NavMesh.AllAreas)) return;
+            if (!NavMesh.SamplePosition(end, out hit, 5.0f, NavMesh.AllAreas)) return false;
             Vector3 endPoint = hit.position;
 
             NavMeshPath path = new NavMeshPath();
-            if (NavMesh.CalculatePath(startPoint, endPoint, NavMesh.AllAreas, path) && 
-                path.status != NavMeshPathStatus.PathInvalid)
+            if (NavMesh.CalculatePath(startPoint, endPoint, NavMesh.AllAreas, path))
             {
-                var corners = path.corners;
-                int count = math.min(corners.Length, MaxPathLength);
-                for (int i = 0; i < count; i++)
+                // PathPartial: 목적지까지 완전한 경로를 찾지 못함 (NavMesh 업데이트 대기 중일 수 있음)
+                if (path.status == NavMeshPathStatus.PathPartial)
                 {
-                    pathBuffer.Add(new PathWaypoint { Position = corners[i] });
+                    return false;  // 다음 프레임에 재시도
+                }
+
+                if (path.status == NavMeshPathStatus.PathComplete)
+                {
+                    var corners = path.corners;
+                    int count = math.min(corners.Length, MaxPathLength);
+                    for (int i = 0; i < count; i++)
+                    {
+                        pathBuffer.Add(new PathWaypoint { Position = corners[i] });
+                    }
+                    return true;  // 성공
                 }
             }
-            else
-            {
-                // 실패 시 직선 경로 Fallback (0: 시작점, 1: 끝점)
-                pathBuffer.Add(new PathWaypoint { Position = start });
-                pathBuffer.Add(new PathWaypoint { Position = end });
-            }
+
+            // PathInvalid 또는 CalculatePath 실패 - 재시도
+            return false;
         }
     }
 }

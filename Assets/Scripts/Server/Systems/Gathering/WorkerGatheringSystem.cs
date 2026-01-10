@@ -107,7 +107,7 @@ namespace Server
 
         /// <summary>
         /// [단계 1] 자원 노드로 이동 중 도착 감지
-        /// 도착 판정: 목적지(MovementGoal.Destination)와의 거리 기준
+        /// 도착 판정: 노드 중심과의 거리 기준 (NavMesh가 표면까지 도달 못해도 채굴 가능)
         /// 이미 자원을 들고 있으면 채굴 없이 바로 반납으로 전환
         /// </summary>
         [BurstCompile]
@@ -127,14 +127,17 @@ namespace Server
                 if (nodeEntity == Entity.Null || !_transformLookup.HasComponent(nodeEntity)) continue;
 
                 float3 workerPos = transform.ValueRO.Position;
-                float3 targetPos = movementGoal.ValueRO.Destination; // 목적지 (표면 지점)
-                float distance = math.distance(workerPos, targetPos);
+                float3 nodePos = _transformLookup[nodeEntity].Position; // 노드 중심
+                float distance = math.distance(workerPos, nodePos);
 
-                // 유닛 반지름 + 여유분
+                // 노드 반지름 + 유닛 반지름 + 여유분
+                float nodeRadius = _resourceNodeSettingLookup.HasComponent(nodeEntity)
+                    ? _resourceNodeSettingLookup[nodeEntity].Radius
+                    : 1.5f;
                 float unitRadius = _obstacleRadiusLookup.HasComponent(entity)
                     ? _obstacleRadiusLookup[entity].Radius
                     : 0.5f;
-                float arrivalDistance = unitRadius + 0.5f;
+                float arrivalDistance = nodeRadius + unitRadius + 0.5f;
 
                 if (distance <= arrivalDistance)
                 {
@@ -163,7 +166,6 @@ namespace Server
 
                         if (returnPoint != Entity.Null && _transformLookup.HasComponent(returnPoint))
                         {
-                            float3 nodePos = _transformLookup[nodeEntity].Position;
                             float3 centerPos = _transformLookup[returnPoint].Position;
                             float3 returnTargetPos = CalculateReturnTargetPosition(nodePos, centerPos, returnPoint, entity);
 
@@ -502,16 +504,19 @@ namespace Server
 
                 if (!_transformLookup.HasComponent(nodeEntity)) continue;
 
-                // 목적지(표면 지점) 기준 도착 확인
+                // 노드 중심 기준 도착 확인
                 float3 workerPos = transform.ValueRO.Position;
-                float3 targetPos = movementGoal.ValueRO.Destination;
-                float distance = math.distance(workerPos, targetPos);
+                float3 nodePos = _transformLookup[nodeEntity].Position;
+                float distance = math.distance(workerPos, nodePos);
 
-                // 유닛 반지름 + 여유분
+                // 노드 반지름 + 유닛 반지름 + 여유분
+                float nodeRadius = _resourceNodeSettingLookup.HasComponent(nodeEntity)
+                    ? _resourceNodeSettingLookup[nodeEntity].Radius
+                    : 1.5f;
                 float unitRadius = _obstacleRadiusLookup.HasComponent(entity)
                     ? _obstacleRadiusLookup[entity].Radius
                     : 0.5f;
-                float arrivalDistance = unitRadius + 0.5f;
+                float arrivalDistance = nodeRadius + unitRadius + 0.5f;
 
                 // 아직 도착 안 함 - 이동 유지
                 if (distance > arrivalDistance)
