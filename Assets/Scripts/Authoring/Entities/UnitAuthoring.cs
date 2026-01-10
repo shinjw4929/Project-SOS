@@ -44,7 +44,7 @@ namespace Authoring
         
         [Header("Gathering Settings (Worker Only)")]
         [Min(1)] public int maxCarryAmount = 10;
-        [Min(1)] public float gatheringSpeed = 1.0f;
+        [Min(0.3f)] public float gatheringSpeed = 1.0f;
 
         [Header("Builder Settings")]
         public List<GameObject> buildableStructures; // 이 유닛이 건설할 수 있는 건물 프리팹 목록
