@@ -17,6 +17,9 @@ namespace Authoring
         [Min(1)] public int amountPerGather = 10;
         [Min(1f)] public float baseGatherDuration = 1.0f;
 
+        [Header("Collision")]
+        [Min(0.1f)] public float radius = 1.5f;
+
         public class Baker : Baker<ResourceNodeAuthoring>
         {
             public override void Bake(ResourceNodeAuthoring authoring)
@@ -31,7 +34,8 @@ namespace Authoring
                 {
                     ResourceType = authoring.resourceType,
                     AmountPerGather = authoring.amountPerGather,
-                    BaseGatherDuration =  authoring.baseGatherDuration,
+                    BaseGatherDuration = authoring.baseGatherDuration,
+                    Radius = authoring.radius,
                 });
                 
                 // 자원 노드 상태 (점유 정보)

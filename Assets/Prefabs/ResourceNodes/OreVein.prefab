@@ -227,7 +227,8 @@ MonoBehaviour:
   height: 1
   resourceType: 1
   amountPerGather: 10
-  gatherDuration: 1
+  baseGatherDuration: 1
+  radius: 1.81
 --- !u!114 &6134974049345022030
 MonoBehaviour:
   m_ObjectHideFlags: 0

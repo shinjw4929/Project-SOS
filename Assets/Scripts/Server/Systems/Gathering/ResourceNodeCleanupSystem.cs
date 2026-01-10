@@ -20,6 +20,8 @@ namespace Server
         private ComponentLookup<UnitActionState> _unitActionStateLookup;
         private ComponentLookup<Health> _healthLookup;
         private ComponentLookup<LocalTransform> _transformLookup;
+        private ComponentLookup<UnitIntentState> _unitIntentStateLookup;
+        private ComponentLookup<GatheringTarget> _gatheringTargetLookup;
 
         public void OnCreate(ref SystemState state)
         {
@@ -28,6 +30,8 @@ namespace Server
             _unitActionStateLookup = state.GetComponentLookup<UnitActionState>(true);
             _healthLookup = state.GetComponentLookup<Health>(true);
             _transformLookup = state.GetComponentLookup<LocalTransform>(true);
+            _unitIntentStateLookup = state.GetComponentLookup<UnitIntentState>(true);
+            _gatheringTargetLookup = state.GetComponentLookup<GatheringTarget>(true);
         }
 
         public void OnUpdate(ref SystemState state)
@@ -38,6 +42,8 @@ namespace Server
             _unitActionStateLookup.Update(ref state);
             _healthLookup.Update(ref state);
             _transformLookup.Update(ref state);
+            _unitIntentStateLookup.Update(ref state);
+            _gatheringTargetLookup.Update(ref state);
 
             // 1. ResourceNode의 점유 Worker가 유효한지 확인
             foreach (var (nodeState, entity) in SystemAPI.Query<RefRW<ResourceNodeState>>()
@@ -69,7 +75,35 @@ namespace Server
                     if (_healthLookup[occupyingWorker].CurrentValue <= 0)
                     {
                         nodeState.ValueRW.OccupyingWorker = Entity.Null;
+                        continue;
                     }
+                }
+
+                // Worker의 IntentState가 Gather가 아닌 경우 점유 해제
+                if (_unitIntentStateLookup.HasComponent(occupyingWorker))
+                {
+                    var intentState = _unitIntentStateLookup[occupyingWorker];
+                    if (intentState.State != Intent.Gather)
+                    {
+                        nodeState.ValueRW.OccupyingWorker = Entity.Null;
+                        continue;
+                    }
+                }
+
+                // Worker의 GatheringTarget이 이 노드가 아닌 경우 점유 해제
+                if (_gatheringTargetLookup.HasComponent(occupyingWorker))
+                {
+                    var gatheringTarget = _gatheringTargetLookup[occupyingWorker];
+                    if (gatheringTarget.ResourceNodeEntity != entity)
+                    {
+                        nodeState.ValueRW.OccupyingWorker = Entity.Null;
+                        continue;
+                    }
+                }
+                else
+                {
+                    // GatheringTarget 컴포넌트가 없으면 점유 해제
+                    nodeState.ValueRW.OccupyingWorker = Entity.Null;
                 }
             }
 
