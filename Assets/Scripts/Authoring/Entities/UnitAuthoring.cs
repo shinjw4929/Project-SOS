@@ -140,7 +140,6 @@ namespace Authoring
                         CarriedAmount = 0,
                         CarriedType = ResourceType.None,
                         GatheringProgress = 0f,
-                        IsInsideNode = false,
                         Phase = GatherPhase.None
                     });
 

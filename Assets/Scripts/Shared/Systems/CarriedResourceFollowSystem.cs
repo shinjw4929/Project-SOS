@@ -9,10 +9,9 @@ namespace Shared
 {
     /// <summary>
     /// CarriedResource 엔티티가 Worker를 따라다니도록 위치 업데이트
-    /// Worker 이동 시스템(PredictedMovementSystem) 이후에 실행
+    /// Ghost 동기화 이후 + Transform 계산 이전에 실행
     /// </summary>
-    [UpdateInGroup(typeof(PredictedSimulationSystemGroup))]
-    [UpdateAfter(typeof(PredictedMovementSystem))]
+    [UpdateInGroup(typeof(TransformSystemGroup))]
     [BurstCompile]
     public partial struct CarriedResourceFollowSystem : ISystem
     {

@@ -182,7 +182,6 @@ namespace Server
             intentState.State = Intent.Idle;
             actionState.State = Action.Idle;
             workerState.Phase = GatherPhase.None;
-            workerState.IsInsideNode = false;
         }
 
         private Entity FindNearestResourceCenter(ref SystemState state, Entity workerEntity)

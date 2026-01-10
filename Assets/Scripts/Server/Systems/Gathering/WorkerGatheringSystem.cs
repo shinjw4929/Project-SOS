@@ -181,7 +181,6 @@ namespace Server
                         // 도착: Gathering 상태로 전환
                         workerState.ValueRW.Phase = GatherPhase.Gathering;
                         actionState.ValueRW.State = Action.Working;
-                        workerState.ValueRW.IsInsideNode = true;
                         workerState.ValueRW.GatheringProgress = 0f;
                     }
                 }
@@ -263,7 +262,6 @@ namespace Server
                     // 복귀 이동 시작
                     workerState.ValueRW.Phase = GatherPhase.MovingToReturn;
                     actionState.ValueRW.State = Action.Moving;
-                    workerState.ValueRW.IsInsideNode = false;
 
                     // 이동 활성화
                     SystemAPI.SetComponentEnabled<MovementWaypoints>(entity, true);
@@ -529,7 +527,6 @@ namespace Server
                     nodeStateRW.ValueRW.OccupyingWorker = entity;
                     workerState.ValueRW.Phase = GatherPhase.Gathering;
                     actionState.ValueRW.State = Action.Working;
-                    workerState.ValueRW.IsInsideNode = true;
                     workerState.ValueRW.GatheringProgress = 0f;
                 }
             }
@@ -543,7 +540,6 @@ namespace Server
             intentState.State = Intent.Idle;
             actionState.State = Action.Idle;
             workerState.Phase = GatherPhase.None;
-            workerState.IsInsideNode = false;
         }
 
         /// <summary>
@@ -554,7 +550,6 @@ namespace Server
             intentState.State = Intent.Idle;
             actionState.State = Action.Idle;
             workerState.Phase = GatherPhase.None;
-            workerState.IsInsideNode = false;
         }
 
         /// <summary>
