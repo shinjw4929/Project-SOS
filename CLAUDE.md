@@ -281,6 +281,132 @@ Root (Scripts)/
 └── GameBootStrap.cs                         # 게임 진입점
 ```
 
+### System Groups & Dependencies
+
+시스템은 Unity DOTS의 SystemGroup 계층에 따라 실행되며, `UpdateAfter`/`UpdateBefore` 속성으로 의존성을 정의한다.
+
+#### 1. InitializationSystemGroup
+
+| 시스템 | 위치 | 의존성 |
+|--------|------|--------|
+| ClientBootstrapSystem | Client | OrderFirst=true |
+| CatalogIndexMapInitSystem | Client | UpdateAfter: ClientBootstrapSystem |
+| ObstacleGridInitSystem | Shared | UpdateBefore: GridOccupancyEventSystem |
+
+#### 2. GhostInputSystemGroup (Client 입력 처리)
+
+```
+UserSelectionInputUpdateSystem
+    ↓ UpdateAfter
+EntitySelectionSystem
+    ↓ UpdateAfter
+SelectedEntityInfoUpdateSystem
+    ↓ UpdateAfter
+UnitCommandInputSystem ←── GhostIdLookupSystem (UpdateAfter)
+    ↓ UpdateAfter
+StructurePlacementInputSystem
+    ↓ UpdateAfter
+PendingBuildExecuteSystem
+```
+
+독립 시스템:
+- ConstructionMenuInputSystem
+- StructureCommandInputSystem (UpdateAfter: SelectedEntityInfoUpdateSystem)
+- FireProjectileClientRpcSystem
+
+#### 3. PredictedSimulationSystemGroup (Client/Server 공유)
+
+```
+GhostIdLookupSystem (OrderFirst, CompleteDependency)
+    ↓
+UnitSeparationSystem
+    ↓ UpdateAfter
+PredictedMovementSystem
+    ↓ UpdateAfter
+MovementArrivalSystem
+```
+
+#### 4. FixedStepSimulationSystemGroup (Server 전투)
+
+```
+PhysicsSimulationGroup
+    ↓ UpdateAfter
+CombatDamageSystem (투사체 충돌 → DamageEvent)
+    ↓ UpdateAfter
+MeleeAttackSystem (거리 판정 → DamageEvent, CompleteDependency 1회)
+    ↓ UpdateAfter
+DamageApplySystem (DamageEvent → Health 적용)
+```
+
+#### 5. SimulationSystemGroup
+
+**Server:**
+
+| 시스템 | 의존성 |
+|--------|--------|
+| GoInGameServerSystem | - |
+| HandleBuildRequestSystem | - |
+| StructurePushOutSystem | UpdateAfter: HandleBuildRequestSystem |
+| PathfindingSystem | - |
+| PathFollowSystem | UpdateAfter: PathfindingSystem |
+| NavMeshObstacleSpawnSystem | UpdateAfter: ObstacleGridInitSystem |
+| NavMeshObstacleCleanupSystem | UpdateAfter: ServerDeathSystem |
+| FireProjectileServerSystem | OrderLast=true |
+| HandleProduceUnitRequestSystem | - |
+| HandleGatherRequestSystem | - |
+| SelfDestructTimerSystem | UpdateBefore: HandleSelfDestructRequestSystem |
+| HandleSelfDestructRequestSystem | - |
+| ResourceNodeCleanupSystem | OrderLast=true |
+| ServerDeathSystem | - |
+
+**Shared:**
+- EnemyTargetSystem, EnemyMoveSystem, EnemySpawnerSystem, ProjectileMoveSystem
+
+**Client:**
+- NotificationReceiveSystem, GoInGameClientSystem, ClientDeathSystem
+
+#### 6. LateSimulationSystemGroup
+
+| 시스템 | 위치 | 역할 |
+|--------|------|------|
+| GridOccupancyEventSystem | Shared | 그리드 점유 갱신 |
+| WorkerGatheringSystem | Server | 일꾼 채집 사이클 |
+| ProductionProgressSystem | Server | 건물 생산 진행 |
+
+#### 7. PresentationSystemGroup (Client 시각화)
+
+```
+WorkerVisibilitySystem (OrderFirst)
+    ↓
+SelectionVisualizationSystem
+StructurePreviewUpdateSystem
+EnemyHpTextPresentationSystem
+    ↓
+CarriedResourceVisualizationSystem (OrderLast)
+```
+
+#### 핵심 의존성 흐름 요약
+
+```
+[입력] GhostInputSystemGroup
+    → UserSelectionInputUpdateSystem → EntitySelectionSystem
+    → SelectedEntityInfoUpdateSystem → UnitCommandInputSystem
+
+[시뮬레이션] PredictedSimulationSystemGroup
+    → UnitSeparationSystem → PredictedMovementSystem → MovementArrivalSystem
+
+[전투] FixedStepSimulationSystemGroup (Server)
+    → CombatDamageSystem → MeleeAttackSystem → DamageApplySystem
+
+[후처리] LateSimulationSystemGroup
+    → GridOccupancyEventSystem, WorkerGatheringSystem, ProductionProgressSystem
+
+[렌더링] PresentationSystemGroup (Client)
+    → WorkerVisibilitySystem → SelectionVisualizationSystem
+```
+
+---
+
 ### Key Patterns
 
 **User State Machine** (`Client/Component/Singleton/UserState.cs`):
