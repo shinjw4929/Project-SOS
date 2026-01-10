@@ -44,7 +44,10 @@ namespace Authoring
                     CurrentValue = authoring.maxHealth,
                     MaxValue = authoring.maxHealth
                 });
-                
+
+                // 데미지 이벤트 버퍼 (지연 데미지 적용용)
+                AddBuffer<DamageEvent>(entity);
+
                 // 이동 속도
                 AddComponent(entity, new MovementSpeed
                 {
@@ -96,6 +99,12 @@ namespace Authoring
                         AttackPower = authoring.attackPower,
                         AttackSpeed = authoring.attackSpeed,
                         AttackRange = authoring.attackRange
+                    });
+
+                    // 공격 쿨다운 (초기값 0 = 즉시 공격 가능)
+                    AddComponent(entity, new AttackCooldown
+                    {
+                        RemainingTime = 0f
                     });
                 }
 

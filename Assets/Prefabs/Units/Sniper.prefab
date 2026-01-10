@@ -176,9 +176,9 @@ MonoBehaviour:
   visionRange: 20
   workRange: 2
   radius: 0.8
-  attackPower: 30
-  attackSpeed: 3
-  attackRange: 2
+  attackPower: 15
+  attackSpeed: 0.5
+  attackRange: 12
   maxCarryAmount: 10
   gatheringSpeed: 1
   buildableStructures: []

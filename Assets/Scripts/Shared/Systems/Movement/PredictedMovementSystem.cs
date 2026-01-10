@@ -30,11 +30,11 @@ namespace Shared
             {
                 DeltaTime = deltaTime,
                 CollisionWorld = physicsWorld.CollisionWorld,
-                // [필터 설정] 아군/적군/건물 등 충돌 레이어 설정 (프로젝트에 맞게 수정)
+                // [필터 설정] 아군/적군/건물 등 충돌 레이어 설정
                 StructureFilter = new CollisionFilter
                 {
                     BelongsTo = 1u << 11, // Unit
-                    CollidesWith = 1u << 6 | 1u << 7 | 1 << 12, // Structure (벽)
+                    CollidesWith = 1u << 6 | 1u << 7 | 1 << 12,
                     GroupIndex = 0
                 }
             };

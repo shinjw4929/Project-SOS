@@ -13,15 +13,23 @@ namespace Shared
     [BurstCompile]
     public partial struct UnitSeparationSystem : ISystem
     {
+        private ComponentLookup<WorkerState> _workerStateLookup;
+        private ComponentLookup<UnitIntentState> _unitIntentStateLookup;
+
         [BurstCompile]
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<PhysicsWorldSingleton>();
+            _workerStateLookup = state.GetComponentLookup<WorkerState>(true);
+            _unitIntentStateLookup = state.GetComponentLookup<UnitIntentState>(true);
         }
 
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
+            _workerStateLookup.Update(ref state);
+            _unitIntentStateLookup.Update(ref state);
+
             var physicsWorld = SystemAPI.GetSingleton<PhysicsWorldSingleton>();
 
             var job = new CalculateSeparationJob
@@ -33,7 +41,9 @@ namespace Shared
                     BelongsTo = 1u << 11, // Unit
                     CollidesWith = 1u << 11, // Unit
                     GroupIndex = 0
-                }
+                },
+                WorkerStateLookup = _workerStateLookup,
+                UnitIntentStateLookup = _unitIntentStateLookup
             };
 
             state.Dependency = job.ScheduleParallel(state.Dependency);
@@ -44,10 +54,12 @@ namespace Shared
     public partial struct CalculateSeparationJob : IJobEntity
     {
         [ReadOnly] public CollisionWorld CollisionWorld;
+        [ReadOnly] public ComponentLookup<WorkerState> WorkerStateLookup;
+        [ReadOnly] public ComponentLookup<UnitIntentState> UnitIntentStateLookup;
         public CollisionFilter UnitFilter;
-        
+
         // SeparationRadius: 유닛끼리 겹치지 않으려는 최소 거리
-        private const float SeparationRadius = 0.8f; 
+        private const float SeparationRadius = 0.8f;
 
         // IEnableableComponent: 움직이는 놈들만 밀어내기 계산 (최적화)
         // 만약 서 있는 유닛도 밀려야 한다면 EnabledRefRO 제거하고 ref SeparationForce만 쓰면 됨
@@ -55,7 +67,7 @@ namespace Shared
             Entity entity,
             in LocalTransform transform,
             ref SeparationForce separationForce,
-            EnabledRefRO<MovementWaypoints> isMoving) 
+            EnabledRefRO<MovementWaypoints> isMoving)
         {
             float3 currentPos = transform.Position;
             float3 force = float3.zero;
@@ -78,8 +90,11 @@ namespace Shared
                     var hit = hits[i];
                     if (hit.Entity == entity) continue; // 나 자신 제외
 
+                    // 채집 중인 유닛은 밀어내지 않음
+                    if (IsGathering(hit.Entity)) continue;
+
                     float dist = hit.Distance;
-                    
+
                     // 너무 딱 붙어있으면(0) 강제로 떼어냄
                     if (dist < 0.01f)
                     {
@@ -104,6 +119,26 @@ namespace Shared
 
             hits.Dispose(); // NativeList 해제 필수
             separationForce.Force = force; // 계산된 힘 저장
+        }
+
+        /// <summary>
+        /// 해당 엔티티가 채집 중인지 확인 (Gathering, WaitingForNode, Unloading)
+        /// </summary>
+        private bool IsGathering(Entity entity)
+        {
+            // Intent가 Gather가 아니면 채집 중 아님
+            if (!UnitIntentStateLookup.TryGetComponent(entity, out UnitIntentState intentState))
+                return false;
+            if (intentState.State != Intent.Gather)
+                return false;
+
+            // Phase가 채집 관련 상태인지 확인
+            if (!WorkerStateLookup.TryGetComponent(entity, out WorkerState workerState))
+                return false;
+
+            return workerState.Phase == GatherPhase.Gathering ||
+                   workerState.Phase == GatherPhase.WaitingForNode ||
+                   workerState.Phase == GatherPhase.Unloading;
         }
     }
 }

@@ -52,9 +52,6 @@ namespace Server
             ExplosionData explosionData)
         {
             var position = state.EntityManager.GetComponentData<LocalTransform>(sourceEntity).Position;
-
-            UnityEngine.Debug.Log($"[SelfDestructTimer] Explosion at {position}, Radius: {explosionData.Radius}, Damage: {explosionData.Damage}");
-
             // 범위 내 모든 유닛/건물에 데미지 (사망 처리는 DeathSystem에서)
             foreach (var (health, transform, entity) in
                 SystemAPI.Query<RefRW<Health>, RefRO<LocalTransform>>().WithEntityAccess())

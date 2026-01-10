@@ -44,7 +44,7 @@ namespace Authoring
         
         [Header("Gathering Settings (Worker Only)")]
         [Min(1)] public int maxCarryAmount = 10;
-        [Min(1)] public float gatheringSpeed = 1.0f;
+        [Min(0.3f)] public float gatheringSpeed = 1.0f;
 
         [Header("Builder Settings")]
         public List<GameObject> buildableStructures; // 이 유닛이 건설할 수 있는 건물 프리팹 목록
@@ -92,10 +92,12 @@ namespace Authoring
                     case AuthoringUnitType.Trooper:
                         AddComponent(entity, new SoldierTag());
                         AddComponent(entity, new TrooperTag());
+                        AddComponent(entity, new RangedUnitTag());
                         break;
                     case AuthoringUnitType.Sniper:
                         AddComponent(entity, new SoldierTag());
                         AddComponent(entity, new SniperTag());
+                        AddComponent(entity, new RangedUnitTag());
                         break;
                 }
                 
@@ -138,7 +140,6 @@ namespace Authoring
                         CarriedAmount = 0,
                         CarriedType = ResourceType.None,
                         GatheringProgress = 0f,
-                        IsInsideNode = false,
                         Phase = GatherPhase.None
                     });
 
@@ -171,6 +172,9 @@ namespace Authoring
                     CurrentValue = authoring.maxHealth,
                     MaxValue = authoring.maxHealth
                 });
+
+                // 데미지 이벤트 버퍼 (지연 데미지 적용용)
+                AddBuffer<DamageEvent>(entity);
                 
                 // 사거리
                 AddComponent(entity, new WorkRange
@@ -213,6 +217,12 @@ namespace Authoring
                         AttackPower = authoring.attackPower,
                         AttackSpeed = authoring.attackSpeed,
                         AttackRange = authoring.attackRange + authoring.radius
+                    });
+
+                    // 공격 쿨다운 (초기값 0 = 즉시 공격 가능)
+                    AddComponent(entity, new AttackCooldown
+                    {
+                        RemainingTime = 0f
                     });
                 }
                 

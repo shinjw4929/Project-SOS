@@ -1,4 +1,5 @@
 using Unity.Entities;
+using Unity.Burst;
 using Unity.NetCode;
 using Unity.Collections;
 using UnityEngine.InputSystem;
@@ -9,6 +10,7 @@ namespace Client
     [UpdateInGroup(typeof(GhostInputSystemGroup))]
     [UpdateAfter(typeof(SelectedEntityInfoUpdateSystem))]
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
+    [BurstCompile]
     public partial struct StructureCommandInputSystem : ISystem
     {
         // 1. 데이터 접근을 위한 Lookup 필드 선언
@@ -17,6 +19,7 @@ namespace Client
         [ReadOnly] private ComponentLookup<ExplosionData> _explosionDataLookup;
         [ReadOnly] private ComponentLookup<ProductionFacilityTag> _productionFacilityLookup;
 
+        [BurstCompile]
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<NetworkStreamInGame>();
@@ -58,6 +61,7 @@ namespace Client
             }
         }
 
+        [BurstCompile]
         private void HandleCommandState(ref SystemState state, Keyboard keyboard, ref UserState userState, SelectedEntityInfoState selection)
         {
             if (selection.Category != SelectionCategory.Structure ||
@@ -83,6 +87,7 @@ namespace Client
             }
         }
 
+        [BurstCompile]
         private void HandleMenuState(ref SystemState state, Keyboard keyboard, ref UserState userState, SelectedEntityInfoState selection)
         {
             if (keyboard.escapeKey.wasPressedThisFrame)
@@ -121,7 +126,7 @@ namespace Client
         }
 
         // --- Helper Methods ---
-
+        [BurstCompile]
         private int TryGetGlobalUnitIndex(Entity facilityEntity, int localIndex)
         {
             // EntityManager 대신 Lookup을 통해 버퍼 접근
@@ -138,10 +143,11 @@ namespace Client
                 return globalIndex;
             }
 
-            UnityEngine.Debug.LogWarning($"Prefab not found in Catalog: {prefabEntity}");
+            //UnityEngine.Debug.LogWarning($"Prefab not found in Catalog: {prefabEntity}");
             return -1;
         }
 
+        [BurstCompile]
         private void SendSelfDestructRpc(ref SystemState state, Entity entity)
         {
             // Lookup을 통해 GhostID 가져오기
@@ -155,6 +161,7 @@ namespace Client
             state.EntityManager.AddComponent<SendRpcCommandRequest>(rpcEntity);
         }
 
+        [BurstCompile]
         private void SendProduceUnitRpc(ref SystemState state, Entity entity, int unitIndex)
         {
             if (!_ghostInstanceLookup.TryGetComponent(entity, out var ghost)) return;

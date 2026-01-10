@@ -176,7 +176,7 @@ MonoBehaviour:
   visionRange: 10
   workRange: 2
   radius: 0.8
-  attackPower: 20
+  attackPower: 10
   attackSpeed: 1
   attackRange: 2
   maxCarryAmount: 10

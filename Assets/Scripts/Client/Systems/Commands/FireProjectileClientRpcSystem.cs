@@ -6,6 +6,12 @@ using Shared; // CombatStatus, Team 사용을 위해
 
 namespace Client
 {
+    /// <summary>
+    /// [비활성화됨] 스페이스바 수동 발사 시스템
+    /// - 원거리 공격이 RangedAttackSystem으로 자동화됨
+    /// - 필요 시 [DisableAutoCreation] 제거하여 재활성화 가능
+    /// </summary>
+    [DisableAutoCreation]
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
     [UpdateInGroup(typeof(GhostInputSystemGroup))]
     public partial struct FireProjectileClientRpcSystem : ISystem

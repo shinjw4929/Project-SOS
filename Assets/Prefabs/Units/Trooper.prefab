@@ -177,8 +177,8 @@ MonoBehaviour:
   workRange: 2
   radius: 0.8
   attackPower: 10
-  attackSpeed: 1
-  attackRange: 2
+  attackSpeed: 0.8
+  attackRange: 6
   maxCarryAmount: 10
   gatheringSpeed: 1
   buildableStructures: []

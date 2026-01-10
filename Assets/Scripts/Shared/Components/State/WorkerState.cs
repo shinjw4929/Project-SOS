@@ -35,9 +35,6 @@ namespace Shared
         // 채집 진행도 (0.0 ~ 1.0)
         [GhostField(Quantization = 100)] public float GatheringProgress;
 
-        // 자원 노드 내부에 있는지 여부
-        [GhostField] public bool IsInsideNode;
-
         // 채집 사이클의 현재 단계
         [GhostField] public GatherPhase Phase;
     }
