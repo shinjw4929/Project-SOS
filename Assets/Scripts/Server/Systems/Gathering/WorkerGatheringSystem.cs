@@ -30,6 +30,7 @@ namespace Server
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<NetworkStreamInGame>();
+            state.RequireForUpdate<CarriedResourcePrefabRef>();
 
             _resourceNodeStateLookup = state.GetComponentLookup<ResourceNodeState>(false);
             _transformLookup = state.GetComponentLookup<LocalTransform>(true);
@@ -47,6 +48,21 @@ namespace Server
 
             float deltaTime = SystemAPI.Time.DeltaTime;
 
+            // ECB for entity creation/destruction
+            var ecb = new EntityCommandBuffer(Allocator.Temp);
+
+            // CarriedResource 프리팹 참조
+            var prefabRef = SystemAPI.GetSingleton<CarriedResourcePrefabRef>();
+
+            // Worker → CarriedResource 매핑 (삭제 시 사용)
+            var workerToCarriedResource = new NativeParallelHashMap<Entity, Entity>(64, Allocator.Temp);
+            foreach (var (owner, entity) in SystemAPI.Query<RefRO<CarriedResourceOwner>>()
+                .WithAll<CarriedResourceTag>()
+                .WithEntityAccess())
+            {
+                workerToCarriedResource.TryAdd(owner.ValueRO.WorkerEntity, entity);
+            }
+
             // 네트워크 ID → UserCurrency Entity 맵 (임시 할당)
             var networkIdToCurrency = new NativeParallelHashMap<int, Entity>(16, Allocator.Temp);
             foreach (var (ghostOwner, entity) in SystemAPI.Query<RefRO<GhostOwner>>()
@@ -60,18 +76,22 @@ namespace Server
             ProcessMovingToGather(ref state);
 
             // --- 2. 채집 진행 (Phase.Gathering) ---
-            ProcessGathering(ref state, deltaTime);
+            ProcessGathering(ref state, deltaTime, ecb, prefabRef, workerToCarriedResource);
 
             // --- 3. 반납지로 이동 (Phase.MovingToReturn) ---
             ProcessMovingToReturn(ref state);
 
             // --- 4. 자원 하차 및 정산 (Phase.Unloading) ---
-            ProcessUnloading(ref state, deltaTime, networkIdToCurrency);
+            ProcessUnloading(ref state, deltaTime, networkIdToCurrency, ecb, workerToCarriedResource);
 
             // --- 5. 대기열 처리 (Phase.WaitingForNode) ---
             ProcessWaitingForNode(ref state);
 
             networkIdToCurrency.Dispose();
+            workerToCarriedResource.Dispose();
+
+            ecb.Playback(state.EntityManager);
+            ecb.Dispose();
         }
 
         private void UpdateLookups(ref SystemState state)
@@ -130,7 +150,9 @@ namespace Server
         /// [단계 2] 자원 채집 진행 (시간 소요)
         /// </summary>
         [BurstCompile]
-        private void ProcessGathering(ref SystemState state, float deltaTime)
+        private void ProcessGathering(ref SystemState state, float deltaTime,
+            EntityCommandBuffer ecb, CarriedResourcePrefabRef prefabRef,
+            NativeParallelHashMap<Entity, Entity> workerToCarriedResource)
         {
             foreach (var (intentState, actionState, workerState, gatherTarget, ability, movementGoal, ghostOwner, entity)
                 in SystemAPI.Query<RefRW<UnitIntentState>, RefRW<UnitActionState>, RefRW<WorkerState>,
@@ -163,12 +185,25 @@ namespace Server
                 // 완료 처리
                 if (workerState.ValueRO.GatheringProgress >= 1.0f)
                 {
-                    int newAmount = workerState.ValueRO.CarriedAmount + setting.AmountPerGather;
+                    int prevAmount = workerState.ValueRO.CarriedAmount;
+                    int newAmount = prevAmount + setting.AmountPerGather;
                     int maxAmount = ability.ValueRO.MaxCarryAmount;
 
                     workerState.ValueRW.CarriedAmount = math.min(newAmount, maxAmount);
                     workerState.ValueRW.CarriedType = setting.ResourceType;
                     workerState.ValueRW.GatheringProgress = 0f;
+
+                    // CarriedResource 시각 엔티티 생성 (처음 자원을 들었을 때만)
+                    if (prevAmount == 0 && workerState.ValueRO.CarriedAmount > 0)
+                    {
+                        if (!workerToCarriedResource.ContainsKey(entity))
+                        {
+                            Entity resourcePrefab = prefabRef.CheesePrefab; // TODO: 자원 종류별 분기
+                            Entity carriedResource = ecb.Instantiate(resourcePrefab);
+                            // CarriedResourceTag, CarriedResourceOwner는 프리팹에서 베이킹됨
+                            ecb.SetComponent(carriedResource, new CarriedResourceOwner { WorkerEntity = entity });
+                        }
+                    }
 
                     // 노드 점유 해제
                     if (_resourceNodeStateLookup.HasComponent(nodeEntity))
@@ -268,7 +303,9 @@ namespace Server
         /// [단계 4] 자원 하차 진행 (시간 소요) 및 재작업 결정
         /// </summary>
         [BurstCompile]
-        private void ProcessUnloading(ref SystemState state, float deltaTime, NativeParallelHashMap<int, Entity> networkIdToCurrency)
+        private void ProcessUnloading(ref SystemState state, float deltaTime,
+            NativeParallelHashMap<int, Entity> networkIdToCurrency,
+            EntityCommandBuffer ecb, NativeParallelHashMap<Entity, Entity> workerToCarriedResource)
         {
             foreach (var (intentState, actionState, workerState, gatherTarget, ability, movementGoal, ghostOwner, entity)
                 in SystemAPI.Query<RefRW<UnitIntentState>, RefRW<UnitActionState>, RefRW<WorkerState>,
@@ -299,6 +336,12 @@ namespace Server
                     workerState.ValueRW.CarriedAmount = 0;
                     workerState.ValueRW.CarriedType = ResourceType.None;
                     workerState.ValueRW.GatheringProgress = 0f;
+
+                    // CarriedResource 시각 엔티티 삭제
+                    if (workerToCarriedResource.TryGetValue(entity, out Entity carriedResource))
+                    {
+                        ecb.DestroyEntity(carriedResource);
+                    }
 
                     // 다음 행동 결정
                     DecideNextAction(ref intentState.ValueRW, ref actionState.ValueRW, ref workerState.ValueRW,
