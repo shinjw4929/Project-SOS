@@ -112,10 +112,7 @@ Client/
 │   │   ├── CatalogIndexMapInitSystem.cs     # 카탈로그 인덱스 맵 초기화
 │   │   ├── ClientBootstrapSystem.cs         # 클라이언트 초기화
 │   │   └── GoInGameClientSystem.cs          # 게임 진입 클라이언트
-│   ├── NotificationReceiveSystem.cs         # 서버 알림 RPC 수신
-│   └── Rendering/
-│       ├── CarriedResourceVisualizationSystem.cs  # 운반 자원 시각화
-│       └── WorkerVisibilitySystem.cs        # 일꾼 가시성 시스템
+│   └── NotificationReceiveSystem.cs         # 서버 알림 RPC 수신
 ├── UI/
 │   └── Enemy/
 │       ├── EnemyHpTextPresentationSystem.cs # 적 HP 텍스트 프레젠테이션
@@ -155,6 +152,7 @@ Shared/
 │   ├── State/
 │   │   ├── AggroTarget.cs                   # 공격/추적 대상 (유닛/적 공통)
 │   │   ├── AttackCooldown.cs                # 공격 쿨다운 타이머
+│   │   ├── CarriedResourceOwner.cs          # 운반 자원 소유자 (Worker 참조)
 │   │   ├── ConstructionState.cs
 │   │   ├── EnemyState.cs                    # 적 상태
 │   │   ├── GatheringTarget.cs               # 자원 채집 타겟
@@ -164,7 +162,7 @@ Shared/
 │   │   ├── UnitActionState.cs               # 유닛 액션 상태
 │   │   ├── UnitIntentState.cs               # 유닛 의도 상태
 │   │   ├── UnitState.cs                     # 유닛 상태 (Idle/Moving/Combat)
-│   │   └── WorkerState.cs
+│   │   └── WorkerState.cs                   # 일꾼 상태 (CarriedAmount, GatherPhase)
 │   ├── Stats/
 │   │   ├── CombatStats.cs
 │   │   ├── Defense.cs
@@ -177,6 +175,7 @@ Shared/
 │   │   ├── VisionRange.cs
 │   │   └── WorkRange.cs                     # 작업 사거리
 │   └── Tags/
+│       ├── CarriedResourceTag.cs            # 운반 자원 태그
 │       ├── IdentityTags.cs                  # UnitTag, StructureTag
 │       ├── RangedUnitTag.cs                 # 원거리 유닛 태그 (Trooper, Sniper)
 │       ├── SelfDestructTag.cs               # 자폭 태그
@@ -198,11 +197,13 @@ Shared/
 │   ├── GhostIdMap.cs                        # Ghost ID 맵 싱글톤
 │   ├── GridSettings.cs
 │   └── Ref/
+│       ├── CarriedResourcePrefabRef.cs      # 운반 자원 프리팹 참조
 │       ├── EnemyPrefabRef.cs                # 적 프리팹 참조
 │       ├── ProjectilePrefabRef.cs           # 투사체 프리팹 참조
 │       ├── ResourceNodePrefabRef.cs         # 자원 노드 프리팹 참조
 │       └── UserEconomyPrefabRef.cs          # 유저 경제 프리팹 참조
 ├── Systems/
+│   ├── CarriedResourceFollowSystem.cs       # 운반 자원 위치/가시성 (Scale 토글)
 │   ├── Combats/
 │   │   └── ProjectileMoveSystem.cs          # 투사체 이동 시스템
 │   ├── Commands/
@@ -249,6 +250,7 @@ Server/
     ├── FireProjectileServerSystem.cs        # 투사체 발사 (서버)
     ├── Gathering/
     │   ├── ResourceNodeCleanupSystem.cs     # 자원 노드 정리 시스템
+    │   ├── WorkerCarriedResourceSpawnSystem.cs  # Worker 스폰 시 CarriedResource 자동 생성
     │   └── WorkerGatheringSystem.cs         # 일꾼 자원 채집 시스템
     ├── Movement/
     │   ├── NavMeshObstacleCleanupSystem.cs  # NavMesh 장애물 정리
@@ -260,6 +262,7 @@ Server/
 
 Authoring/
 ├── CatalogAndRef/
+│   ├── CarriedResourcePrefabRefAuthoring.cs # 운반 자원 프리팹 참조
 │   ├── EnemyPrefabRefAuthoring.cs           # 적 프리팹 참조
 │   ├── ProjectilePrefabRefAuthoring.cs      # 투사체 프리팹 참조
 │   ├── ResourceNodePrefabRefAuthoring.cs    # 자원 노드 프리팹 참조
@@ -273,6 +276,7 @@ Authoring/
 ├── Economy/
 │   └── UserEconomyAuthoring.cs              # 유저 경제 오서링 (Ghost 프리팹용)
 ├── Entities/
+│   ├── CarriedResourceAuthoring.cs          # 운반 자원 오서링
 │   ├── EnemyAuthoring.cs                    # 적 오서링
 │   ├── ResourceNodeAuthoring.cs             # 자원 노드 오서링
 │   ├── StructureAuthoring.cs                # 건물 오서링 (Wall/Barracks/Turret/ResourceCenter)
@@ -363,6 +367,7 @@ DamageApplySystem (DamageEvent → Health 적용)
 | HandleGatherRequestSystem | - |
 | SelfDestructTimerSystem | UpdateBefore: HandleSelfDestructRequestSystem |
 | HandleSelfDestructRequestSystem | - |
+| WorkerCarriedResourceSpawnSystem | - |
 | ResourceNodeCleanupSystem | OrderLast=true |
 | ServerDeathSystem | - |
 
@@ -381,16 +386,18 @@ DamageApplySystem (DamageEvent → Health 적용)
 | WorkerGatheringSystem | Server | 일꾼 채집 사이클 |
 | ProductionProgressSystem | Server | 건물 생산 진행 |
 
-#### 7. PresentationSystemGroup (Client 시각화)
+#### 7. TransformSystemGroup (Client/Server 공유)
+
+| 시스템 | 역할 |
+|--------|------|
+| CarriedResourceFollowSystem | Worker 위치 추적 + CarriedAmount 기반 Scale 토글 |
+
+#### 8. PresentationSystemGroup (Client 시각화)
 
 ```
-WorkerVisibilitySystem (OrderFirst)
-    ↓
 SelectionVisualizationSystem
 StructurePreviewUpdateSystem
 EnemyHpTextPresentationSystem
-    ↓
-CarriedResourceVisualizationSystem (OrderLast)
 ```
 
 #### 핵심 의존성 흐름 요약
@@ -409,11 +416,17 @@ CarriedResourceVisualizationSystem (OrderLast)
 [시각 효과] SimulationSystemGroup (Client)
     → ProjectileVisualSystem → ClientProjectileMoveSystem
 
+[자원 채집] SimulationSystemGroup (Server)
+    → WorkerCarriedResourceSpawnSystem (Worker 생성 시 CarriedResource 연결)
+
 [후처리] LateSimulationSystemGroup
     → GridOccupancyEventSystem, WorkerGatheringSystem, ProductionProgressSystem
 
+[Transform] TransformSystemGroup (Client/Server)
+    → CarriedResourceFollowSystem (위치 + Scale 동기화)
+
 [렌더링] PresentationSystemGroup (Client)
-    → WorkerVisibilitySystem → SelectionVisualizationSystem
+    → SelectionVisualizationSystem, StructurePreviewUpdateSystem
 ```
 
 ---
@@ -462,6 +475,32 @@ UnitCommandInputSystem               → 우클릭 명령 생성 (이동/공격)
 - **투사체 공격**: Physics Trigger → CombatDamageSystem → DamageEvent 버퍼 (VisualOnlyTag 제외)
 - **데미지 적용**: DamageApplySystem이 모든 DamageEvent를 Health에 적용
 - **시각 투사체**: 서버에서 생성 → Ghost로 클라이언트 복제 → 목표 도달 시 자동 삭제
+
+**CarriedResource 시각화 패턴** (Scale 기반 가시성 제어):
+```
+[Server] WorkerCarriedResourceSpawnSystem
+    Worker 생성 감지 (WorkerTag + WorkerState, Without WorkerCarriedResourceLinked)
+        ↓
+    CarriedResource 엔티티 Instantiate
+        ↓
+    CarriedResourceOwner.WorkerEntity = Worker
+        ↓
+    LinkedEntityGroup에 추가 (Worker 삭제 시 함께 삭제)
+        ↓
+    WorkerCarriedResourceLinked 태그 추가 (중복 생성 방지)
+
+[Client/Server] CarriedResourceFollowSystem (TransformSystemGroup)
+    CarriedResourceOwner.WorkerEntity로 Worker 참조
+        ↓
+    Position = Worker.Position + (0, 1.2f, 0)
+        ↓
+    Scale = WorkerState.CarriedAmount > 0 ? 1f : 0f  // 가시성 토글
+```
+
+장점:
+- **Structural Change 없음**: Scale 값 변경만으로 가시성 제어
+- **네트워크 최적화**: CarriedResource 생성/삭제 RPC 불필요, WorkerState.CarriedAmount만 동기화
+- **자동 정리**: LinkedEntityGroup으로 Worker 삭제 시 CarriedResource 자동 삭제
 
 **Network RPCs** (in `Shared/RPCs/`):
 - `GoInGameRequestRpc` - Client join request
