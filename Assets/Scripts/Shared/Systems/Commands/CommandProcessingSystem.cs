@@ -17,6 +17,8 @@ namespace Shared
         [ReadOnly] private ComponentLookup<StructureTag> _structureTagLookup;
         [ReadOnly] private ComponentLookup<ResourceNodeTag> _resourceNodeTagLookup;
         [ReadOnly] private ComponentLookup<WorkerTag> _workerTagLookup;
+        [ReadOnly] private ComponentLookup<ResourceCenterTag> _resourceCenterTagLookup;
+        [ReadOnly] private ComponentLookup<WorkerState> _workerStateLookup;
 
         [BurstCompile]
         public void OnCreate(ref SystemState state)
@@ -29,6 +31,8 @@ namespace Shared
             _structureTagLookup = state.GetComponentLookup<StructureTag>(true);
             _resourceNodeTagLookup = state.GetComponentLookup<ResourceNodeTag>(true);
             _workerTagLookup = state.GetComponentLookup<WorkerTag>(true);
+            _resourceCenterTagLookup = state.GetComponentLookup<ResourceCenterTag>(true);
+            _workerStateLookup = state.GetComponentLookup<WorkerState>(true);
         }
 
         [BurstCompile]
@@ -47,6 +51,8 @@ namespace Shared
             _structureTagLookup.Update(ref state);
             _resourceNodeTagLookup.Update(ref state);
             _workerTagLookup.Update(ref state);
+            _resourceCenterTagLookup.Update(ref state);
+            _workerStateLookup.Update(ref state);
 
             // [중요] EnabledRefRW를 사용하되, 비활성화 상태도 쿼리하기 위해 IgnoreComponentEnabledState 사용
             foreach (var (inputBuffer, movementGoal, unitIntentState, aggroTarget, waypointsEnabled, commandedEntity) in
@@ -140,7 +146,30 @@ namespace Shared
                                 SetUnitMovement(ref movementGoal.ValueRW, inputCommand.GoalPosition, waypointsEnabled);
                             }
                         }
-                        // Case 3: 기타 (이동)
+                        // Case 3: 리소스 센터 클릭 (자원 반납)
+                        else if (_resourceCenterTagLookup.HasComponent(targetEntity))
+                        {
+                            // Worker가 자원을 들고 있으면 Intent.Gather 유지 (RPC가 Phase.MovingToReturn 설정)
+                            if (_workerTagLookup.HasComponent(commandedEntity) &&
+                                _workerStateLookup.TryGetComponent(commandedEntity, out var workerState) &&
+                                workerState.CarriedAmount > 0)
+                            {
+                                // Intent.Gather로 설정 (HandleReturnResourceRequestSystem과 일관성 유지)
+                                SetUnitIntentState(ref unitIntentState.ValueRW, Intent.Gather, ref targetEntity);
+                                // MovementGoal은 HandleReturnResourceRequestSystem에서 설정
+                            }
+                            else
+                            {
+                                // 자원이 없으면 일반 이동으로 처리
+                                if (math.distance(movementGoal.ValueRW.Destination, inputCommand.GoalPosition) > 0.1f)
+                                {
+                                    SetUnitMovement(ref movementGoal.ValueRW, inputCommand.GoalPosition, waypointsEnabled);
+                                    Entity nullEntity = Entity.Null;
+                                    SetUnitIntentState(ref unitIntentState.ValueRW, Intent.Move, ref nullEntity);
+                                }
+                            }
+                        }
+                        // Case 4: 기타 (이동)
                         else
                         {
                             if (math.distance(movementGoal.ValueRW.Destination, inputCommand.GoalPosition) > 0.1f)

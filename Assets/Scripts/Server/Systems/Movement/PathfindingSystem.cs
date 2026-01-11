@@ -15,19 +15,31 @@ namespace Server
     /// - 계산 직후 첫 번째 웨이포인트를 MovementWaypoints에 주입하여 즉시 이동 시작
     /// </summary>
     [UpdateInGroup(typeof(SimulationSystemGroup))]
+    [UpdateAfter(typeof(NavMeshObstacleSpawnSystem))]
     [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
     public partial class PathfindingSystem : SystemBase
     {
-        private const int MaxPathRequestsPerFrame = 15; 
-        private const int MaxPathLength = 64; 
+        private const int MaxPathRequestsPerFrame = 15;
+        private const int MaxPathLength = 64;
+
+        // 초기 프레임 스킵: NavMesh 장애물(벽) 업데이트 완료 대기
+        private int _initialSkipFrames; 
         
         protected override void OnCreate()
         {
             RequireForUpdate<MovementGoal>();
+            _initialSkipFrames = 10; // NavMesh carving 완료 대기 (약 0.16초 @ 60fps)
         }
 
         protected override void OnUpdate()
         {
+            // NavMesh 장애물 업데이트 완료 대기 (초기 프레임 스킵)
+            if (_initialSkipFrames > 0)
+            {
+                _initialSkipFrames--;
+                return;
+            }
+
             if (NavMesh.GetSettingsCount() == 0) return;
 
             int processedCount = 0;
@@ -40,7 +52,7 @@ namespace Server
                     RefRW<MovementWaypoints>,
                     EnabledRefRW<MovementWaypoints>,
                     RefRO<LocalTransform>>()
-                    .WithAll<UnitTag>()
+                    .WithAny<UnitTag, EnemyTag>()
                     .WithOptions(EntityQueryOptions.IgnoreComponentEnabledState))
             {
                 if (!goal.ValueRO.IsPathDirty)
@@ -122,13 +134,10 @@ namespace Server
             NavMeshPath path = new NavMeshPath();
             if (NavMesh.CalculatePath(startPoint, endPoint, NavMesh.AllAreas, path))
             {
-                // PathPartial: 목적지까지 완전한 경로를 찾지 못함 (NavMesh 업데이트 대기 중일 수 있음)
-                if (path.status == NavMeshPathStatus.PathPartial)
-                {
-                    return false;  // 다음 프레임에 재시도
-                }
-
-                if (path.status == NavMeshPathStatus.PathComplete)
+                // PathComplete 또는 PathPartial 모두 허용
+                // PathPartial: 목적지까지 완전한 경로는 없지만, 갈 수 있는 만큼 이동
+                if (path.status == NavMeshPathStatus.PathComplete ||
+                    path.status == NavMeshPathStatus.PathPartial)
                 {
                     var corners = path.corners;
                     int count = math.min(corners.Length, MaxPathLength);
@@ -136,7 +145,7 @@ namespace Server
                     {
                         pathBuffer.Add(new PathWaypoint { Position = corners[i] });
                     }
-                    return true;  // 성공
+                    return true;
                 }
             }
 

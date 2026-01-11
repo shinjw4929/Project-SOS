@@ -199,12 +199,18 @@ namespace Authoring
                     ProductionTime = authoring.buildTime
                 });
                 
-                // 체력
-                AddComponent(entity, new Health
+                // 체력 (벽은 무적이므로 Health 없음)
+                if (authoring.structureType != AuthoringStructureType.Wall)
                 {
-                    CurrentValue = authoring.maxHealth,
-                    MaxValue = authoring.maxHealth
-                });
+                    AddComponent(entity, new Health
+                    {
+                        CurrentValue = authoring.maxHealth,
+                        MaxValue = authoring.maxHealth
+                    });
+
+                    // 데미지 이벤트 버퍼 (MeleeAttackSystem 등에서 사용)
+                    AddBuffer<DamageEvent>(entity);
+                }
 
                 // 방어력
                 AddComponent(entity, new Defense

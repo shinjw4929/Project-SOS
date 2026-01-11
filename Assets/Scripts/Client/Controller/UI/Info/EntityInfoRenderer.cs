@@ -10,7 +10,9 @@ namespace Client
     {
         [Header("UI References")]
         [SerializeField] private GameObject panelRoot;
+        [SerializeField] private TextMeshProUGUI nameText;
         [SerializeField] private TextMeshProUGUI healthText;
+        [SerializeField] private TextMeshProUGUI defenseText;
         [SerializeField] private TextMeshProUGUI moveSpeedText;
         [SerializeField] private TextMeshProUGUI attackPowerText;
         [SerializeField] private TextMeshProUGUI teamText;
@@ -22,8 +24,11 @@ namespace Client
 
         // [최적화] 상태 캐싱용 변수 (Dirty Flags)
         private Entity _cachedEntity = Entity.Null;
+        private string _cachedName = null;
         private float _cachedCurHealth = -1;
         private float _cachedMaxHealth = -1;
+        private bool _cachedIsInvincible = false;
+        private float _cachedDefense = -1;
         private float _cachedMoveSpeed = -1;
         private float _cachedAttackPower = -1;
         private int _cachedTeamId = -2; // -1은 보통 없음, 안전하게 -2
@@ -53,9 +58,7 @@ namespace Client
             Entity currentEntity = selectedEntityInfoState.PrimaryEntity;
 
             // 3. 엔티티 유효성 검사
-            if (!_entityManager.Exists(currentEntity) ||
-                !_entityManager.HasComponent<Health>(currentEntity) ||
-                !_entityManager.HasComponent<Team>(currentEntity))
+            if (!_entityManager.Exists(currentEntity))
             {
                 SetPanelActive(false);
                 return;
@@ -77,15 +80,57 @@ namespace Client
 
         private void UpdateUI(Entity entity)
         {
-            // --- Health ---
-            var health = _entityManager.GetComponentData<Health>(entity);
-            // 현재 체력이나 최대 체력이 변했을 때만 갱신
-            if (_cachedCurHealth != health.CurrentValue || _cachedMaxHealth != health.MaxValue)
+            // --- Name (태그 기반) ---
+            string currentName = GetEntityName(entity);
+            if (_cachedName != currentName)
             {
-                _cachedCurHealth = health.CurrentValue;
-                _cachedMaxHealth = health.MaxValue;
-                if (healthText != null)
-                    healthText.SetText("HP: {0:0}/{1:0}", _cachedCurHealth, _cachedMaxHealth);
+                _cachedName = currentName;
+                if (nameText != null)
+                    nameText.SetText(_cachedName);
+            }
+
+            // --- Health / 무적 ---
+            bool isInvincible = !_entityManager.HasComponent<Health>(entity);
+            if (isInvincible)
+            {
+                if (!_cachedIsInvincible)
+                {
+                    _cachedIsInvincible = true;
+                    _cachedCurHealth = -1;
+                    _cachedMaxHealth = -1;
+                    if (healthText != null)
+                    {
+                        healthText.SetText("Invincible");
+                        healthText.color = Color.yellow;
+                    }
+                }
+            }
+            else
+            {
+                var health = _entityManager.GetComponentData<Health>(entity);
+                if (_cachedIsInvincible || _cachedCurHealth != health.CurrentValue || _cachedMaxHealth != health.MaxValue)
+                {
+                    _cachedIsInvincible = false;
+                    _cachedCurHealth = health.CurrentValue;
+                    _cachedMaxHealth = health.MaxValue;
+                    if (healthText != null)
+                    {
+                        healthText.SetText("HP: {0:0}/{1:0}", _cachedCurHealth, _cachedMaxHealth);
+                        healthText.color = Color.white;
+                    }
+                }
+            }
+
+            // --- Defense (Optional) ---
+            float currentDefense = 0f;
+            if (_entityManager.HasComponent<Defense>(entity))
+                currentDefense = _entityManager.GetComponentData<Defense>(entity).Value;
+
+            if (_cachedDefense != currentDefense)
+            {
+                _cachedDefense = currentDefense;
+                if (defenseText != null)
+                    defenseText.SetText("DEF: {0:0}", _cachedDefense);
             }
 
             // --- Movement Speed (Optional) ---
@@ -112,28 +157,82 @@ namespace Client
                     attackPowerText.SetText("ATK: {0:1}", _cachedAttackPower);
             }
 
-            // --- Team Info ---
-            var team = _entityManager.GetComponentData<Team>(entity);
-            
-            // 내 네트워크 ID 가져오기 (싱글톤 체크 안전하게)
-            int myNetId = -1;
-            if (!_networkIdQuery.IsEmptyIgnoreFilter)
-                myNetId = _networkIdQuery.GetSingleton<NetworkId>().Value;
-
-            // 팀 정보나 내 ID가 바뀌었을 때만 갱신 (네트워크 ID는 처음에 바뀔 수 있음)
-            if (_cachedTeamId != team.teamId || _cachedMyNetworkId != myNetId)
+            // --- Team Info (Optional) ---
+            if (_entityManager.HasComponent<Team>(entity))
             {
-                _cachedTeamId = team.teamId;
-                _cachedMyNetworkId = myNetId;
+                var team = _entityManager.GetComponentData<Team>(entity);
 
-                bool isMyTeam = (_cachedTeamId == _cachedMyNetworkId);
+                // 내 네트워크 ID 가져오기 (싱글톤 체크 안전하게)
+                int myNetId = -1;
+                if (!_networkIdQuery.IsEmptyIgnoreFilter)
+                    myNetId = _networkIdQuery.GetSingleton<NetworkId>().Value;
 
-                if (teamText != null)
+                // 팀 정보나 내 ID가 바뀌었을 때만 갱신
+                if (_cachedTeamId != team.teamId || _cachedMyNetworkId != myNetId)
                 {
-                    teamText.SetText(isMyTeam ? "MY Unit" : "Other Unit");
-                    teamText.color = isMyTeam ? Color.cyan : Color.red;
+                    _cachedTeamId = team.teamId;
+                    _cachedMyNetworkId = myNetId;
+
+                    if (teamText != null)
+                    {
+                        if (_cachedTeamId < 0)
+                        {
+                            // 음수 팀 ID = 적
+                            teamText.SetText("Enemy");
+                            teamText.color = Color.red;
+                        }
+                        else if (_cachedTeamId == _cachedMyNetworkId)
+                        {
+                            teamText.SetText("MY Unit");
+                            teamText.color = Color.cyan;
+                        }
+                        else
+                        {
+                            teamText.SetText("Other Unit");
+                            teamText.color = Color.yellow;
+                        }
+                    }
                 }
             }
+            else
+            {
+                // Team 컴포넌트가 없는 엔티티 (리소스 노드 등)
+                if (_cachedTeamId != -99)
+                {
+                    _cachedTeamId = -99;
+                    if (teamText != null)
+                    {
+                        teamText.SetText("Neutral");
+                        teamText.color = Color.gray;
+                    }
+                }
+            }
+        }
+
+        private string GetEntityName(Entity entity)
+        {
+            // Unit types
+            if (_entityManager.HasComponent<HeroTag>(entity)) return "Hero";
+            if (_entityManager.HasComponent<WorkerTag>(entity)) return "Worker";
+            if (_entityManager.HasComponent<SwordsmanTag>(entity)) return "Swordsman";
+            if (_entityManager.HasComponent<TrooperTag>(entity)) return "Trooper";
+            if (_entityManager.HasComponent<SniperTag>(entity)) return "Sniper";
+
+            // Structure types
+            if (_entityManager.HasComponent<WallTag>(entity)) return "Wall";
+            if (_entityManager.HasComponent<ProductionFacilityTag>(entity)) return "Barracks";
+            if (_entityManager.HasComponent<TurretTag>(entity)) return "Turret";
+            if (_entityManager.HasComponent<ResourceCenterTag>(entity)) return "Resource Center";
+
+            // Other entities
+            if (_entityManager.HasComponent<EnemyTag>(entity)) return "Enemy";
+            if (_entityManager.HasComponent<ResourceNodeTag>(entity)) return "Ore Vein";
+
+            // Fallback
+            if (_entityManager.HasComponent<UnitTag>(entity)) return "Unit";
+            if (_entityManager.HasComponent<StructureTag>(entity)) return "Structure";
+
+            return "Unknown";
         }
 
         private void SetPanelActive(bool isActive)
@@ -148,8 +247,11 @@ namespace Client
         private void ResetCache()
         {
             _cachedEntity = Entity.Null;
+            _cachedName = null;
             _cachedCurHealth = -1;
             _cachedMaxHealth = -1;
+            _cachedIsInvincible = false;
+            _cachedDefense = -1;
             _cachedMoveSpeed = -1;
             _cachedAttackPower = -1;
             _cachedTeamId = -2;

@@ -24,10 +24,12 @@ namespace Server
         [ReadOnly] private ComponentLookup<NeedsNavMeshObstacle> _needsNavMeshLookup;
         [ReadOnly] private ComponentLookup<GhostInstance> _ghostInstanceLookup;
         [ReadOnly] private ComponentLookup<Parent> _parentLookup;
+        [ReadOnly] private ComponentLookup<ResourceCenterTag> _resourceCenterTagLookup;
         [ReadOnly] private BufferLookup<GridCell> _gridCellLookup;
-        
+
         // 자원 수정은 '직렬 Job'에서 하므로 안전하게 일반 Lookup 사용
         private ComponentLookup<UserCurrency> _userCurrencyLookup;
+        private ComponentLookup<UserTechState> _userTechStateLookup;
         #endregion
 
         public void OnCreate(ref SystemState state)
@@ -45,7 +47,9 @@ namespace Server
             _needsNavMeshLookup = state.GetComponentLookup<NeedsNavMeshObstacle>(true);
             _ghostInstanceLookup = state.GetComponentLookup<GhostInstance>(true);
             _parentLookup = state.GetComponentLookup<Parent>(true);
+            _resourceCenterTagLookup = state.GetComponentLookup<ResourceCenterTag>(true);
             _userCurrencyLookup = state.GetComponentLookup<UserCurrency>(false);
+            _userTechStateLookup = state.GetComponentLookup<UserTechState>(false);
             _gridCellLookup = state.GetBufferLookup<GridCell>(true);
         }
 
@@ -80,6 +84,24 @@ namespace Server
             var ecbSingleton = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>();
             var ecb = ecbSingleton.CreateCommandBuffer(state.WorldUnmanaged);
 
+            // 4. 자원 노드 데이터 수집
+            var resourceNodeQuery = SystemAPI.QueryBuilder()
+                .WithAll<ResourceNodeTag, GridPosition, StructureFootprint>()
+                .Build();
+
+            var resourceNodeEntities = resourceNodeQuery.ToEntityArray(Allocator.TempJob);
+            var resourceNodePositions = new NativeArray<int2>(resourceNodeEntities.Length, Allocator.TempJob);
+            var resourceNodeSizes = new NativeArray<int2>(resourceNodeEntities.Length, Allocator.TempJob);
+
+            for (int i = 0; i < resourceNodeEntities.Length; i++)
+            {
+                var entity = resourceNodeEntities[i];
+                resourceNodePositions[i] = state.EntityManager.GetComponentData<GridPosition>(entity).Position;
+                var fp = state.EntityManager.GetComponentData<StructureFootprint>(entity);
+                resourceNodeSizes[i] = new int2(fp.Width, fp.Length);
+            }
+            resourceNodeEntities.Dispose();
+
             // ------------------------------------------------------------------
             // [Job 1] 병렬 검증 (ValidateBuildRequestJob)
             // ------------------------------------------------------------------
@@ -90,7 +112,7 @@ namespace Server
                 GridEntity = gridEntity,
                 PhysicsWorld = physicsWorld.PhysicsWorld.CollisionWorld,
                 PrefabBuffer = prefabBuffer,
-                
+
                 // Lookups
                 NetworkIdLookup = _networkIdLookup,
                 ProductionCostLookup = _productionCostLookup,
@@ -98,7 +120,12 @@ namespace Server
                 GridCellLookup = _gridCellLookup,
                 GhostInstanceLookup = _ghostInstanceLookup,
                 ParentLookup = _parentLookup,
-                
+                ResourceCenterTagLookup = _resourceCenterTagLookup,
+
+                // Resource Node Data
+                ResourceNodePositions = resourceNodePositions,
+                ResourceNodeSizes = resourceNodeSizes,
+
                 // Output
                 ActionQueue = actionQueue.AsParallelWriter()
             };
@@ -113,8 +140,10 @@ namespace Server
                 ActionQueue = actionQueue,
                 NetworkIdToCurrencyMap = networkIdToCurrencyMap,
                 UserCurrencyLookup = _userCurrencyLookup,
+                UserTechStateLookup = _userTechStateLookup,
                 ProductionInfoLookup = _productionInfoLookup,
                 NeedsNavMeshLookup = _needsNavMeshLookup,
+                ResourceCenterTagLookup = _resourceCenterTagLookup,
                 TransformLookup = _transformLookup, // FootprintLookup 제거 (좌표 계산 완료됨)
                 Ecb = ecb
             };
@@ -124,6 +153,8 @@ namespace Server
             // 메모리 해제 예약
             networkIdToCurrencyMap.Dispose(state.Dependency);
             actionQueue.Dispose(state.Dependency);
+            resourceNodePositions.Dispose(state.Dependency);
+            resourceNodeSizes.Dispose(state.Dependency);
         }
 
         private void UpdateLookups(ref SystemState state)
@@ -136,7 +167,9 @@ namespace Server
             _needsNavMeshLookup.Update(ref state);
             _ghostInstanceLookup.Update(ref state);
             _parentLookup.Update(ref state);
+            _resourceCenterTagLookup.Update(ref state);
             _userCurrencyLookup.Update(ref state);
+            _userTechStateLookup.Update(ref state);
             _gridCellLookup.Update(ref state);
         }
     }
@@ -160,6 +193,10 @@ namespace Server
         [ReadOnly] public BufferLookup<GridCell> GridCellLookup;
         [ReadOnly] public ComponentLookup<GhostInstance> GhostInstanceLookup;
         [ReadOnly] public ComponentLookup<Parent> ParentLookup;
+
+        [ReadOnly] public NativeArray<int2> ResourceNodePositions;
+        [ReadOnly] public NativeArray<int2> ResourceNodeSizes;
+        [ReadOnly] public ComponentLookup<ResourceCenterTag> ResourceCenterTagLookup;
 
         private void Execute(Entity rpcEntity, [EntityIndexInQuery] int sortKey, RefRO<ReceiveRpcCommandRequest> rpcReceive, RefRO<BuildRequestRpc> rpc)
         {
@@ -226,6 +263,21 @@ namespace Server
                 if (CheckUnitCollision(physicsCenter, halfExtents, rpc.ValueRO.BuilderGhostId))
                 {
                     isValid = false;
+                }
+            }
+
+            // 3-3. 자원 노드 제외 구역 검사 (ResourceCenter만 적용)
+            if (isValid && ResourceNodePositions.Length > 0)
+            {
+                bool isResourceCenter = ResourceCenterTagLookup.HasComponent(structurePrefab);
+                if (isResourceCenter)
+                {
+                    if (GridUtility.IsInResourceExclusionZone(
+                        gridPos, width, length,
+                        ResourceNodePositions, ResourceNodeSizes))
+                    {
+                        isValid = false;
+                    }
                 }
             }
 
@@ -302,14 +354,16 @@ namespace Server
     public partial struct ExecuteBuildRequestJob : IJob
     {
         public NativeQueue<BuildActionRequest> ActionQueue;
-        
+
         [ReadOnly] public NativeHashMap<int, Entity> NetworkIdToCurrencyMap;
         public ComponentLookup<UserCurrency> UserCurrencyLookup;
-        
+        public ComponentLookup<UserTechState> UserTechStateLookup;
+
         [ReadOnly] public ComponentLookup<ProductionInfo> ProductionInfoLookup;
         [ReadOnly] public ComponentLookup<NeedsNavMeshObstacle> NeedsNavMeshLookup;
+        [ReadOnly] public ComponentLookup<ResourceCenterTag> ResourceCenterTagLookup;
         [ReadOnly] public ComponentLookup<LocalTransform> TransformLookup;
-        
+
         public EntityCommandBuffer Ecb;
 
         public void Execute()
@@ -351,7 +405,13 @@ namespace Server
 
                 // 4. 건물 생성 (TargetWorldPos 사용)
                 CreateBuildingEntity(request);
-                
+
+                // 5. ResourceCenter 건설 시 테크 상태 업데이트
+                if (ResourceCenterTagLookup.HasComponent(request.PrefabEntity))
+                {
+                    UpdateTechState(request.SourceNetworkId, hasResourceCenter: true);
+                }
+
                 Ecb.DestroyEntity(request.RpcEntity);
             }
         }
@@ -391,6 +451,19 @@ namespace Server
             {
                 Ecb.SetComponentEnabled<NeedsNavMeshObstacle>(newStructure, true);
             }
+        }
+
+        private void UpdateTechState(int networkId, bool hasResourceCenter)
+        {
+            if (!NetworkIdToCurrencyMap.TryGetValue(networkId, out Entity userEconomyEntity))
+                return;
+
+            if (!UserTechStateLookup.HasComponent(userEconomyEntity))
+                return;
+
+            var techState = UserTechStateLookup[userEconomyEntity];
+            techState.HasResourceCenter = hasResourceCenter;
+            UserTechStateLookup[userEconomyEntity] = techState;
         }
     }
 }

@@ -18,7 +18,7 @@ public partial struct EnemyTargetSystem : ISystem
         _transformLookup = state.GetComponentLookup<LocalTransform>(isReadOnly: true);
 
         // [핵심] 복합 조건 쿼리 생성 (Any 사용)
-        // 조건: (LocalTransform AND Team) AND (UnitTag OR StructureTag) AND NOT EnemyTag
+        // 조건: (LocalTransform AND Team) AND (UnitTag OR StructureTag) AND NOT (EnemyTag OR WallTag)
         var queryDesc = new EntityQueryDesc
         {
             All = new ComponentType[]
@@ -33,7 +33,8 @@ public partial struct EnemyTargetSystem : ISystem
             },
             None = new ComponentType[]
             {
-                ComponentType.ReadOnly<EnemyTag>()     // Enemy는 타겟 후보에서 제외
+                ComponentType.ReadOnly<EnemyTag>(),    // Enemy는 타겟 후보에서 제외
+                ComponentType.ReadOnly<WallTag>()      // Wall은 무적 (타겟 후보에서 제외)
             }
         };
         _potentialTargetQuery = state.EntityManager.CreateEntityQuery(queryDesc);
@@ -72,6 +73,9 @@ public partial struct EnemyTargetSystem : ISystem
 
         [ReadOnly] public ComponentLookup<LocalTransform> TransformLookup;
 
+        // 목적지 변경 역치 (1m 이상 차이나야 경로 재계산)
+        private const float DestinationThresholdSq = 1.0f;
+
         // 적군(Enemy)을 찾아서 실행
         // 필터: EnemyTag가 있는 엔티티만 처리
         public void Execute(
@@ -81,6 +85,7 @@ public partial struct EnemyTargetSystem : ISystem
             RefRW<EnemyState> enemyState,
             RefRO<EnemyChaseDistance> chaseDistance,
             RefRO<Team> myTeam,
+            RefRW<MovementGoal> goal,  // NavMesh 경로 탐색용
             in EnemyTag enemyTag)
         {
             float3 myPos = myTransform.ValueRO.Position;
@@ -117,6 +122,14 @@ public partial struct EnemyTargetSystem : ISystem
                     {
                         // 타겟이 유효하면 마지막 위치 갱신 (이동 시스템에서 사용)
                         target.ValueRW.LastTargetPosition = targetPos;
+
+                        // [NavMesh] 목적지 갱신 (역치 기반 - 불필요한 경로 재계산 방지)
+                        float3 currentDest = goal.ValueRO.Destination;
+                        if (math.distancesq(currentDest, targetPos) > DestinationThresholdSq)
+                        {
+                            goal.ValueRW.Destination = targetPos;
+                            goal.ValueRW.IsPathDirty = true;
+                        }
                     }
                 }
             }
@@ -155,8 +168,10 @@ public partial struct EnemyTargetSystem : ISystem
             }
 
             // ---------------------------------------------------------
-            // 3. 결과 적용 + EnemyState 업데이트
+            // 3. 결과 적용 + EnemyState 업데이트 + MovementGoal 갱신
             // ---------------------------------------------------------
+            Entity previousTarget = target.ValueRO.TargetEntity;
+
             if (bestTarget != Entity.Null)
             {
                 target.ValueRW.TargetEntity = bestTarget;
@@ -164,7 +179,18 @@ public partial struct EnemyTargetSystem : ISystem
                 // TryGetComponent로 위치 조회
                 if (TransformLookup.TryGetComponent(bestTarget, out LocalTransform bestTargetTransform))
                 {
-                    target.ValueRW.LastTargetPosition = bestTargetTransform.Position;
+                    float3 targetPos = bestTargetTransform.Position;
+                    target.ValueRW.LastTargetPosition = targetPos;
+
+                    // [NavMesh] 타겟이 변경되었거나 거리 역치 초과 시 경로 재계산
+                    bool targetChanged = previousTarget != bestTarget;
+                    float3 currentDest = goal.ValueRO.Destination;
+
+                    if (targetChanged || math.distancesq(currentDest, targetPos) > DestinationThresholdSq)
+                    {
+                        goal.ValueRW.Destination = targetPos;
+                        goal.ValueRW.IsPathDirty = true;
+                    }
                 }
 
                 // EnemyState를 Chasing으로 변경

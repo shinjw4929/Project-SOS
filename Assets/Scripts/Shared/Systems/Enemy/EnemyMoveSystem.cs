@@ -7,6 +7,8 @@ using Unity.Physics;
 namespace Shared
 {
     // Enemy를 LastTargetPosition 방향으로 이동시키는 시스템
+    // [비활성화] NavMesh 기반 PredictedMovementSystem으로 대체됨
+    [DisableAutoCreation]
     [BurstCompile]
     [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
     public partial struct EnemyMoveSystem : ISystem

@@ -172,7 +172,7 @@ MonoBehaviour:
   radius: 1.42
   cost: 0
   buildTime: 1
-  maxHealth: 100
+  maxHealth: 10
   defense: 0
   visionRange: 10
   attackDamage: 0
@@ -181,6 +181,7 @@ MonoBehaviour:
   explosionRadius: 3
   explosionDamage: 100
   explosionDelay: 1
+  isInitialPlacement: 0
 --- !u!114 &8807275880046581674
 MonoBehaviour:
   m_ObjectHideFlags: 0

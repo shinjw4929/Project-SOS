@@ -20,8 +20,10 @@ namespace Client
         [ReadOnly] private ComponentLookup<WorkRange> _workRangeLookup;
         [ReadOnly] private ComponentLookup<ObstacleRadius> _obstacleRadiusLookup;
         [ReadOnly] private ComponentLookup<ProductionCost> _productionCostLookup;
+        [ReadOnly] private ComponentLookup<ResourceCenterTag> _resourceCenterTagLookup;
 
         private EntityQuery _userCurrencyQuery;
+        private EntityQuery _resourceNodeQuery;
 
         public void OnCreate(ref SystemState state)
         {
@@ -37,10 +39,17 @@ namespace Client
             _workRangeLookup = state.GetComponentLookup<WorkRange>(true);
             _obstacleRadiusLookup = state.GetComponentLookup<ObstacleRadius>(true);
             _productionCostLookup = state.GetComponentLookup<ProductionCost>(true);
+            _resourceCenterTagLookup = state.GetComponentLookup<ResourceCenterTag>(true);
 
             _userCurrencyQuery = state.GetEntityQuery(
                 ComponentType.ReadOnly<UserCurrency>(),
                 ComponentType.ReadOnly<GhostOwnerIsLocal>()
+            );
+
+            _resourceNodeQuery = state.GetEntityQuery(
+                ComponentType.ReadOnly<ResourceNodeTag>(),
+                ComponentType.ReadOnly<GridPosition>(),
+                ComponentType.ReadOnly<StructureFootprint>()
             );
         }
 
@@ -82,6 +91,41 @@ namespace Client
                     width, length, gridSettings.GridSize.x, gridSettings.GridSize.y);
             }
 
+            // 3-1. 자원 노드 제외 구역 확인 (ResourceCenter만 적용)
+            bool isInResourceExclusionZone = false;
+            _resourceCenterTagLookup.Update(ref state);
+            bool isResourceCenter = _resourceCenterTagLookup.HasComponent(previewState.SelectedPrefab);
+
+            if (isResourceCenter)
+            {
+                var resourceNodeEntities = _resourceNodeQuery.ToEntityArray(Allocator.Temp);
+                if (resourceNodeEntities.Length > 0)
+                {
+                    var resourceNodePositions = new NativeArray<int2>(resourceNodeEntities.Length, Allocator.Temp);
+                    var resourceNodeSizes = new NativeArray<int2>(resourceNodeEntities.Length, Allocator.Temp);
+
+                    var gridPosLookup = SystemAPI.GetComponentLookup<GridPosition>(true);
+                    var footprintLookupLocal = SystemAPI.GetComponentLookup<StructureFootprint>(true);
+
+                    for (int i = 0; i < resourceNodeEntities.Length; i++)
+                    {
+                        var entity = resourceNodeEntities[i];
+                        resourceNodePositions[i] = gridPosLookup[entity].Position;
+                        var fp = footprintLookupLocal[entity];
+                        resourceNodeSizes[i] = new int2(fp.Width, fp.Length);
+                    }
+
+                    isInResourceExclusionZone = GridUtility.IsInResourceExclusionZone(
+                        previewState.GridPosition, width, length,
+                        resourceNodePositions, resourceNodeSizes
+                    );
+
+                    resourceNodePositions.Dispose();
+                    resourceNodeSizes.Dispose();
+                }
+                resourceNodeEntities.Dispose();
+            }
+
             // 4. 유닛 물리 충돌 확인
             var physicsWorld = SystemAPI.GetSingleton<PhysicsWorldSingleton>();
             var selectedEntityInfoState = SystemAPI.GetSingleton<SelectedEntityInfoState>();
@@ -100,8 +144,8 @@ namespace Client
             
             bool hasUnitCollision = CheckCollision(ref physicsWorld, buildingCenter, halfExtents, builderEntity);
 
-            // 5. 기본 유효성 판단 (그리드 점유 + 유닛 충돌)
-            bool isValidPlacement = !isOccupied && !hasUnitCollision;
+            // 5. 기본 유효성 판단 (그리드 점유 + 유닛 충돌 + 자원 노드 제외 구역)
+            bool isValidPlacement = !isOccupied && !hasUnitCollision && !isInResourceExclusionZone;
             previewState.IsValidPlacement = isValidPlacement;
 
             // 6. 사거리 계산 (유효한 배치일 때만)
