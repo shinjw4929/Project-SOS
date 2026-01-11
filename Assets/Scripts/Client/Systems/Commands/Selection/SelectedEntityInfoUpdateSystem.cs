@@ -40,7 +40,8 @@ namespace Client
             CurrentSelectionState.IsOwnedSelection = true;
 
             bool hasUnits = false;
-            bool hasStructures = false;
+            bool hasStructure = false;
+            bool hasUncontrolled = false;
             bool isFirst = true;
 
             // 선택된 엔티티 순회
@@ -67,7 +68,12 @@ namespace Client
 
                 if (state.EntityManager.HasComponent<StructureTag>(entity))
                 {
-                    hasStructures = true;
+                    hasStructure = true;
+                }
+
+                if (state.EntityManager.HasComponent<ResourceNodeTag>(entity) || state.EntityManager.HasComponent<EnemyTag>(entity))
+                {
+                    hasUncontrolled = true;
                 }
 
                 // 내 소유인지 체크
@@ -82,7 +88,7 @@ namespace Client
             }
 
             // 카테고리 결정
-            if (hasUnits && hasStructures)
+            if (hasUnits && hasStructure)
             {
                 throw new System.Exception("예상 하지 못한 오류 발생: 유닛과 구조체가 동시에 선택될 수 없습니다.");
             }
@@ -90,9 +96,14 @@ namespace Client
             {
                 CurrentSelectionState.Category = SelectionCategory.Units;
             }
-            else if (hasStructures)
+            else if (hasStructure)
             {
                 CurrentSelectionState.Category = SelectionCategory.Structure;
+            }
+            else if (hasUncontrolled)
+            {
+                CurrentSelectionState.Category = SelectionCategory.Uncontrolled;
+                CurrentSelectionState.IsOwnedSelection = false;
             }
             else
             {

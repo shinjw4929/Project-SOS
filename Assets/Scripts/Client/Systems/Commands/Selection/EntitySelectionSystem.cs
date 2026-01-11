@@ -92,7 +92,9 @@ namespace Client
                 hitEntity = FindSelectableEntity(ref state, hitEntity);
 
                 bool isSelectable = state.EntityManager.HasComponent<UnitTag>(hitEntity) ||
-                                    state.EntityManager.HasComponent<StructureTag>(hitEntity);
+                                    state.EntityManager.HasComponent<StructureTag>(hitEntity) ||
+                                    state.EntityManager.HasComponent<EnemyTag>(hitEntity) ||
+                                    state.EntityManager.HasComponent<ResourceNodeTag>(hitEntity);
 
                 if (isSelectable)
                 {

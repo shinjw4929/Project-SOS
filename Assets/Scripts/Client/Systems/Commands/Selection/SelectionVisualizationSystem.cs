@@ -27,7 +27,6 @@ namespace Client
             foreach (var (baseColor, selected, entity) in SystemAPI.Query<
                              RefRW<URPMaterialPropertyBaseColor>,
                              RefRO<Selected>>()
-                         .WithAny<UnitTag, StructureTag>() // 태그가 붙은 엔티티만 대상
                          .WithOptions(EntityQueryOptions.IgnoreComponentEnabledState) // 비활성화된 Selected도 읽기 위해
                          .WithEntityAccess())
             {
