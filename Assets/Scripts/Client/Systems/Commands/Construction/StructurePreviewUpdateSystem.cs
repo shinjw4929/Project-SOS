@@ -2,6 +2,7 @@ using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
+using Unity.NetCode;
 using Unity.Physics;
 using Unity.Transforms;
 using Shared;
@@ -20,6 +21,8 @@ namespace Client
         [ReadOnly] private ComponentLookup<ObstacleRadius> _obstacleRadiusLookup;
         [ReadOnly] private ComponentLookup<ProductionCost> _productionCostLookup;
 
+        private EntityQuery _userCurrencyQuery;
+
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<UserState>();
@@ -34,6 +37,11 @@ namespace Client
             _workRangeLookup = state.GetComponentLookup<WorkRange>(true);
             _obstacleRadiusLookup = state.GetComponentLookup<ObstacleRadius>(true);
             _productionCostLookup = state.GetComponentLookup<ProductionCost>(true);
+
+            _userCurrencyQuery = state.GetEntityQuery(
+                ComponentType.ReadOnly<UserCurrency>(),
+                ComponentType.ReadOnly<GhostOwnerIsLocal>()
+            );
         }
 
         [BurstCompile]
@@ -149,8 +157,11 @@ namespace Client
             bool hasEnoughCurrency = true;
             if (_productionCostLookup.TryGetComponent(previewState.SelectedPrefab, out var cost))
             {
-                if (SystemAPI.TryGetSingleton<UserCurrency>(out var userCurrency))
+                // 멀티플레이어 환경에서 각 유저마다 UserCurrency가 존재하므로
+                // GhostOwnerIsLocal 필터로 현재 클라이언트 소유만 조회
+                if (_userCurrencyQuery.CalculateEntityCount() == 1)
                 {
+                    var userCurrency = _userCurrencyQuery.GetSingleton<UserCurrency>();
                     hasEnoughCurrency = userCurrency.Amount >= cost.Cost;
                 }
             }
