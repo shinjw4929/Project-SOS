@@ -206,6 +206,9 @@ namespace Authoring
                     MaxValue = authoring.maxHealth
                 });
 
+                // 데미지 이벤트 버퍼 (MeleeAttackSystem 등에서 사용)
+                AddBuffer<DamageEvent>(entity);
+
                 // 방어력
                 AddComponent(entity, new Defense
                 {

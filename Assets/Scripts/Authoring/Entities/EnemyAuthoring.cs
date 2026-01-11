@@ -109,7 +109,43 @@ namespace Authoring
                 }
 
                 // =======================================================================
-                // 5. [렌더링] - 적 시각적 구분
+                // 5. [NavMesh 이동 시스템] - 유닛과 동일한 경로 탐색 사용
+                // =======================================================================
+                // 최종 목적지 관리 (PathfindingSystem이 사용)
+                AddComponent(entity, new MovementGoal
+                {
+                    Destination = default,
+                    IsPathDirty = false,
+                    CurrentWaypointIndex = 0
+                });
+
+                // 실제 이동 웨이포인트 (초기엔 비활성화)
+                AddComponent(entity, new MovementWaypoints
+                {
+                    Current = float3.zero,
+                    Next = float3.zero,
+                    HasNext = false,
+                    ArrivalRadius = 0.5f  // 적 기본 도착 반경
+                });
+                SetComponentEnabled<MovementWaypoints>(entity, false); // 타겟 찾기 전까지 비활성화
+
+                // 유닛/적 간 밀어내기 힘
+                AddComponent(entity, new SeparationForce
+                {
+                    Force = float3.zero
+                });
+
+                // 경로 탐색 결과 버퍼 (PathfindingSystem이 채움)
+                AddBuffer<PathWaypoint>(entity);
+
+                // 충돌 반경 (도착 판정용)
+                AddComponent(entity, new ObstacleRadius
+                {
+                    Radius = 0.5f  // 적 기본 반경
+                });
+
+                // =======================================================================
+                // 6. [렌더링] - 적 시각적 구분
                 // =======================================================================
                 AddComponent(entity, new URPMaterialPropertyBaseColor
                 {

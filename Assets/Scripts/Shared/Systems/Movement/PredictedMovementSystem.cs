@@ -33,8 +33,8 @@ namespace Shared
                 // [필터 설정] 아군/적군/건물 등 충돌 레이어 설정
                 StructureFilter = new CollisionFilter
                 {
-                    BelongsTo = 1u << 11, // Unit
-                    CollidesWith = 1u << 6 | 1u << 7 | 1 << 12,
+                    BelongsTo = 1u << 11 | 1u << 12, // Unit | Enemy
+                    CollidesWith = 1u << 6 | 1u << 7,  // Ground | Structure (유닛/적 간 충돌은 SeparationSystem에서 처리)
                     GroupIndex = 0
                 }
             };

@@ -40,7 +40,7 @@ namespace Server
                     RefRW<MovementWaypoints>,
                     EnabledRefRW<MovementWaypoints>,
                     RefRO<LocalTransform>>()
-                    .WithAll<UnitTag>()
+                    .WithAny<UnitTag, EnemyTag>()
                     .WithOptions(EntityQueryOptions.IgnoreComponentEnabledState))
             {
                 if (!goal.ValueRO.IsPathDirty)

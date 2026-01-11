@@ -12,6 +12,7 @@ namespace Server
     /// - 유닛과 적 모두 AggroTarget 기반으로 동일하게 처리
     /// - 거리 기반 히트 판정 (RTS 스타일)
     /// - ECB를 통한 DamageEvent 버퍼 추가 (Job 스케줄링 충돌 방지)
+    /// - 적의 MovementWaypoints 활성화/비활성화 제어 (NavMesh 이동 시스템 연동)
     /// </summary>
     [BurstCompile]
     [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
@@ -26,6 +27,9 @@ namespace Server
         private ComponentLookup<Team> _teamLookup;
         private BufferLookup<DamageEvent> _damageEventLookup;
 
+        // [NavMesh] 적 이동 제어용 Lookup (쓰기 필요)
+        private ComponentLookup<MovementGoal> _movementGoalLookup;
+
         [BurstCompile]
         public void OnCreate(ref SystemState state)
         {
@@ -36,6 +40,7 @@ namespace Server
             _defenseLookup = state.GetComponentLookup<Defense>(true);
             _teamLookup = state.GetComponentLookup<Team>(true);
             _damageEventLookup = state.GetBufferLookup<DamageEvent>(false); // 쓰기 필요
+            _movementGoalLookup = state.GetComponentLookup<MovementGoal>(isReadOnly: false); // 쓰기 필요
         }
 
         [BurstCompile]
@@ -53,11 +58,16 @@ namespace Server
             _defenseLookup.Update(ref state);
             _teamLookup.Update(ref state);
             _damageEventLookup.Update(ref state);
+            _movementGoalLookup.Update(ref state);
+
+            // [NavMesh] 적 이동 제어용 ECB
+            var ecbSingleton = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>();
+            var ecb = ecbSingleton.CreateCommandBuffer(state.WorldUnmanaged);
 
             // =====================================================================
             // 1. 적 유닛 근접 공격 처리
             // =====================================================================
-            foreach (var (transform, aggroTarget, combatStats, cooldown, enemyState, myTeam) in
+            foreach (var (transform, aggroTarget, combatStats, cooldown, enemyState, myTeam, entity) in
                      SystemAPI.Query<
                          RefRW<LocalTransform>,
                          RefRO<AggroTarget>,
@@ -65,7 +75,8 @@ namespace Server
                          RefRW<AttackCooldown>,
                          RefRW<EnemyState>,
                          RefRO<Team>>()
-                     .WithAll<EnemyTag>())
+                     .WithAll<EnemyTag>()
+                     .WithEntityAccess())
             {
                 ProcessMeleeAttack(
                     ref transform.ValueRW,
@@ -76,17 +87,34 @@ namespace Server
                     deltaTime,
                     out bool isInRange);
 
-                // 상태 전환: 사거리 내면 Attacking, 아니면 Chasing 유지
+                // 상태 전환 + [NavMesh] 이동 제어
                 if (aggroTarget.ValueRO.TargetEntity != Entity.Null)
                 {
+                    // 1. 공격 범위 내 진입 (이동 정지)
                     if (isInRange)
                     {
-                        enemyState.ValueRW.CurrentState = EnemyContext.Attacking;
+                        // 상태가 이미 Attacking이 아닐 때만 전환 (불필요한 ECB 호출 방지)
+                        if (enemyState.ValueRO.CurrentState != EnemyContext.Attacking)
+                        {
+                            enemyState.ValueRW.CurrentState = EnemyContext.Attacking;
+                            ecb.SetComponentEnabled<MovementWaypoints>(entity, false); // 이동 시스템 off
+                        }
                     }
-                    else if (enemyState.ValueRO.CurrentState == EnemyContext.Attacking)
+                    // 2. 공격 범위 이탈 (추적 재개)
+                    else
                     {
-                        // 사거리 밖으로 나가면 다시 추격
-                        enemyState.ValueRW.CurrentState = EnemyContext.Chasing;
+                        if (enemyState.ValueRO.CurrentState == EnemyContext.Attacking)
+                        {
+                            enemyState.ValueRW.CurrentState = EnemyContext.Chasing;
+                            ecb.SetComponentEnabled<MovementWaypoints>(entity, true); // 이동 시스템 on
+
+                            // [중요] 경로 즉시 재계산 트리거 (타겟이 이동했을 것이므로)
+                            if (_movementGoalLookup.TryGetComponent(entity, out var goal))
+                            {
+                                goal.IsPathDirty = true;
+                                _movementGoalLookup[entity] = goal; // 값 재할당 필수 (struct)
+                            }
+                        }
                     }
                 }
             }

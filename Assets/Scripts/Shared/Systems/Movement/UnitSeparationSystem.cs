@@ -35,11 +35,11 @@ namespace Shared
             var job = new CalculateSeparationJob
             {
                 CollisionWorld = physicsWorld.CollisionWorld,
-                // [필터 설정] 유닛끼리만 밀어내도록 설정
+                // [필터 설정] 유닛과 적 모두 밀어내도록 설정
                 UnitFilter = new CollisionFilter
                 {
-                    BelongsTo = 1u << 11, // Unit
-                    CollidesWith = 1u << 11, // Unit
+                    BelongsTo = 1u << 11 | 1u << 12, // Unit | Enemy
+                    CollidesWith = 1u << 11 | 1u << 12, // Unit | Enemy
                     GroupIndex = 0
                 },
                 WorkerStateLookup = _workerStateLookup,
@@ -123,9 +123,15 @@ namespace Shared
 
         /// <summary>
         /// 해당 엔티티가 채집 중인지 확인 (Gathering, WaitingForNode, Unloading)
+        /// 적(EnemyTag)은 UnitIntentState가 없으므로 false 반환
         /// </summary>
         private bool IsGathering(Entity entity)
         {
+            // 적(EnemyTag)은 채집 상태가 없으므로 바로 false 리턴 (최적화)
+            // HasComponent로 먼저 체크하여 TryGetComponent 호출 최소화
+            if (!UnitIntentStateLookup.HasComponent(entity))
+                return false;
+
             // Intent가 Gather가 아니면 채집 중 아님
             if (!UnitIntentStateLookup.TryGetComponent(entity, out UnitIntentState intentState))
                 return false;

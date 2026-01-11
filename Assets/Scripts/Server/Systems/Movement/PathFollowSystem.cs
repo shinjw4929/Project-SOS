@@ -32,7 +32,7 @@ namespace Server
                         RefRW<MovementGoal>, 
                         DynamicBuffer<PathWaypoint>, 
                         RefRW<MovementWaypoints>>()
-                    .WithAll<UnitTag>())
+                    .WithAny<UnitTag, EnemyTag>())
             {
                 // 경로 계산 중이거나 경로가 없으면 패스
                 if (goal.ValueRO.IsPathDirty || pathBuffer.IsEmpty)
