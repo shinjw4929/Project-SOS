@@ -3,90 +3,91 @@ using Unity.Mathematics;
 using Unity.NetCode;
 using Unity.Transforms;
 using UnityEngine;
-using Shared;
 
-// 클라이언트에서만 메인 카메라를 갱신한다.
 [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
 [UpdateInGroup(typeof(PresentationSystemGroup))]
 public partial class MainCameraFollowLocalHeroPresentationSystem : SystemBase
 {
-    private Transform camTransform;
-    private MainCameraFollowSettings settings;
+    private Transform _camTransform;
+    
+    // 타겟 엔티티 캐싱
+    private Entity _targetEntity;
+    
+    // SmoothDamp 상태 변수
+    private Vector3 _velocity;
+    private Quaternion _lockedRotation;
+    private bool _rotationInitialized;
 
-    private Vector3 velocity;
-    private Quaternion lockedRotation;
-    private bool rotationInitialized;
+    protected override void OnCreate()
+    {
+        // NetworkId와 설정 데이터가 모두 존재해야 시스템 가동
+        RequireForUpdate<NetworkId>();
+        RequireForUpdate<MainCameraSettingsData>();
+    }
 
     protected override void OnUpdate()
     {
-        // 메인 카메라 Transform 캐싱
-        if (camTransform == null)
+        // 1. 카메라 참조 확인 (Managed Object)
+        if (_camTransform == null)
         {
             var cam = Camera.main;
-            if (cam == null)
-                return;
-
-            camTransform = cam.transform;
+            if (cam == null) return;
+            _camTransform = cam.transform;
         }
 
-        // 설정 컴포넌트 캐싱
-        if (settings == null)
+        // 2. 설정 데이터 가져오기 (싱글톤 접근, 매우 빠름)
+        var settings = SystemAPI.GetSingleton<MainCameraSettingsData>();
+
+        // 3. 회전 고정 초기화 로직
+        if (settings.LockRotation && !_rotationInitialized)
         {
-            settings = Object.FindAnyObjectByType<MainCameraFollowSettings>();
-            if (settings == null)
-                return;
+            _lockedRotation = _camTransform.rotation;
+            _rotationInitialized = true;
         }
 
-        // 회전 고정 옵션 사용 시 최초 1회 현재 회전을 저장한다.
-        if (settings.lockRotation && !rotationInitialized)
+        // 4. 타겟 엔티티 유효성 검사 및 검색
+        if (_targetEntity == Entity.Null || !SystemAPI.Exists(_targetEntity))
         {
-            lockedRotation = camTransform.rotation;
-            rotationInitialized = true;
+            if (!TryFindLocalHero(out _targetEntity))
+                return; 
         }
 
-        // 내 클라이언트 NetworkId 가져오기(연결 엔티티 1개라고 가정)
-        int myNetworkId = -1;
-        foreach (var networkId in SystemAPI.Query<RefRO<NetworkId>>().WithAll<NetworkStreamConnection>())
-        {
-            myNetworkId = networkId.ValueRO.Value;
-            break;
-        }
+        // 5. 타겟 위치 조회 및 이동
+        // LocalTransform 컴포넌트에 직접 접근
+        var localTransform = SystemAPI.GetComponent<LocalTransform>(_targetEntity);
+        float3 heroPos = localTransform.Position;
 
-        if (myNetworkId < 0)
-            return;
+        // float3 -> Vector3 형변환
+        Vector3 desired = (Vector3)heroPos + (Vector3)settings.Offset;
 
-        // 내 소유(Owner)인 Hero 엔티티를 찾는다.
-        bool found = false;
-        float3 heroPos = default;
-
-        foreach (var (lt, owner) in SystemAPI
-                     .Query<RefRO<LocalTransform>, RefRO<GhostOwner>>()
-                     .WithAll<HeroTag>())
-        {
-            if (owner.ValueRO.NetworkId != myNetworkId)
-                continue;
-
-            heroPos = lt.ValueRO.Position;
-            found = true;
-            break;
-        }
-
-        if (!found)
-            return;
-
-        // 목표 카메라 위치 = 히어로 위치 + 오프셋
-        Vector3 desired = (Vector3)heroPos + settings.offset;
-
-        // 부드럽게 따라가기
-        camTransform.position = Vector3.SmoothDamp(
-            camTransform.position,
+        _camTransform.position = Vector3.SmoothDamp(
+            _camTransform.position,
             desired,
-            ref velocity,
-            settings.smoothTime
+            ref _velocity,
+            settings.SmoothTime
         );
 
-        // 회전 고정
-        if (settings.lockRotation)
-            camTransform.rotation = lockedRotation;
+        if (settings.LockRotation)
+            _camTransform.rotation = _lockedRotation;
+    }
+
+    private bool TryFindLocalHero(out Entity heroEntity)
+    {
+        heroEntity = Entity.Null;
+        int myNetworkId = SystemAPI.GetSingleton<NetworkId>().Value;
+
+        // 내 캐릭터 찾기
+        foreach (var (lt, owner, entity) in SystemAPI
+                     .Query<RefRO<LocalTransform>, RefRO<GhostOwner>>()
+                     .WithAll<HeroTag>()
+                     .WithEntityAccess())
+        {
+            if (owner.ValueRO.NetworkId == myNetworkId)
+            {
+                heroEntity = entity;
+                return true;
+            }
+        }
+        return false;
     }
 }

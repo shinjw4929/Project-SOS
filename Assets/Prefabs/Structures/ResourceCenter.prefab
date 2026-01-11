@@ -211,7 +211,7 @@ MonoBehaviour:
   radius: 2.84
   cost: 100
   buildTime: 1
-  maxHealth: 1000
+  maxHealth: 10
   defense: 1
   visionRange: 10
   attackDamage: 0
@@ -220,3 +220,4 @@ MonoBehaviour:
   explosionRadius: 3
   explosionDamage: 100
   explosionDelay: 0.5
+  isInitialPlacement: 0

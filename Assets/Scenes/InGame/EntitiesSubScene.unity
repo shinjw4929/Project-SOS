@@ -2395,6 +2395,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1956711774}
   - component: {fileID: 1956711775}
+  - component: {fileID: 1956711776}
   m_Layer: 0
   m_Name: GameSettings
   m_TagString: Untagged
@@ -2429,7 +2430,22 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: dc5414274d42d0c4cb2f6f07ea5b57f9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  initialWallDecayTime: 5
+  initialWallDecayTime: 20
+--- !u!114 &1956711776
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1956711773}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7ade67aca2da0814db71397c6285d12a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  offset: {x: 0, y: 20, z: -10}
+  smoothTime: 0.12
+  lockRotation: 1
 --- !u!4 &1988281444 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 4569317304208565447, guid: 118356b3d5301164d85e3ec67bda087e, type: 3}

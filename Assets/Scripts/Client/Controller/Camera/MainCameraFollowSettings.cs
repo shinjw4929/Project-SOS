@@ -1,14 +1,36 @@
+using Unity.Entities;
+using Unity.Mathematics;
 using UnityEngine;
 
-// 메인 카메라가 히어로를 따라갈 때 사용할 설정 값
+// 1. 실제 시스템에서 사용할 순수 데이터 컴포넌트
+public struct MainCameraSettingsData : IComponentData
+{
+    public float3 Offset;
+    public float SmoothTime;
+    public bool LockRotation;
+}
+
+// 2. 인스펙터 저작(Authoring)용 MonoBehaviour
 public class MainCameraFollowSettings : MonoBehaviour
 {
-    // 히어로 위치 기준 카메라 오프셋
     public Vector3 offset = new Vector3(0f, 20f, -10f);
-
-    // 따라가는 부드러움(작을수록 더 즉각 반응)
     public float smoothTime = 0.12f;
-
-    // true면 시작 시점 카메라 회전을 고정한다.
     public bool lockRotation = true;
+}
+
+// 3. Authoring 데이터를 Entity 데이터로 변환하는 베이커
+public class MainCameraFollowSettingsBaker : Baker<MainCameraFollowSettings>
+{
+    public override void Bake(MainCameraFollowSettings authoring)
+    {
+        // 설정용 엔티티이므로 Transform 정보는 필요 없음
+        var entity = GetEntity(TransformUsageFlags.None);
+
+        AddComponent(entity, new MainCameraSettingsData
+        {
+            Offset = authoring.offset, // Vector3 -> float3 자동 변환
+            SmoothTime = authoring.smoothTime,
+            LockRotation = authoring.lockRotation
+        });
+    }
 }

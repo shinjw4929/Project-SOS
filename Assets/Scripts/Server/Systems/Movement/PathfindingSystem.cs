@@ -15,19 +15,31 @@ namespace Server
     /// - 계산 직후 첫 번째 웨이포인트를 MovementWaypoints에 주입하여 즉시 이동 시작
     /// </summary>
     [UpdateInGroup(typeof(SimulationSystemGroup))]
+    [UpdateAfter(typeof(NavMeshObstacleSpawnSystem))]
     [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
     public partial class PathfindingSystem : SystemBase
     {
-        private const int MaxPathRequestsPerFrame = 15; 
-        private const int MaxPathLength = 64; 
+        private const int MaxPathRequestsPerFrame = 15;
+        private const int MaxPathLength = 64;
+
+        // 초기 프레임 스킵: NavMesh 장애물(벽) 업데이트 완료 대기
+        private int _initialSkipFrames; 
         
         protected override void OnCreate()
         {
             RequireForUpdate<MovementGoal>();
+            _initialSkipFrames = 10; // NavMesh carving 완료 대기 (약 0.16초 @ 60fps)
         }
 
         protected override void OnUpdate()
         {
+            // NavMesh 장애물 업데이트 완료 대기 (초기 프레임 스킵)
+            if (_initialSkipFrames > 0)
+            {
+                _initialSkipFrames--;
+                return;
+            }
+
             if (NavMesh.GetSettingsCount() == 0) return;
 
             int processedCount = 0;
