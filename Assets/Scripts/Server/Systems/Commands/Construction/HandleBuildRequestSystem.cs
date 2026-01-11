@@ -84,6 +84,24 @@ namespace Server
             var ecbSingleton = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>();
             var ecb = ecbSingleton.CreateCommandBuffer(state.WorldUnmanaged);
 
+            // 4. 자원 노드 데이터 수집
+            var resourceNodeQuery = SystemAPI.QueryBuilder()
+                .WithAll<ResourceNodeTag, GridPosition, StructureFootprint>()
+                .Build();
+
+            var resourceNodeEntities = resourceNodeQuery.ToEntityArray(Allocator.TempJob);
+            var resourceNodePositions = new NativeArray<int2>(resourceNodeEntities.Length, Allocator.TempJob);
+            var resourceNodeSizes = new NativeArray<int2>(resourceNodeEntities.Length, Allocator.TempJob);
+
+            for (int i = 0; i < resourceNodeEntities.Length; i++)
+            {
+                var entity = resourceNodeEntities[i];
+                resourceNodePositions[i] = state.EntityManager.GetComponentData<GridPosition>(entity).Position;
+                var fp = state.EntityManager.GetComponentData<StructureFootprint>(entity);
+                resourceNodeSizes[i] = new int2(fp.Width, fp.Length);
+            }
+            resourceNodeEntities.Dispose();
+
             // ------------------------------------------------------------------
             // [Job 1] 병렬 검증 (ValidateBuildRequestJob)
             // ------------------------------------------------------------------
@@ -102,7 +120,11 @@ namespace Server
                 GridCellLookup = _gridCellLookup,
                 GhostInstanceLookup = _ghostInstanceLookup,
                 ParentLookup = _parentLookup,
-                
+
+                // Resource Node Data
+                ResourceNodePositions = resourceNodePositions,
+                ResourceNodeSizes = resourceNodeSizes,
+
                 // Output
                 ActionQueue = actionQueue.AsParallelWriter()
             };
@@ -130,6 +152,8 @@ namespace Server
             // 메모리 해제 예약
             networkIdToCurrencyMap.Dispose(state.Dependency);
             actionQueue.Dispose(state.Dependency);
+            resourceNodePositions.Dispose(state.Dependency);
+            resourceNodeSizes.Dispose(state.Dependency);
         }
 
         private void UpdateLookups(ref SystemState state)
@@ -168,6 +192,9 @@ namespace Server
         [ReadOnly] public BufferLookup<GridCell> GridCellLookup;
         [ReadOnly] public ComponentLookup<GhostInstance> GhostInstanceLookup;
         [ReadOnly] public ComponentLookup<Parent> ParentLookup;
+
+        [ReadOnly] public NativeArray<int2> ResourceNodePositions;
+        [ReadOnly] public NativeArray<int2> ResourceNodeSizes;
 
         private void Execute(Entity rpcEntity, [EntityIndexInQuery] int sortKey, RefRO<ReceiveRpcCommandRequest> rpcReceive, RefRO<BuildRequestRpc> rpc)
         {
@@ -232,6 +259,17 @@ namespace Server
                 physicsCenter.y = 0f; // 물리 체크는 보통 바닥 평면에서 수행
 
                 if (CheckUnitCollision(physicsCenter, halfExtents, rpc.ValueRO.BuilderGhostId))
+                {
+                    isValid = false;
+                }
+            }
+
+            // 3-3. 자원 노드 제외 구역 검사
+            if (isValid && ResourceNodePositions.Length > 0)
+            {
+                if (GridUtility.IsInResourceExclusionZone(
+                    gridPos, width, length,
+                    ResourceNodePositions, ResourceNodeSizes))
                 {
                     isValid = false;
                 }

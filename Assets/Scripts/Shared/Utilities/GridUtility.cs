@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
 
@@ -106,6 +107,44 @@ namespace Shared
             }
         }
         
+        /// <summary>
+        /// 자원 노드 주변 건설 제외 거리 (그리드 칸 수)
+        /// </summary>
+        public const int ResourceNodeExclusionDistance = 9;
+
+        /// <summary>
+        /// 건설 위치가 자원 노드 제외 구역 내에 있는지 확인 (Burst 호환)
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool IsInResourceExclusionZone(
+            int2 buildGridPos,
+            int buildWidth,
+            int buildLength,
+            in NativeArray<int2> resourceNodePositions,
+            in NativeArray<int2> resourceNodeSizes,
+            int exclusionDistance = ResourceNodeExclusionDistance)
+        {
+            int2 buildMax = buildGridPos + new int2(buildWidth, buildLength);
+
+            for (int i = 0; i < resourceNodePositions.Length; i++)
+            {
+                int2 nodePos = resourceNodePositions[i];
+                int2 nodeSize = resourceNodeSizes[i];
+
+                // 제외 영역 = 자원 노드 영역 + exclusionDistance 확장
+                int2 exclusionMin = nodePos - exclusionDistance;
+                int2 exclusionMax = nodePos + nodeSize + exclusionDistance;
+
+                // AABB 충돌 검사
+                if (buildGridPos.x < exclusionMax.x && buildMax.x > exclusionMin.x &&
+                    buildGridPos.y < exclusionMax.y && buildMax.y > exclusionMin.y)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         // [편의성 오버로드] IsOccupied 마킹 해제용 (건물 파괴 시 등)
         public static void UnmarkOccupied(DynamicBuffer<GridCell> buffer, int startX, int startY, int width, int length, int gridSizeX)
         {
