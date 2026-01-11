@@ -18,7 +18,7 @@ public partial struct EnemyTargetSystem : ISystem
         _transformLookup = state.GetComponentLookup<LocalTransform>(isReadOnly: true);
 
         // [핵심] 복합 조건 쿼리 생성 (Any 사용)
-        // 조건: (LocalTransform AND Team) AND (UnitTag OR StructureTag) AND NOT EnemyTag
+        // 조건: (LocalTransform AND Team) AND (UnitTag OR StructureTag) AND NOT (EnemyTag OR WallTag)
         var queryDesc = new EntityQueryDesc
         {
             All = new ComponentType[]
@@ -33,7 +33,8 @@ public partial struct EnemyTargetSystem : ISystem
             },
             None = new ComponentType[]
             {
-                ComponentType.ReadOnly<EnemyTag>()     // Enemy는 타겟 후보에서 제외
+                ComponentType.ReadOnly<EnemyTag>(),    // Enemy는 타겟 후보에서 제외
+                ComponentType.ReadOnly<WallTag>()      // Wall은 무적 (타겟 후보에서 제외)
             }
         };
         _potentialTargetQuery = state.EntityManager.CreateEntityQuery(queryDesc);

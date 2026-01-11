@@ -134,13 +134,10 @@ namespace Server
             NavMeshPath path = new NavMeshPath();
             if (NavMesh.CalculatePath(startPoint, endPoint, NavMesh.AllAreas, path))
             {
-                // PathPartial: 목적지까지 완전한 경로를 찾지 못함 (NavMesh 업데이트 대기 중일 수 있음)
-                if (path.status == NavMeshPathStatus.PathPartial)
-                {
-                    return false;  // 다음 프레임에 재시도
-                }
-
-                if (path.status == NavMeshPathStatus.PathComplete)
+                // PathComplete 또는 PathPartial 모두 허용
+                // PathPartial: 목적지까지 완전한 경로는 없지만, 갈 수 있는 만큼 이동
+                if (path.status == NavMeshPathStatus.PathComplete ||
+                    path.status == NavMeshPathStatus.PathPartial)
                 {
                     var corners = path.corners;
                     int count = math.min(corners.Length, MaxPathLength);
@@ -148,7 +145,7 @@ namespace Server
                     {
                         pathBuffer.Add(new PathWaypoint { Position = corners[i] });
                     }
-                    return true;  // 성공
+                    return true;
                 }
             }
 
