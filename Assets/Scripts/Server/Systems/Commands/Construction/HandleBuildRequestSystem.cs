@@ -112,7 +112,7 @@ namespace Server
                 GridEntity = gridEntity,
                 PhysicsWorld = physicsWorld.PhysicsWorld.CollisionWorld,
                 PrefabBuffer = prefabBuffer,
-                
+
                 // Lookups
                 NetworkIdLookup = _networkIdLookup,
                 ProductionCostLookup = _productionCostLookup,
@@ -120,6 +120,7 @@ namespace Server
                 GridCellLookup = _gridCellLookup,
                 GhostInstanceLookup = _ghostInstanceLookup,
                 ParentLookup = _parentLookup,
+                ResourceCenterTagLookup = _resourceCenterTagLookup,
 
                 // Resource Node Data
                 ResourceNodePositions = resourceNodePositions,
@@ -195,6 +196,7 @@ namespace Server
 
         [ReadOnly] public NativeArray<int2> ResourceNodePositions;
         [ReadOnly] public NativeArray<int2> ResourceNodeSizes;
+        [ReadOnly] public ComponentLookup<ResourceCenterTag> ResourceCenterTagLookup;
 
         private void Execute(Entity rpcEntity, [EntityIndexInQuery] int sortKey, RefRO<ReceiveRpcCommandRequest> rpcReceive, RefRO<BuildRequestRpc> rpc)
         {
@@ -264,14 +266,18 @@ namespace Server
                 }
             }
 
-            // 3-3. 자원 노드 제외 구역 검사
+            // 3-3. 자원 노드 제외 구역 검사 (ResourceCenter만 적용)
             if (isValid && ResourceNodePositions.Length > 0)
             {
-                if (GridUtility.IsInResourceExclusionZone(
-                    gridPos, width, length,
-                    ResourceNodePositions, ResourceNodeSizes))
+                bool isResourceCenter = ResourceCenterTagLookup.HasComponent(structurePrefab);
+                if (isResourceCenter)
                 {
-                    isValid = false;
+                    if (GridUtility.IsInResourceExclusionZone(
+                        gridPos, width, length,
+                        ResourceNodePositions, ResourceNodeSizes))
+                    {
+                        isValid = false;
+                    }
                 }
             }
 

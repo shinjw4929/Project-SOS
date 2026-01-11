@@ -9,7 +9,6 @@ using Unity.Collections;
 namespace Shared
 {
     [UpdateInGroup(typeof(PredictedSimulationSystemGroup))]
-    [UpdateAfter(typeof(UnitSeparationSystem))] // 분리 힘 계산 후에 이동
     [BurstCompile]
     public partial struct PredictedMovementSystem : ISystem
     {
@@ -31,10 +30,10 @@ namespace Shared
                 DeltaTime = deltaTime,
                 CollisionWorld = physicsWorld.CollisionWorld,
                 // [필터 설정] 아군/적군/건물 등 충돌 레이어 설정
-                StructureFilter = new CollisionFilter
+                CollisionFilter = new CollisionFilter
                 {
                     BelongsTo = 1u << 11 | 1u << 12, // Unit | Enemy
-                    CollidesWith = 1u << 6 | 1u << 7,  // Ground | Structure (유닛/적 간 충돌은 SeparationSystem에서 처리)
+                    CollidesWith = 1u << 6 | 1u << 7 | 1u << 11 | 1u << 12,  // Ground | Structure | Unit | Enemy
                     GroupIndex = 0
                 }
             };
@@ -48,9 +47,9 @@ namespace Shared
     {
         public float DeltaTime;
         [ReadOnly] public CollisionWorld CollisionWorld;
-        public CollisionFilter StructureFilter;
+        public CollisionFilter CollisionFilter;
 
-        private const float CornerRadius = 1.2f;
+        private const float CornerRadius = 0.5f;
         private const float WallCheckDistance = 1.0f;
 
         // [최적화] IEnableableComponent인 MovementDestination을 사용하여
@@ -58,14 +57,13 @@ namespace Shared
         private void Execute(
             ref LocalTransform transform,
             ref MovementWaypoints waypoints,
-            in MovementSpeed speed,
-            in SeparationForce separation) // SeparationForce는 이전 시스템에서 계산됨
+            in MovementSpeed speed)
         {
             float3 currentPos = transform.Position;
             float3 targetPos = waypoints.Current; // 현재 가야할 웨이포인트
-            
+
             // Y축 고정 (RTS는 보통 2D 평면 이동)
-            targetPos.y = currentPos.y; 
+            targetPos.y = currentPos.y;
 
             float distance = math.distance(currentPos, targetPos);
 
@@ -85,26 +83,17 @@ namespace Shared
             // 2. 이동할 필요가 없으면 리턴 (도착 판정은 ArrivalSystem에서 함)
             if (distance <= 0.001f) return;
 
-            // 3. 방향 계산 (기본)
+            // 3. 방향 계산
             float3 toTarget = targetPos - currentPos;
-            float3 direction = math.normalize(toTarget);
+            float3 finalDirection = math.normalize(toTarget);
 
-            // 4. Separation Force 합성 (밀어내기)
-            // 원래 가려던 방향 + 밀어내는 힘
-            float3 combinedDir = direction + separation.Force;
-            
-            // 힘이 너무 약하면 원래 방향 유지, 아니면 합성된 방향 사용
-            float3 finalDirection = math.lengthsq(combinedDir) > 0.0001f
-                ? math.normalize(combinedDir)
-                : direction;
-
-            // 5. 벽 슬라이딩 (Raycast)
-            // 벽에 비비며 이동하도록 처리
+            // 4. 벽/유닛 슬라이딩 (Raycast)
+            // 장애물에 비비며 이동하도록 처리
             var rayInput = new RaycastInput
             {
                 Start = currentPos,
                 End = currentPos + (finalDirection * WallCheckDistance),
-                Filter = StructureFilter
+                Filter = CollisionFilter
             };
 
             if (CollisionWorld.CastRay(rayInput, out var hit))

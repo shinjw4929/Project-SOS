@@ -2488,12 +2488,16 @@ MonoBehaviour:
   m_GameObject: {fileID: 1956711773}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 7ade67aca2da0814db71397c6285d12a, type: 3}
+  m_Script: {fileID: 11500000, guid: 7b4941818f3fbac4d9e8532190c39166, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   offset: {x: 0, y: 20, z: -10}
   smoothTime: 0.12
   lockRotation: 1
+  edgePanSpeed: 50
+  edgeThreshold: 20
+  mapBoundsMin: {x: -100, y: -100}
+  mapBoundsMax: {x: 100, y: 100}
 --- !u!4 &1988281444 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 4569317304208565447, guid: 118356b3d5301164d85e3ec67bda087e, type: 3}

@@ -22,27 +22,26 @@ namespace Client
     {
         private ComponentLookup<Team> _teamLookup;
         private ComponentLookup<EnemyTag> _enemyTagLookup;
+        private ComponentLookup<GhostOwnerIsLocal> _ghostOwnerIsLocalLookup;
 
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<Shared.SelectionRingPrefabRef>();
             state.RequireForUpdate<NetworkStreamInGame>();
-            state.RequireForUpdate<NetworkId>();
 
             _teamLookup = state.GetComponentLookup<Team>(true);
             _enemyTagLookup = state.GetComponentLookup<EnemyTag>(true);
+            _ghostOwnerIsLocalLookup = state.GetComponentLookup<GhostOwnerIsLocal>(true);
         }
 
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
             if (!SystemAPI.TryGetSingleton(out Shared.SelectionRingPrefabRef prefabRef)) return;
-            if (!SystemAPI.TryGetSingleton<NetworkId>(out var networkId)) return;
-
-            int myTeamId = networkId.Value;
 
             _teamLookup.Update(ref state);
             _enemyTagLookup.Update(ref state);
+            _ghostOwnerIsLocalLookup.Update(ref state);
 
             var ecb = new EntityCommandBuffer(Allocator.Temp);
 
@@ -54,7 +53,7 @@ namespace Client
                 .WithEntityAccess())
             {
                 // 팀에 따라 프리팹 선택
-                Entity ringPrefab = DetermineRingPrefab(entity, myTeamId, prefabRef);
+                Entity ringPrefab = DetermineRingPrefab(entity, prefabRef);
                 if (ringPrefab == Entity.Null) continue;
 
                 // Ring 엔티티 생성
@@ -87,7 +86,7 @@ namespace Client
             ecb.Dispose();
         }
 
-        private Entity DetermineRingPrefab(Entity ownerEntity, int myTeamId, SelectionRingPrefabRef prefabRef)
+        private Entity DetermineRingPrefab(Entity ownerEntity, SelectionRingPrefabRef prefabRef)
         {
             // 1. EnemyTag 확인 (적)
             if (_enemyTagLookup.HasComponent(ownerEntity))
@@ -95,7 +94,13 @@ namespace Client
                 return prefabRef.EnemyRingPrefab;
             }
 
-            // 2. Team 컴포넌트 확인
+            // 2. GhostOwnerIsLocal 확인 (내 소유 유닛 = 아군)
+            if (_ghostOwnerIsLocalLookup.HasComponent(ownerEntity))
+            {
+                return prefabRef.AllyRingPrefab;
+            }
+
+            // 3. Team 컴포넌트 확인 (다른 플레이어 유닛)
             if (_teamLookup.HasComponent(ownerEntity))
             {
                 int ownerTeamId = _teamLookup[ownerEntity].teamId;
@@ -106,17 +111,11 @@ namespace Client
                     return prefabRef.EnemyRingPrefab;
                 }
 
-                // teamId == myTeamId: 아군
-                if (ownerTeamId == myTeamId)
-                {
-                    return prefabRef.AllyRingPrefab;
-                }
-
                 // 다른 플레이어: 중립
                 return prefabRef.NeutralRingPrefab;
             }
 
-            // 3. Team 없음 (자원 노드 등): 중립
+            // 4. Team 없음 (자원 노드 등): 중립
             return prefabRef.NeutralRingPrefab;
         }
     }

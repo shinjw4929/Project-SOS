@@ -20,6 +20,7 @@ namespace Client
         [ReadOnly] private ComponentLookup<WorkRange> _workRangeLookup;
         [ReadOnly] private ComponentLookup<ObstacleRadius> _obstacleRadiusLookup;
         [ReadOnly] private ComponentLookup<ProductionCost> _productionCostLookup;
+        [ReadOnly] private ComponentLookup<ResourceCenterTag> _resourceCenterTagLookup;
 
         private EntityQuery _userCurrencyQuery;
         private EntityQuery _resourceNodeQuery;
@@ -38,6 +39,7 @@ namespace Client
             _workRangeLookup = state.GetComponentLookup<WorkRange>(true);
             _obstacleRadiusLookup = state.GetComponentLookup<ObstacleRadius>(true);
             _productionCostLookup = state.GetComponentLookup<ProductionCost>(true);
+            _resourceCenterTagLookup = state.GetComponentLookup<ResourceCenterTag>(true);
 
             _userCurrencyQuery = state.GetEntityQuery(
                 ComponentType.ReadOnly<UserCurrency>(),
@@ -89,34 +91,40 @@ namespace Client
                     width, length, gridSettings.GridSize.x, gridSettings.GridSize.y);
             }
 
-            // 3-1. 자원 노드 제외 구역 확인
+            // 3-1. 자원 노드 제외 구역 확인 (ResourceCenter만 적용)
             bool isInResourceExclusionZone = false;
-            var resourceNodeEntities = _resourceNodeQuery.ToEntityArray(Allocator.Temp);
-            if (resourceNodeEntities.Length > 0)
+            _resourceCenterTagLookup.Update(ref state);
+            bool isResourceCenter = _resourceCenterTagLookup.HasComponent(previewState.SelectedPrefab);
+
+            if (isResourceCenter)
             {
-                var resourceNodePositions = new NativeArray<int2>(resourceNodeEntities.Length, Allocator.Temp);
-                var resourceNodeSizes = new NativeArray<int2>(resourceNodeEntities.Length, Allocator.Temp);
-
-                var gridPosLookup = SystemAPI.GetComponentLookup<GridPosition>(true);
-                var footprintLookupLocal = SystemAPI.GetComponentLookup<StructureFootprint>(true);
-
-                for (int i = 0; i < resourceNodeEntities.Length; i++)
+                var resourceNodeEntities = _resourceNodeQuery.ToEntityArray(Allocator.Temp);
+                if (resourceNodeEntities.Length > 0)
                 {
-                    var entity = resourceNodeEntities[i];
-                    resourceNodePositions[i] = gridPosLookup[entity].Position;
-                    var fp = footprintLookupLocal[entity];
-                    resourceNodeSizes[i] = new int2(fp.Width, fp.Length);
+                    var resourceNodePositions = new NativeArray<int2>(resourceNodeEntities.Length, Allocator.Temp);
+                    var resourceNodeSizes = new NativeArray<int2>(resourceNodeEntities.Length, Allocator.Temp);
+
+                    var gridPosLookup = SystemAPI.GetComponentLookup<GridPosition>(true);
+                    var footprintLookupLocal = SystemAPI.GetComponentLookup<StructureFootprint>(true);
+
+                    for (int i = 0; i < resourceNodeEntities.Length; i++)
+                    {
+                        var entity = resourceNodeEntities[i];
+                        resourceNodePositions[i] = gridPosLookup[entity].Position;
+                        var fp = footprintLookupLocal[entity];
+                        resourceNodeSizes[i] = new int2(fp.Width, fp.Length);
+                    }
+
+                    isInResourceExclusionZone = GridUtility.IsInResourceExclusionZone(
+                        previewState.GridPosition, width, length,
+                        resourceNodePositions, resourceNodeSizes
+                    );
+
+                    resourceNodePositions.Dispose();
+                    resourceNodeSizes.Dispose();
                 }
-
-                isInResourceExclusionZone = GridUtility.IsInResourceExclusionZone(
-                    previewState.GridPosition, width, length,
-                    resourceNodePositions, resourceNodeSizes
-                );
-
-                resourceNodePositions.Dispose();
-                resourceNodeSizes.Dispose();
+                resourceNodeEntities.Dispose();
             }
-            resourceNodeEntities.Dispose();
 
             // 4. 유닛 물리 충돌 확인
             var physicsWorld = SystemAPI.GetSingleton<PhysicsWorldSingleton>();

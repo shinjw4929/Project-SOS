@@ -8,6 +8,10 @@ using Unity.NetCode;
 
 namespace Shared
 {
+    /// <summary>
+    /// [비활성화] 분리력 시스템 - 유닛 간 물리 충돌로 대체됨
+    /// </summary>
+    [DisableAutoCreation]
     [UpdateInGroup(typeof(PredictedSimulationSystemGroup))]
     [UpdateBefore(typeof(PredictedMovementSystem))]
     [BurstCompile]

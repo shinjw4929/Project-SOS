@@ -48,7 +48,7 @@ namespace Server
 
                 // 버퍼의 현재 인덱스 위치와, 실제 유닛이 보고 있는 목표 위치가 다르면
                 // 유닛이 이미 다음 단계로 넘어갔다는 뜻임 -> 인덱스 증가
-                if (math.distancesq(bufferPos, currentTargetPos) > 0.01f)
+                if (math.distancesq(bufferPos, currentTargetPos) > 0.001f)
                 {
                     bufferIndex++;
                     goal.ValueRW.CurrentWaypointIndex = (byte)bufferIndex;
@@ -61,8 +61,8 @@ namespace Server
                 if (nextIndex < pathBuffer.Length)
                 {
                     // 아직 Next가 없거나, Next값이 갱신되어야 한다면 주입
-                    if (!waypoints.ValueRO.HasNext || 
-                        math.distancesq(waypoints.ValueRO.Next, pathBuffer[nextIndex].Position) > 0.01f)
+                    if (!waypoints.ValueRO.HasNext ||
+                        math.distancesq(waypoints.ValueRO.Next, pathBuffer[nextIndex].Position) > 0.001f)
                     {
                         waypoints.ValueRW.Next = pathBuffer[nextIndex].Position;
                         waypoints.ValueRW.HasNext = true;
