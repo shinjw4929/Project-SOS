@@ -1,12 +1,11 @@
 using Unity.Entities;
-using Unity.Mathematics;
-using Unity.Rendering;
 using UnityEngine;
 
 namespace Authoring
 {
     /// <summary>
     /// Selection Ring 프리팹 Baker
+    /// 색상은 Material에서 직접 설정 (팀별 프리팹 분리)
     /// </summary>
     public class SelectionRingAuthoring : MonoBehaviour
     {
@@ -23,12 +22,6 @@ namespace Authoring
                 AddComponent(entity, new Shared.SelectionRingOwner
                 {
                     OwnerEntity = Entity.Null
-                });
-
-                // 색상 제어용 (BaseColor 사용 - URP per-instance 지원)
-                AddComponent(entity, new URPMaterialPropertyBaseColor
-                {
-                    Value = new float4(0f, 1f, 0f, 1f)
                 });
             }
         }

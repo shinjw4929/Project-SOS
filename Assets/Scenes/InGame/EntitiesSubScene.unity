@@ -1627,7 +1627,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b6a603986deddcd46867addca805c8e0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  selectionRingPrefab: {fileID: 4065091821636873591, guid: f40c3bcf0dd216b45b5d71ec6d5d1efb, type: 3}
+  allyRingPrefab: {fileID: 4065091821636873591, guid: f1ebf67b5f1aa2d4da706ce140e50673, type: 3}
+  enemyRingPrefab: {fileID: 4065091821636873591, guid: f40c3bcf0dd216b45b5d71ec6d5d1efb, type: 3}
+  neutralRingPrefab: {fileID: 4065091821636873591, guid: 5b50d05c9ecb1704fa5c8c08e34973b7, type: 3}
 --- !u!4 &1278596569 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 4569317304208565447, guid: 118356b3d5301164d85e3ec67bda087e, type: 3}

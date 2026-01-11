@@ -1,6 +1,7 @@
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Collections;
+using Unity.NetCode;
 using Shared;
 
 namespace Client
@@ -43,11 +44,15 @@ namespace Client
             if (targetPrefab == Entity.Null)
                 return false;
 
-            // 3. 글로벌 인덱스 조회
+            // 3. 해금 여부 확인
+            if (!CheckTechUnlocked(em, targetPrefab))
+                return false;
+
+            // 4. 글로벌 인덱스 조회
             if (!indexMap.TryGetValue(targetPrefab, out int globalIndex))
                 return false;
 
-            // 4. 상태 전환
+            // 5. 상태 전환
             userState.CurrentState = UserContext.Construction;
             previewState.SelectedPrefab = targetPrefab;
             previewState.SelectedPrefabIndex = globalIndex;
@@ -88,12 +93,43 @@ namespace Client
         }
 
         /// <summary>
-        /// 테크 트리 해금 여부 확인 (현재는 항상 true, 추후 확장)
+        /// 테크 트리 해금 여부 확인
+        /// - Wall, ResourceCenter: 항상 해금
+        /// - Barracks (ProductionFacilityTag): ResourceCenter 필요
+        /// - Turret: 항상 해금 (향후 확장 가능)
         /// </summary>
         public static bool CheckTechUnlocked(EntityManager em, Entity prefab)
         {
-            // TODO: TechRequirement 컴포넌트 기반 해금 체크
-            // 현재는 모든 건물이 해금된 것으로 처리
+            if (prefab == Entity.Null || !em.Exists(prefab))
+                return false;
+
+            // Wall, ResourceCenter: 항상 해금
+            if (em.HasComponent<WallTag>(prefab))
+                return true;
+            if (em.HasComponent<ResourceCenterTag>(prefab))
+                return true;
+
+            // Barracks (ProductionFacilityTag만 있고 ResourceCenterTag 없음): ResourceCenter 필요
+            if (em.HasComponent<ProductionFacilityTag>(prefab))
+            {
+                // 현재 유저의 UserTechState 조회 (GhostOwnerIsLocal 사용)
+                using var query = em.CreateEntityQuery(
+                    ComponentType.ReadOnly<UserTechState>(),
+                    ComponentType.ReadOnly<UserEconomyTag>(),
+                    ComponentType.ReadOnly<GhostOwnerIsLocal>()
+                );
+
+                if (query.CalculateEntityCount() != 1)
+                    return false;
+
+                var techState = query.GetSingleton<UserTechState>();
+                return techState.HasResourceCenter;
+            }
+
+            // Turret: 현재는 항상 해금 (향후 확장 가능)
+            if (em.HasComponent<TurretTag>(prefab))
+                return true;
+
             return true;
         }
     }

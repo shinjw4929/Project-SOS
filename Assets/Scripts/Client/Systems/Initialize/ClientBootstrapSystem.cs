@@ -82,6 +82,9 @@ namespace Client
                 entityManager.SetName(entity, "Singleton_CurrentSelectionState");
 #endif
             }
+
+            // UserTechState는 이제 UserEconomy 엔티티에 포함됨 (유저별 관리)
+            // 서버에서 Ghost로 동기화되므로 클라이언트에서 초기화 불필요
         }
     }
 }

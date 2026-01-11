@@ -37,6 +37,12 @@ namespace Authoring
                     Currentvalue = authoring.initialCurrentPopulation,
                     MaxValue = authoring.initialMaxPopulation,
                 });
+
+                // 테크 해금 상태 (초기: 모두 미해금)
+                AddComponent(entity, new UserTechState
+                {
+                    HasResourceCenter = false,
+                });
             }
         }
     }
