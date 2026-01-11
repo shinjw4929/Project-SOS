@@ -15,6 +15,8 @@ namespace Authoring
         public float defense = 0.0f;
         public float visionRange = 10.0f;
 
+        [Header("Collision")]
+        [Min(0.1f)] public float radius = 1.5f;
         
         [Header("Combat Status")]
         public float attackPower = 0.0f;
@@ -141,7 +143,7 @@ namespace Authoring
                 // 충돌 반경 (도착 판정용)
                 AddComponent(entity, new ObstacleRadius
                 {
-                    Radius = 0.5f  // 적 기본 반경
+                    Radius = authoring.radius  // 적 기본 반경
                 });
 
                 // =======================================================================

@@ -59,6 +59,9 @@ namespace Authoring
                 // ObstacleGridInitSystem에서 활성화됨
                 AddComponent(entity, new NeedsNavMeshObstacle());
                 SetComponentEnabled<NeedsNavMeshObstacle>(entity, false); // 초기 비활성화
+
+                // Selection Ring 크기 결정용
+                AddComponent(entity, new ObstacleRadius { Radius = authoring.radius });
             }
         }
     }
