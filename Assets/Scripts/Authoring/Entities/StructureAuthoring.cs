@@ -48,6 +48,10 @@ namespace Authoring
         public float explosionRadius = 3.0f;
         public float explosionDamage = 100.0f;
         public float explosionDelay = 0.5f;
+
+        [Header("Initial Placement (Wall Only)")]
+        [Tooltip("서브씬에 배치된 초기 벽인 경우 체크. 일정 시간 후 자동 파괴됨.")]
+        public bool isInitialPlacement = false;
         
         public class Baker : Baker<StructureAuthoring>
         {
@@ -70,7 +74,11 @@ namespace Authoring
                 {
                     case AuthoringStructureType.Wall:
                         AddComponent(entity, new WallTag());
-                        canExplode = true; 
+                        canExplode = true;
+                        if (authoring.isInitialPlacement)
+                        {
+                            AddComponent(entity, new InitialWallTag());
+                        }
                         break;
                         
                     case AuthoringStructureType.Barracks:
