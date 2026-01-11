@@ -169,7 +169,7 @@ MonoBehaviour:
   cost: 10000
   populationCost: 1
   trainingTime: 5
-  maxHealth: 100
+  maxHealth: 50
   defense: 0
   visionRange: 10
   workRange: 1
