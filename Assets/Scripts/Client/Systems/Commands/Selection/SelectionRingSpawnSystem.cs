@@ -43,6 +43,11 @@ namespace Client
             _enemyTagLookup.Update(ref state);
             _ghostOwnerIsLocalLookup.Update(ref state);
 
+            // 내 NetworkId 가져오기 (내 팀 판별용)
+            int myNetworkId = -1;
+            if (SystemAPI.TryGetSingleton<NetworkId>(out var networkId))
+                myNetworkId = networkId.Value;
+
             var ecb = new EntityCommandBuffer(Allocator.Temp);
 
             // Selected + ObstacleRadius가 있고 Ring이 없는 엔티티에 Ring 생성
@@ -53,7 +58,7 @@ namespace Client
                 .WithEntityAccess())
             {
                 // 팀에 따라 프리팹 선택
-                Entity ringPrefab = DetermineRingPrefab(entity, prefabRef);
+                Entity ringPrefab = DetermineRingPrefab(entity, prefabRef, myNetworkId);
                 if (ringPrefab == Entity.Null) continue;
 
                 // Ring 엔티티 생성
@@ -86,7 +91,7 @@ namespace Client
             ecb.Dispose();
         }
 
-        private Entity DetermineRingPrefab(Entity ownerEntity, SelectionRingPrefabRef prefabRef)
+        private Entity DetermineRingPrefab(Entity ownerEntity, SelectionRingPrefabRef prefabRef, int myNetworkId)
         {
             // 1. EnemyTag 확인 (적)
             if (_enemyTagLookup.HasComponent(ownerEntity))
@@ -94,13 +99,7 @@ namespace Client
                 return prefabRef.EnemyRingPrefab;
             }
 
-            // 2. GhostOwnerIsLocal 확인 (내 소유 유닛 = 아군)
-            if (_ghostOwnerIsLocalLookup.HasComponent(ownerEntity))
-            {
-                return prefabRef.AllyRingPrefab;
-            }
-
-            // 3. Team 컴포넌트 확인 (다른 플레이어 유닛)
+            // 2. Team 컴포넌트 확인 (팀 기반 판별)
             if (_teamLookup.HasComponent(ownerEntity))
             {
                 int ownerTeamId = _teamLookup[ownerEntity].teamId;
@@ -111,8 +110,20 @@ namespace Client
                     return prefabRef.EnemyRingPrefab;
                 }
 
+                // 내 팀 (teamId == myNetworkId): 아군
+                if (ownerTeamId == myNetworkId)
+                {
+                    return prefabRef.AllyRingPrefab;
+                }
+
                 // 다른 플레이어: 중립
                 return prefabRef.NeutralRingPrefab;
+            }
+
+            // 3. GhostOwnerIsLocal 확인 (Team 없는 경우 보조 체크)
+            if (_ghostOwnerIsLocalLookup.HasComponent(ownerEntity))
+            {
+                return prefabRef.AllyRingPrefab;
             }
 
             // 4. Team 없음 (자원 노드 등): 중립

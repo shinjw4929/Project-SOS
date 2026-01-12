@@ -12,7 +12,8 @@ namespace Shared
     /// 초기 배치된 건물, 자원(Baked)의 GridPosition을 계산하고, 즉시 그리드에 점유를 등록하는 시스템
     /// </summary>
     [UpdateInGroup(typeof(InitializationSystemGroup))]
-    [UpdateBefore(typeof(GridOccupancyEventSystem))] 
+    // GridOccupancyEventSystem은 LateSimulationSystemGroup에 있으므로 UpdateBefore 불필요
+    // SystemGroup 실행 순서: Initialization → Simulation → LateSimulation
     [BurstCompile]
     public partial struct ObstacleGridInitSystem : ISystem
     {
