@@ -84,7 +84,41 @@ namespace Server
                 // NavMesh 경로의 0번은 항상 '현재 위치'이므로, 실제 목표는 1번부터임
                 if (pathBuffer.Length > 1)
                 {
+                    float3 currentPos = transform.ValueRO.Position;
+                    float3 goalPos = goal.ValueRO.Destination;
+                    float3 toGoal = goalPos - currentPos;
+                    float distToGoal = math.length(toGoal);
+
                     int firstTargetIndex = 1;
+
+                    // 이미 지나간 웨이포인트 스킵 (클라이언트 예측 이동으로 인해)
+                    if (distToGoal > 0.1f)
+                    {
+                        float3 goalDir = toGoal / distToGoal;
+
+                        while (firstTargetIndex < pathBuffer.Length - 1) // 마지막은 항상 유지
+                        {
+                            float3 toWaypoint = pathBuffer[firstTargetIndex].Position - currentPos;
+                            float distToWaypoint = math.length(toWaypoint);
+
+                            // 웨이포인트가 너무 가까우면 스킵
+                            if (distToWaypoint < 0.5f)
+                            {
+                                firstTargetIndex++;
+                                continue;
+                            }
+
+                            // 웨이포인트가 목표 방향에 있는지 확인
+                            float3 waypointDir = toWaypoint / distToWaypoint;
+                            float dot = math.dot(goalDir, waypointDir);
+
+                            // 목표 방향과 대략 같은 방향이면 (내적 > 0.2) 유효
+                            if (dot > 0.2f) break;
+
+                            // 뒤쪽에 있으면 스킵
+                            firstTargetIndex++;
+                        }
+                    }
 
                     // Goal 상태 업데이트
                     goal.ValueRW.CurrentWaypointIndex = (byte)firstTargetIndex;

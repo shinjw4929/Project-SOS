@@ -51,6 +51,7 @@ namespace Shared
 
         private const float CornerRadius = 0.5f;
         private const float WallCheckDistance = 1.0f;
+        private const float RotationSpeed = 20.0f; // 회전 보간 속도
 
         // [최적화] IEnableableComponent인 MovementDestination을 사용하여
         // 활성화된(이동 중인) 유닛만 자동으로 처리됩니다.
@@ -117,11 +118,12 @@ namespace Shared
             float moveStep = speed.Value * DeltaTime;
             transform.Position += finalDirection * moveStep;
 
-            // 7. 회전 (바라보는 방향)
+            // 7. 회전 (바라보는 방향) - Slerp로 부드럽게 보간
             if (math.lengthsq(finalDirection) > 0.001f)
             {
-                // Y축 기준 회전
-                transform.Rotation = quaternion.LookRotationSafe(finalDirection, math.up());
+                quaternion targetRotation = quaternion.LookRotationSafe(finalDirection, math.up());
+                float t = math.saturate(DeltaTime * RotationSpeed);
+                transform.Rotation = math.slerp(transform.Rotation, targetRotation, t);
             }
         }
     }

@@ -55,10 +55,11 @@ namespace Shared
             _workerStateLookup.Update(ref state);
 
             // [중요] EnabledRefRW를 사용하되, 비활성화 상태도 쿼리하기 위해 IgnoreComponentEnabledState 사용
-            foreach (var (inputBuffer, movementGoal, unitIntentState, aggroTarget, waypointsEnabled, commandedEntity) in
+            foreach (var (inputBuffer, movementGoal, waypoints, unitIntentState, aggroTarget, waypointsEnabled, commandedEntity) in
                      SystemAPI.Query<
                              DynamicBuffer<UnitCommand>,
                              RefRW<MovementGoal>,
+                             RefRW<MovementWaypoints>,
                              RefRW<UnitIntentState>,
                              RefRW<AggroTarget>,
                              EnabledRefRW<MovementWaypoints>>()
@@ -101,7 +102,7 @@ namespace Shared
                         // ------------------------------------------------------
                         if (math.distance(movementGoal.ValueRW.Destination, inputCommand.GoalPosition) > 0.1f)
                         {
-                            SetUnitMovement(ref movementGoal.ValueRW, inputCommand.GoalPosition, waypointsEnabled);
+                            SetUnitMovement(ref movementGoal.ValueRW, ref waypoints.ValueRW, inputCommand.GoalPosition, waypointsEnabled);
                             SetUnitIntentState(ref unitIntentState.ValueRW, Intent.Move, ref targetEntity); // targetEntity는 Null
                         }
                     }
@@ -125,7 +126,7 @@ namespace Shared
                                 // Worker가 아니면 이동으로 처리
                                 if (math.distance(movementGoal.ValueRW.Destination, inputCommand.GoalPosition) > 0.1f)
                                 {
-                                    SetUnitMovement(ref movementGoal.ValueRW, inputCommand.GoalPosition, waypointsEnabled);
+                                    SetUnitMovement(ref movementGoal.ValueRW, ref waypoints.ValueRW, inputCommand.GoalPosition, waypointsEnabled);
                                     SetUnitIntentState(ref unitIntentState.ValueRW, Intent.Move, ref targetEntity);
                                 }
                             }
@@ -143,7 +144,7 @@ namespace Shared
                             // 타겟 위치로 이동 (추격)
                             if (math.distance(movementGoal.ValueRW.Destination, inputCommand.GoalPosition) > 0.1f)
                             {
-                                SetUnitMovement(ref movementGoal.ValueRW, inputCommand.GoalPosition, waypointsEnabled);
+                                SetUnitMovement(ref movementGoal.ValueRW, ref waypoints.ValueRW, inputCommand.GoalPosition, waypointsEnabled);
                             }
                         }
                         // Case 3: 리소스 센터 클릭 (자원 반납)
@@ -163,7 +164,7 @@ namespace Shared
                                 // 자원이 없으면 일반 이동으로 처리
                                 if (math.distance(movementGoal.ValueRW.Destination, inputCommand.GoalPosition) > 0.1f)
                                 {
-                                    SetUnitMovement(ref movementGoal.ValueRW, inputCommand.GoalPosition, waypointsEnabled);
+                                    SetUnitMovement(ref movementGoal.ValueRW, ref waypoints.ValueRW, inputCommand.GoalPosition, waypointsEnabled);
                                     Entity nullEntity = Entity.Null;
                                     SetUnitIntentState(ref unitIntentState.ValueRW, Intent.Move, ref nullEntity);
                                 }
@@ -174,7 +175,7 @@ namespace Shared
                         {
                             if (math.distance(movementGoal.ValueRW.Destination, inputCommand.GoalPosition) > 0.1f)
                             {
-                                SetUnitMovement(ref movementGoal.ValueRW, inputCommand.GoalPosition, waypointsEnabled);
+                                SetUnitMovement(ref movementGoal.ValueRW, ref waypoints.ValueRW, inputCommand.GoalPosition, waypointsEnabled);
                                 Entity nullEntity = Entity.Null;
                                 SetUnitIntentState(ref unitIntentState.ValueRW, Intent.Move, ref nullEntity);
                             }
@@ -190,7 +191,7 @@ namespace Shared
                     // 건설 위치로 이동 (이동 목표가 변경되었을 때만)
                     if (math.distance(movementGoal.ValueRW.Destination, inputCommand.GoalPosition) > 0.1f)
                     {
-                        SetUnitMovement(ref movementGoal.ValueRW, inputCommand.GoalPosition, waypointsEnabled);
+                        SetUnitMovement(ref movementGoal.ValueRW, ref waypoints.ValueRW, inputCommand.GoalPosition, waypointsEnabled);
                         Entity nullEntity = Entity.Null;
                         SetUnitIntentState(ref unitIntentState.ValueRW, Intent.Build, ref nullEntity);
                     }
@@ -198,13 +199,23 @@ namespace Shared
             }
         }
 
-        private void SetUnitMovement(ref MovementGoal goal, float3 position, EnabledRefRW<MovementWaypoints> enabledState)
+        private void SetUnitMovement(
+            ref MovementGoal goal,
+            ref MovementWaypoints waypoints,
+            float3 position,
+            EnabledRefRW<MovementWaypoints> enabledState)
         {
             goal.Destination = position;
             goal.IsPathDirty = true;
             goal.CurrentWaypointIndex = 0;
-            // 주의: PathfindingSystem이 경로 계산 후 활성화하므로 여기서는 활성화하지 않음
-            // enabledState.ValueRW = true;
+
+            // 클라이언트 즉시 이동 예측: 목표 위치로 직선 이동 시작
+            // 서버 경로 도착 시 Ghost 동기화로 자동 교체됨
+            waypoints.Current = position;
+            waypoints.Next = position;
+            waypoints.HasNext = false;
+
+            enabledState.ValueRW = true; // 즉시 이동 시작
         }
 
         // 코드 중복 방지를 위한 헬퍼 함수
