@@ -33,14 +33,10 @@ namespace Authoring
         public float defense = 0.0f;
         public float visionRange = 10.0f;
         public float workRange = 1.0f;
-        
+
         [Header("Unit Size")]
         public float radius = 1.0f;
 
-        [Header("NavMesh Settings")]
-        [Tooltip("Unity Navigation Agents 탭에서의 순서 (0=첫번째, 1=두번째, ...)")]
-        public int agentTypeIndex = 0;
-        
         [Header("Combat Status")]
         public float attackPower = 0.0f;
         public float attackSpeed = 1.0f;
@@ -59,7 +55,7 @@ namespace Authoring
             public override void Bake(UnitAuthoring authoring)
             {
                 Entity entity = GetEntity(TransformUsageFlags.Dynamic);
-                
+
                 // =======================================================================
                 // 1. [정체성] 태그 및 역할 플래그 설정
                 // =======================================================================
@@ -204,21 +200,17 @@ namespace Authoring
                 {
                     Value = authoring.visionRange
                 });
-                
+
                 // 유닛 반지름 (상호작용/도착 판정용)
                 AddComponent(entity, new ObstacleRadius
                 {
                     Radius = authoring.radius
                 });
 
-                // NavMesh Agent 설정 (유닛 크기별 경로 계산용)
-                AddComponent(entity, new NavMeshAgentConfig
-                {
-                    AgentTypeIndex = authoring.agentTypeIndex
-                });
-                
+                // NavMeshAgentConfig는 MovementAuthoring에서 처리
+
                 // =======================================================================
-                // 6. [전투 능력]
+                // 5. [전투 능력]
                 // =======================================================================
                 if (authoring.attackPower > 0)
                 {

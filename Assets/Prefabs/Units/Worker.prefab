@@ -18,6 +18,7 @@ GameObject:
   - component: {fileID: 4521299784151046451}
   - component: {fileID: -3915132150347008814}
   - component: {fileID: 576986460176096770}
+  - component: {fileID: 8493158105572621431}
   m_Layer: 11
   m_Name: Worker
   m_TagString: Untagged
@@ -176,7 +177,6 @@ MonoBehaviour:
   visionRange: 10
   workRange: 1
   radius: 0.5
-  agentTypeIndex: 0
   attackPower: 0
   attackSpeed: 1
   attackRange: 2
@@ -198,9 +198,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d77a6b574ac39f44b952b5803ddaf254, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  MoveSpeed: 15
-  TurnSpeed: 10
-  ArrivalRadius: 0.5
 --- !u!114 &-3915132150347008814
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -239,3 +236,18 @@ MonoBehaviour:
   UseSingleBaseline: 0
   RollbackPredictedSpawnedGhostState: 0
   RollbackPredictionOnStructuralChanges: 1
+--- !u!114 &8493158105572621431
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3179942793388120451}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fa5b9120047d80f4ab8813c7304de74b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  MoveSpeed: 12
+  ArrivalRadius: 0.5
+  AgentTypeIndex: 0
