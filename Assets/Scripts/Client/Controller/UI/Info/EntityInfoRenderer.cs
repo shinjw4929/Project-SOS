@@ -218,11 +218,11 @@ namespace Client
             if (_entityManager.HasComponent<TrooperTag>(entity)) return "Trooper";
             if (_entityManager.HasComponent<SniperTag>(entity)) return "Sniper";
 
-            // Structure types
+            // Structure types - 구체적인 태그 먼저 체크 (ResourceCenter는 ProductionFacilityTag도 가짐)
+            if (_entityManager.HasComponent<ResourceCenterTag>(entity)) return "Resource Center";
             if (_entityManager.HasComponent<WallTag>(entity)) return "Wall";
             if (_entityManager.HasComponent<ProductionFacilityTag>(entity)) return "Barracks";
             if (_entityManager.HasComponent<TurretTag>(entity)) return "Turret";
-            if (_entityManager.HasComponent<ResourceCenterTag>(entity)) return "Resource Center";
 
             // Other entities
             if (_entityManager.HasComponent<EnemyTag>(entity)) return "Enemy";

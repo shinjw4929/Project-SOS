@@ -16,7 +16,7 @@ namespace Client
     /// </summary>
     [UpdateInGroup(typeof(GhostInputSystemGroup))]
     [UpdateAfter(typeof(SelectedEntityInfoUpdateSystem))]
-    [UpdateAfter(typeof(GhostIdLookupSystem))]
+    // GhostIdLookupSystem은 PredictedSimulationSystemGroup에서 Complete()로 동기화하므로 UpdateAfter 불필요
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
     public partial struct UnitCommandInputSystem : ISystem
     {
