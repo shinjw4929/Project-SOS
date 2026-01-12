@@ -168,18 +168,18 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   unitType: 5
-  cost: 30
+  cost: 100
   populationCost: 1
-  trainingTime: 3
+  trainingTime: 10
   maxHealth: 100
   defense: 0
   visionRange: 20
   workRange: 2
   radius: 0.8
-  agentTypeId: 1
+  agentTypeIndex: 0
   attackPower: 15
   attackSpeed: 0.5
-  attackRange: 12
+  attackRange: 15
   maxCarryAmount: 10
   gatheringSpeed: 1
   buildableStructures: []

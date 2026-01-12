@@ -168,7 +168,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   unitType: 1
-  cost: 10
+  cost: 30
   populationCost: 1
   trainingTime: 2
   maxHealth: 100
@@ -176,6 +176,7 @@ MonoBehaviour:
   visionRange: 10
   workRange: 1
   radius: 0.5
+  agentTypeIndex: 0
   attackPower: 0
   attackSpeed: 1
   attackRange: 2

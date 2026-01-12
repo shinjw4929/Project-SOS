@@ -168,16 +168,16 @@ MonoBehaviour:
   unitType: 0
   cost: 10000
   populationCost: 1
-  trainingTime: 5
-  maxHealth: 50
+  trainingTime: 10000
+  maxHealth: 10
   defense: 0
-  visionRange: 10
+  visionRange: 12
   workRange: 1
   radius: 1.2
   agentTypeIndex: 0
   attackPower: 1
-  attackSpeed: 10
-  attackRange: 2
+  attackSpeed: 1
+  attackRange: 1
   maxCarryAmount: 10
   gatheringSpeed: 1
   buildableStructures:
