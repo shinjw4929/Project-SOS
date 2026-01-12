@@ -140,9 +140,9 @@ MonoBehaviour:
   maxHealth: 50
   defense: 0
   visionRange: 10
-  radius: 1.5
-  attackPower: 2
-  attackSpeed: 2
+  radius: 2.5
+  attackPower: 5
+  attackSpeed: 3
   attackRange: 2
   aggroRange: 15
 --- !u!114 &-167978000647739316

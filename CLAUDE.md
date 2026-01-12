@@ -277,12 +277,13 @@ Authoring/
 │   └── UserEconomyAuthoring.cs              # 유저 경제 오서링 (Ghost 프리팹용)
 ├── Entities/
 │   ├── CarriedResourceAuthoring.cs          # 운반 자원 오서링
-│   ├── EnemyAuthoring.cs                    # 적 오서링
+│   ├── EnemyAuthoring.cs                    # 적 오서링 (스탯/전투, 이동은 MovementAuthoring)
 │   ├── ResourceNodeAuthoring.cs             # 자원 노드 오서링
 │   ├── StructureAuthoring.cs                # 건물 오서링 (Wall/Barracks/Turret/ResourceCenter)
-│   └── UnitAuthoring.cs                     # 유닛 오서링 (Hero/Worker/Soldier/Swordsman/Trooper/Sniper)
+│   └── UnitAuthoring.cs                     # 유닛 오서링 (스탯/전투/정체성)
 ├── Movement/
-│   └── UnitMovementAuthoring.cs             # 유닛 이동 오서링
+│   ├── MovementAuthoring.cs                 # 공용 이동 오서링 (MovementSpeed, NavMesh 등)
+│   └── UnitMovementAuthoring.cs             # 유닛 전용 명령/상태 오서링 (UnitIntentState, UnitCommand)
 └── Settings/
     └── GridSettingsAuthoring.cs
 
@@ -432,6 +433,20 @@ EnemyHpTextPresentationSystem
 ---
 
 ### Key Patterns
+
+**Authoring 조합 패턴** (프리팹별 필요 Authoring):
+
+| 프리팹 | Authoring 조합 | 설명 |
+|--------|----------------|------|
+| 유닛 (Hero, Worker 등) | MovementAuthoring + UnitMovementAuthoring + UnitAuthoring | 이동 + 유닛 명령 + 유닛 스탯 |
+| 적 (Enemy) | MovementAuthoring + EnemyAuthoring | 이동 + 적 스탯/AI |
+| 건물 (Wall, Barracks 등) | StructureAuthoring | 건물 스탯/생산 |
+
+각 Authoring이 베이킹하는 컴포넌트:
+- **MovementAuthoring**: MovementSpeed, MovementGoal, MovementWaypoints, PathWaypoint, NavMeshAgentConfig
+- **UnitMovementAuthoring**: UnitIntentState, UnitActionState, UnitCommand (RequireComponent: MovementAuthoring)
+- **UnitAuthoring**: UnitTag, Team, Health, ObstacleRadius, CombatStats 등 (유닛 정체성/스탯)
+- **EnemyAuthoring**: EnemyTag, Team, Health, ObstacleRadius, EnemyState 등 (적 정체성/스탯)
 
 **User State Machine** (`Client/Component/Singleton/UserState.cs`):
 ```csharp
