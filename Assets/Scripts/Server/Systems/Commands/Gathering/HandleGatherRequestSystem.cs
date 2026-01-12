@@ -25,7 +25,6 @@ namespace Server
         [ReadOnly] private ComponentLookup<ResourceNodeTag> _resourceNodeTagLookup;
         [ReadOnly] private ComponentLookup<LocalTransform> _transformLookup;
         [ReadOnly] private ComponentLookup<ResourceCenterTag> _resourceCenterTagLookup;
-        [ReadOnly] private ComponentLookup<ResourceNodeSetting> _resourceNodeSettingLookup;
         [ReadOnly] private ComponentLookup<ObstacleRadius> _obstacleRadiusLookup;
 
         private ComponentLookup<ResourceNodeState> _resourceNodeStateLookup;
@@ -46,7 +45,6 @@ namespace Server
             _resourceNodeTagLookup = state.GetComponentLookup<ResourceNodeTag>(true);
             _transformLookup = state.GetComponentLookup<LocalTransform>(true);
             _resourceCenterTagLookup = state.GetComponentLookup<ResourceCenterTag>(true);
-            _resourceNodeSettingLookup = state.GetComponentLookup<ResourceNodeSetting>(true);
             _obstacleRadiusLookup = state.GetComponentLookup<ObstacleRadius>(true);
 
             _resourceNodeStateLookup = state.GetComponentLookup<ResourceNodeState>(false);
@@ -66,7 +64,6 @@ namespace Server
             _resourceNodeTagLookup.Update(ref state);
             _transformLookup.Update(ref state);
             _resourceCenterTagLookup.Update(ref state);
-            _resourceNodeSettingLookup.Update(ref state);
             _obstacleRadiusLookup.Update(ref state);
             _resourceNodeStateLookup.Update(ref state);
             _gatheringTargetLookup.Update(ref state);
@@ -260,8 +257,8 @@ namespace Server
             direction = direction / len; // normalize
 
             // 노드 반지름
-            float nodeRadius = _resourceNodeSettingLookup.HasComponent(nodeEntity)
-                ? _resourceNodeSettingLookup[nodeEntity].Radius
+            float nodeRadius = _obstacleRadiusLookup.HasComponent(nodeEntity)
+                ? _obstacleRadiusLookup[nodeEntity].Radius
                 : 1.5f;
 
             // 유닛 반지름

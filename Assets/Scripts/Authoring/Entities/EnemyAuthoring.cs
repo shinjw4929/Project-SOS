@@ -17,6 +17,10 @@ namespace Authoring
 
         [Header("Collision")]
         [Min(0.1f)] public float radius = 1.5f;
+
+        [Header("NavMesh Settings")]
+        [Tooltip("Unity Navigation Agents 탭에서의 순서 (0=첫번째, 1=두번째, ...)")]
+        public int agentTypeIndex = 0;
         
         [Header("Combat Status")]
         public float attackPower = 0.0f;
@@ -144,6 +148,12 @@ namespace Authoring
                 AddComponent(entity, new ObstacleRadius
                 {
                     Radius = authoring.radius  // 적 기본 반경
+                });
+
+                // NavMesh Agent 설정 (유닛 크기별 경로 계산용)
+                AddComponent(entity, new NavMeshAgentConfig
+                {
+                    AgentTypeIndex = authoring.agentTypeIndex
                 });
 
                 // =======================================================================

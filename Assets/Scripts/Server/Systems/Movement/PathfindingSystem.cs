@@ -45,13 +45,14 @@ namespace Server
             int processedCount = 0;
 
             // [중요] IgnoreComponentEnabledState 추가하여 비활성화 상태의 MovementWaypoints도 쿼리
-            foreach (var (goal, pathBuffer, waypoints, waypointsEnabled, transform) in
+            foreach (var (goal, pathBuffer, waypoints, waypointsEnabled, transform, agentConfig) in
                 SystemAPI.Query<
                     RefRW<MovementGoal>,
                     DynamicBuffer<PathWaypoint>,
                     RefRW<MovementWaypoints>,
                     EnabledRefRW<MovementWaypoints>,
-                    RefRO<LocalTransform>>()
+                    RefRO<LocalTransform>,
+                    RefRO<NavMeshAgentConfig>>()
                     .WithAny<UnitTag, EnemyTag>()
                     .WithOptions(EntityQueryOptions.IgnoreComponentEnabledState))
             {
@@ -61,11 +62,15 @@ namespace Server
                 if (processedCount >= MaxPathRequestsPerFrame)
                     break;
 
-                // 1. 경로 계산
+                // 1. 경로 계산 (Agent Type별 필터 적용)
                 float3 startPos = transform.ValueRO.Position;
                 float3 endPos = goal.ValueRO.Destination;
 
-                bool pathValid = CalculatePath(startPos, endPos, pathBuffer);
+                // 인덱스 → 실제 Agent Type ID 변환
+                int agentTypeIndex = agentConfig.ValueRO.AgentTypeIndex;
+                int agentTypeID = GetAgentTypeIDFromIndex(agentTypeIndex);
+
+                bool pathValid = CalculatePath(startPos, endPos, agentTypeID, pathBuffer);
 
                 // 경로 계산 실패 (NavMesh 업데이트 대기 중) - 다음 프레임에 재시도
                 if (!pathValid)
@@ -114,25 +119,48 @@ namespace Server
         }
 
         /// <summary>
-        /// NavMesh 경로 계산
+        /// Agent Type 인덱스를 실제 Agent Type ID로 변환
+        /// Unity Navigation은 Agent Type ID를 해시 기반으로 할당하므로 인덱스로 조회 필요
         /// </summary>
+        private int GetAgentTypeIDFromIndex(int index)
+        {
+            int settingsCount = NavMesh.GetSettingsCount();
+            if (index >= 0 && index < settingsCount)
+            {
+                return NavMesh.GetSettingsByIndex(index).agentTypeID;
+            }
+            // 폴백: 기본 Agent Type (Humanoid)
+            return settingsCount > 0 ? NavMesh.GetSettingsByIndex(0).agentTypeID : 0;
+        }
+
+        /// <summary>
+        /// NavMesh 경로 계산 (Agent Type별 필터 적용)
+        /// </summary>
+        /// <param name="agentTypeID">Unity Navigation에서 정의한 Agent Type ID</param>
         /// <returns>true: 완전한 경로 계산 성공, false: 재시도 필요 (NavMesh 업데이트 대기)</returns>
-        private bool CalculatePath(float3 start, float3 end, DynamicBuffer<PathWaypoint> pathBuffer)
+        private bool CalculatePath(float3 start, float3 end, int agentTypeID, DynamicBuffer<PathWaypoint> pathBuffer)
         {
             pathBuffer.Clear();
 
             if (!math.isfinite(start.x) || !math.isfinite(end.x)) return false;
 
-            // NavMesh 샘플링 (Vector3 변환 필요)
+            // Agent Type별 필터 생성
+            NavMeshQueryFilter filter = new NavMeshQueryFilter
+            {
+                agentTypeID = agentTypeID,
+                areaMask = NavMesh.AllAreas
+            };
+
+            // NavMesh 샘플링 (Agent Type별 필터 적용)
             NavMeshHit hit;
-            if (!NavMesh.SamplePosition(start, out hit, 5.0f, NavMesh.AllAreas)) return false;
+            if (!NavMesh.SamplePosition(start, out hit, 5.0f, filter)) return false;
             Vector3 startPoint = hit.position;
 
-            if (!NavMesh.SamplePosition(end, out hit, 5.0f, NavMesh.AllAreas)) return false;
+            if (!NavMesh.SamplePosition(end, out hit, 5.0f, filter)) return false;
             Vector3 endPoint = hit.position;
 
             NavMeshPath path = new NavMeshPath();
-            if (NavMesh.CalculatePath(startPoint, endPoint, NavMesh.AllAreas, path))
+            if (NavMesh.CalculatePath(startPoint, endPoint, filter, path))
             {
                 // PathComplete 또는 PathPartial 모두 허용
                 // PathPartial: 목적지까지 완전한 경로는 없지만, 갈 수 있는 만큼 이동

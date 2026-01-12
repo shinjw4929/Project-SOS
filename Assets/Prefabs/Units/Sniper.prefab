@@ -176,6 +176,7 @@ MonoBehaviour:
   visionRange: 20
   workRange: 2
   radius: 0.8
+  agentTypeId: 1
   attackPower: 15
   attackSpeed: 0.5
   attackRange: 12

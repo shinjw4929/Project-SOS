@@ -7,10 +7,14 @@ namespace Authoring
 {
     public class ResourceNodeAuthoring : MonoBehaviour
     {
-        [Header("Grid Size")]
+        [Header("Grid Size (그리드 칸 수)")]
         [Min(1)] public int width = 1;
         [Min(1)] public int length = 1;
         [Min(0.1f)] public float height = 1f;
+
+        [Header("World Size (실제 크기, NavMeshObstacle용)")]
+        [Min(0.1f)] public float worldWidth = 1f;
+        [Min(0.1f)] public float worldLength = 1f;
 
         [Header("Gathering Settings")]
         public ResourceType resourceType = ResourceType.Cheese;
@@ -35,7 +39,6 @@ namespace Authoring
                     ResourceType = authoring.resourceType,
                     AmountPerGather = authoring.amountPerGather,
                     BaseGatherDuration = authoring.baseGatherDuration,
-                    Radius = authoring.radius,
                 });
                 
                 // 자원 노드 상태 (점유 정보)
@@ -49,7 +52,9 @@ namespace Authoring
                 {
                     Width = authoring.width,
                     Length = authoring.length,
-                    Height = authoring.height
+                    Height = authoring.height,
+                    WorldWidth = authoring.worldWidth,
+                    WorldLength = authoring.worldLength
                 });
 
                 // 그리드 위치

@@ -144,8 +144,8 @@ namespace Server
                 float distance = math.distance(workerPos, nodePos);
 
                 // 노드 반지름 + 유닛 반지름 + 여유분
-                float nodeRadius = _resourceNodeSettingLookup.HasComponent(nodeEntity)
-                    ? _resourceNodeSettingLookup[nodeEntity].Radius
+                float nodeRadius = _obstacleRadiusLookup.HasComponent(nodeEntity)
+                    ? _obstacleRadiusLookup[nodeEntity].Radius
                     : 1.5f;
                 float unitRadius = _obstacleRadiusLookup.HasComponent(entity)
                     ? _obstacleRadiusLookup[entity].Radius
@@ -490,8 +490,8 @@ namespace Server
                 float3 nodePos = _transformLookup[nodeEntity].Position;
                 float distance = math.distance(workerPos, nodePos);
 
-                float nodeRadius = _resourceNodeSettingLookup.HasComponent(nodeEntity)
-                    ? _resourceNodeSettingLookup[nodeEntity].Radius
+                float nodeRadius = _obstacleRadiusLookup.HasComponent(nodeEntity)
+                    ? _obstacleRadiusLookup[nodeEntity].Radius
                     : 1.5f;
                 float unitRadius = _obstacleRadiusLookup.HasComponent(entity)
                     ? _obstacleRadiusLookup[entity].Radius
@@ -612,8 +612,8 @@ namespace Server
 
             direction = direction / len;
 
-            float nodeRadius = _resourceNodeSettingLookup.HasComponent(nodeEntity)
-                ? _resourceNodeSettingLookup[nodeEntity].Radius
+            float nodeRadius = _obstacleRadiusLookup.HasComponent(nodeEntity)
+                ? _obstacleRadiusLookup[nodeEntity].Radius
                 : 1.5f;
 
             float unitRadius = _obstacleRadiusLookup.HasComponent(workerEntity)
