@@ -121,7 +121,7 @@ namespace Authoring
                     Radius = authoring.radius
                 });
 
-                // 이동 관련 컴포넌트(MovementSpeed, MovementGoal, MovementWaypoints,
+                // 이동 관련 컴포넌트(MovementDynamics, MovementGoal, MovementWaypoints,
                 // PathWaypoint, NavMeshAgentConfig)는 MovementAuthoring에서 처리
 
                 // =======================================================================

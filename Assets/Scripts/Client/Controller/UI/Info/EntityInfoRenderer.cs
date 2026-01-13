@@ -135,8 +135,8 @@ namespace Client
 
             // --- Movement Speed (Optional) ---
             float currentSpeed = 0f;
-            if (_entityManager.HasComponent<MovementSpeed>(entity))
-                currentSpeed = _entityManager.GetComponentData<MovementSpeed>(entity).Value;
+            if (_entityManager.HasComponent<MovementDynamics>(entity))
+                currentSpeed = _entityManager.GetComponentData<MovementDynamics>(entity).MaxSpeed;
 
             if (_cachedMoveSpeed != currentSpeed)
             {

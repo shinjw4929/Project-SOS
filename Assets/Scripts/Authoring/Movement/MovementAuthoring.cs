@@ -12,9 +12,18 @@ namespace Authoring
     /// </summary>
     public class MovementAuthoring : MonoBehaviour
     {
-        [Header("Stats")]
-        [Tooltip("이동 속도")]
-        public float MoveSpeed = 5.0f;
+        [Header("Movement Dynamics")]
+        [Tooltip("최대 이동 속도 (m/s)")]
+        public float MaxSpeed = 10.0f;
+
+        [Tooltip("가속도 (m/s^2)")]
+        public float Acceleration = 180.0f;
+
+        [Tooltip("감속도 (m/s^2)")]
+        public float Deceleration = 240.0f;
+
+        [Tooltip("회전 속도 (rad/s)")]
+        public float RotationSpeed = 12.0f;
 
         [Header("Pathfinding")]
         [Tooltip("도착 판정 반경")]
@@ -24,6 +33,10 @@ namespace Authoring
         [Tooltip("Unity Navigation Agents 탭에서의 순서 (0=첫번째, 1=두번째, ...)")]
         public int AgentTypeIndex = 0;
 
+        [Header("Y Position Lock")]
+        [Tooltip("Y축 위치를 초기값으로 고정 (비행 유닛은 비활성화)")]
+        public bool LockYPosition = true;
+
         public class Baker : Baker<MovementAuthoring>
         {
             public override void Bake(MovementAuthoring authoring)
@@ -31,9 +44,15 @@ namespace Authoring
                 Entity entity = GetEntity(TransformUsageFlags.Dynamic);
 
                 // ==========================================================
-                // 1. Stats (이동 속도)
+                // 1. Movement Dynamics (가속도/감속도 기반 이동)
                 // ==========================================================
-                AddComponent(entity, new MovementSpeed { Value = authoring.MoveSpeed });
+                AddComponent(entity, new MovementDynamics
+                {
+                    MaxSpeed = authoring.MaxSpeed,
+                    Acceleration = authoring.Acceleration,
+                    Deceleration = authoring.Deceleration,
+                    RotationSpeed = authoring.RotationSpeed
+                });
 
                 // ==========================================================
                 // 2. High Level Logic (경로 탐색용)
@@ -73,6 +92,17 @@ namespace Authoring
                 {
                     AgentTypeIndex = authoring.AgentTypeIndex
                 });
+
+                // ==========================================================
+                // 6. Y Position Lock (물리 충돌로 인한 떠오름 방지)
+                // ==========================================================
+                if (authoring.LockYPosition)
+                {
+                    AddComponent(entity, new LockedYPosition
+                    {
+                        Value = authoring.transform.position.y
+                    });
+                }
             }
         }
     }

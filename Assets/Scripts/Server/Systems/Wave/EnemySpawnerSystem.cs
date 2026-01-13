@@ -128,6 +128,10 @@ namespace Server
                 );
                 float3 spawnPos = basePos + offset;
 
+                // 프리팹의 y 오프셋 적용 (BoxCollider 반 높이, Ground 충돌 방지)
+                var prefabTransform = state.EntityManager.GetComponentData<LocalTransform>(prefabBig);
+                spawnPos.y += prefabTransform.Position.y;
+
                 Entity enemy = ecb.Instantiate(prefabBig);
                 ecb.SetComponent(enemy, LocalTransform.FromPosition(spawnPos));
             }
@@ -174,12 +178,10 @@ namespace Server
                 Entity prefab = SelectEnemyPrefab(ref random, prefabSmall, prefabBig, prefabFlying);
                 if (prefab == Entity.Null) continue;
 
-                // 비행 적은 공중에 스폰
+                // 프리팹의 y 오프셋 적용 (BoxCollider 반 높이, Ground 충돌 방지)
+                var prefabTransform = state.EntityManager.GetComponentData<LocalTransform>(prefab);
                 float3 finalSpawnPos = spawnPos;
-                if (prefab == prefabFlying)
-                {
-                    finalSpawnPos.y += 5f;
-                }
+                finalSpawnPos.y += prefabTransform.Position.y;
 
                 Entity enemy = ecb.Instantiate(prefab);
                 ecb.SetComponent(enemy, LocalTransform.FromPosition(finalSpawnPos));

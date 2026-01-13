@@ -2531,11 +2531,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: dc5414274d42d0c4cb2f6f07ea5b57f9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  initialWallDecayTime: 20
-  wave0InitialSpawnCount: 30
-  wave1TriggerTime: 60
+  initialWallDecayTime: 60
+  wave0InitialSpawnCount: 1
+  wave1TriggerTime: 120
   wave1TriggerKillCount: 15
-  wave2TriggerTime: 120
+  wave2TriggerTime: 180
   wave2TriggerKillCount: 30
   wave1SpawnInterval: 5
   wave1SpawnCount: 3

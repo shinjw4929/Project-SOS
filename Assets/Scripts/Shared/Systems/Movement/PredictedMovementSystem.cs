@@ -4,10 +4,14 @@ using Unity.Mathematics;
 using Unity.Physics;
 using Unity.Transforms;
 using Unity.NetCode;
-using Unity.Collections;
 
 namespace Shared
 {
+    /// <summary>
+    /// PhysicsVelocity 기반 가속도/감속도 이동 시스템
+    /// - 물리 엔진이 충돌 처리 담당
+    /// - 유닛/적 모두 처리
+    /// </summary>
     [UpdateInGroup(typeof(PredictedSimulationSystemGroup))]
     [BurstCompile]
     public partial struct PredictedMovementSystem : ISystem
@@ -15,27 +19,17 @@ namespace Shared
         [BurstCompile]
         public void OnCreate(ref SystemState state)
         {
-            state.RequireForUpdate<PhysicsWorldSingleton>();
             state.RequireForUpdate<NetworkTime>();
         }
 
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
-            var physicsWorld = SystemAPI.GetSingleton<PhysicsWorldSingleton>();
             float deltaTime = SystemAPI.Time.DeltaTime;
 
             var job = new MoveJob
             {
-                DeltaTime = deltaTime,
-                CollisionWorld = physicsWorld.CollisionWorld,
-                // [필터 설정] 아군/적군/건물 등 충돌 레이어 설정
-                CollisionFilter = new CollisionFilter
-                {
-                    BelongsTo = 1u << 11 | 1u << 12, // Unit | Enemy
-                    CollidesWith = 1u << 6 | 1u << 7 | 1u << 11 | 1u << 12,  // Ground | Structure | Unit | Enemy
-                    GroupIndex = 0
-                }
+                DeltaTime = deltaTime
             };
 
             state.Dependency = job.ScheduleParallel(state.Dependency);
@@ -46,83 +40,121 @@ namespace Shared
     public partial struct MoveJob : IJobEntity
     {
         public float DeltaTime;
-        [ReadOnly] public CollisionWorld CollisionWorld;
-        public CollisionFilter CollisionFilter;
 
-        private const float CornerRadius = 0.5f;
-        private const float WallCheckDistance = 1.0f;
-        private const float RotationSpeed = 20.0f; // 회전 보간 속도
-
-        // [최적화] IEnableableComponent인 MovementDestination을 사용하여
-        // 활성화된(이동 중인) 유닛만 자동으로 처리됩니다.
+        /// <summary>
+        /// PhysicsVelocity 기반 이동 처리
+        /// - MovementWaypoints가 활성화된 엔티티만 자동으로 처리 (IEnableableComponent)
+        /// </summary>
         private void Execute(
             ref LocalTransform transform,
+            ref PhysicsVelocity velocity,
             ref MovementWaypoints waypoints,
-            in MovementSpeed speed)
+            in MovementDynamics dynamics)
         {
             float3 currentPos = transform.Position;
-            float3 targetPos = waypoints.Current; // 현재 가야할 웨이포인트
+            float3 targetPos = waypoints.Current;
 
-            // Y축 고정 (RTS는 보통 2D 평면 이동)
+            // Y축 고정 (RTS 평면 이동)
             targetPos.y = currentPos.y;
 
-            float distance = math.distance(currentPos, targetPos);
+            float3 toTarget = targetPos - currentPos;
+            float distanceSq = math.lengthsq(toTarget);
+            float distance = math.sqrt(distanceSq);
 
+            // ==========================================================
             // 1. 코너링 (웨이포인트 스위칭)
-            // 다음 웨이포인트가 있고, 코너링 반경 안에 들어왔다면 타겟 변경
+            // ==========================================================
+            const float CornerRadius = 0.5f;
             if (waypoints.HasNext && distance < CornerRadius)
             {
                 waypoints.Current = waypoints.Next;
-                waypoints.HasNext = false; // 소비함
+                waypoints.HasNext = false;
 
-                // 타겟 변경 후 재계산
+                // 타겟 재계산
                 targetPos = waypoints.Current;
                 targetPos.y = currentPos.y;
-                distance = math.distance(currentPos, targetPos);
+                toTarget = targetPos - currentPos;
+                distanceSq = math.lengthsq(toTarget);
+                distance = math.sqrt(distanceSq);
             }
 
-            // 2. 이동할 필요가 없으면 리턴 (도착 판정은 ArrivalSystem에서 함)
-            if (distance <= 0.001f) return;
-
-            // 3. 방향 계산
-            float3 toTarget = targetPos - currentPos;
-            float3 finalDirection = math.normalize(toTarget);
-
-            // 4. 벽/유닛 슬라이딩 (Raycast)
-            // 장애물에 비비며 이동하도록 처리
-            var rayInput = new RaycastInput
+            // ==========================================================
+            // 2. 도착 근처면 완전 정지 (진동 방지)
+            // ==========================================================
+            const float ArrivalThreshold = 0.3f;
+            if (!waypoints.HasNext && distance < ArrivalThreshold)
             {
-                Start = currentPos,
-                End = currentPos + (finalDirection * WallCheckDistance),
-                Filter = CollisionFilter
-            };
+                velocity.Linear = float3.zero;
+                velocity.Angular = float3.zero; // 각속도도 정지
+                return; // 회전도 하지 않음
+            }
 
-            if (CollisionWorld.CastRay(rayInput, out var hit))
+            // 이동할 필요가 없으면 정지
+            if (distance <= 0.001f)
             {
-                float3 normal = hit.SurfaceNormal;
-                float dot = math.dot(finalDirection, normal);
+                velocity.Linear = float3.zero;
+                return;
+            }
 
-                // 벽을 향해 가고 있다면 (내적 < 0)
-                if (dot < 0)
+            // ==========================================================
+            // 3. 목표 속도 계산 (Arrival 감속 로직)
+            // ==========================================================
+            float targetSpeed = dynamics.MaxSpeed;
+
+            // 최종 목적지인 경우만 감속 (중간 웨이포인트는 MaxSpeed 유지)
+            if (!waypoints.HasNext)
+            {
+                // 감속 시작 거리: v^2 = 2as -> s = v^2 / (2a)
+                float slowingDistance = (dynamics.MaxSpeed * dynamics.MaxSpeed) / (2f * dynamics.Deceleration);
+
+                if (distance < slowingDistance)
                 {
-                    // 벽면을 따라가는 벡터 투영
-                    float3 slideDir = finalDirection - (dot * normal);
-                    if (math.lengthsq(slideDir) > 0.0001f)
-                    {
-                        finalDirection = math.normalize(slideDir);
-                    }
+                    // 거리에 비례하여 속도 감소 (선형 감속)
+                    targetSpeed = dynamics.MaxSpeed * (distance / slowingDistance);
+                    // 최소 속도: ArrivalThreshold 이상의 거리에서만 적용
+                    targetSpeed = math.max(targetSpeed, 0.5f);
                 }
             }
 
-            // 6. 최종 위치 적용
-            float moveStep = speed.Value * DeltaTime;
-            transform.Position += finalDirection * moveStep;
+            // ==========================================================
+            // 4. 가속/감속 적용 (현재 속도 -> 목표 속도)
+            // ==========================================================
+            float3 currentVelocity = velocity.Linear;
+            float currentSpeed = math.length(currentVelocity);
 
-            // 7. 회전 (바라보는 방향) - Slerp로 부드럽게 보간
-            if (math.lengthsq(finalDirection) > 0.001f)
+            float speedDiff = targetSpeed - currentSpeed;
+            float accelToUse = speedDiff > 0f ? dynamics.Acceleration : dynamics.Deceleration;
+
+            // 새 속도 계산 (Clamp로 오버슈팅 방지)
+            float newSpeed = currentSpeed + math.sign(speedDiff) * math.min(math.abs(speedDiff), accelToUse * DeltaTime);
+            newSpeed = math.max(0f, newSpeed);
+
+            // ==========================================================
+            // 5. 방향 계산 및 속도 적용
+            // ==========================================================
+            float3 moveDir = math.normalizesafe(toTarget);
+            float3 finalVelocity = moveDir * newSpeed;
+
+            // Y축 속도 제거 (평면 이동만)
+            finalVelocity.y = 0f;
+
+            // ==========================================================
+            // 6. 정지 보정 (Snap) - 물리 엔진 특성상 0에 수렴 어려움
+            // ==========================================================
+            if (!waypoints.HasNext && distance < 0.02f && newSpeed < 0.3f)
             {
-                quaternion targetRotation = quaternion.LookRotationSafe(finalDirection, math.up());
-                float t = math.saturate(DeltaTime * RotationSpeed);
+                finalVelocity = float3.zero;
+            }
+
+            velocity.Linear = finalVelocity;
+
+            // ==========================================================
+            // 7. 회전 (바라보는 방향) - Slerp로 부드럽게 보간
+            // ==========================================================
+            if (math.lengthsq(moveDir) > 0.001f)
+            {
+                quaternion targetRotation = quaternion.LookRotationSafe(moveDir, math.up());
+                float t = math.saturate(DeltaTime * dynamics.RotationSpeed);
                 transform.Rotation = math.slerp(transform.Rotation, targetRotation, t);
             }
         }
