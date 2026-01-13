@@ -18,6 +18,7 @@ GameObject:
   - component: {fileID: 3016667152318321654}
   - component: {fileID: 7138247794112937167}
   - component: {fileID: -3200572469814136834}
+  - component: {fileID: 2973800692130917052}
   m_Layer: 11
   m_Name: Trooper
   m_TagString: Untagged
@@ -34,8 +35,8 @@ Transform:
   m_GameObject: {fileID: 5905964026690146530}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0.8, z: 0}
-  m_LocalScale: {x: 1.6, y: 1.6, z: 1.6}
+  m_LocalPosition: {x: 0, y: 0.6, z: 0}
+  m_LocalScale: {x: 1.2, y: 1.2, z: 1.2}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
@@ -168,17 +169,17 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   unitType: 4
-  cost: 30
+  cost: 50
   populationCost: 1
-  trainingTime: 3
-  maxHealth: 100
+  trainingTime: 5
+  maxHealth: 50
   defense: 0
   visionRange: 10
   workRange: 2
-  radius: 0.8
+  radius: 0.6
   attackPower: 10
   attackSpeed: 0.8
-  attackRange: 6
+  attackRange: 8
   maxCarryAmount: 10
   gatheringSpeed: 1
   buildableStructures: []
@@ -194,9 +195,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d77a6b574ac39f44b952b5803ddaf254, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  MoveSpeed: 15
-  TurnSpeed: 10
-  ArrivalRadius: 0.5
 --- !u!114 &7138247794112937167
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -235,3 +233,18 @@ MonoBehaviour:
   UseSingleBaseline: 0
   RollbackPredictedSpawnedGhostState: 0
   RollbackPredictionOnStructuralChanges: 1
+--- !u!114 &2973800692130917052
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5905964026690146530}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fa5b9120047d80f4ab8813c7304de74b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  MoveSpeed: 10
+  ArrivalRadius: 0.5
+  AgentTypeIndex: 0

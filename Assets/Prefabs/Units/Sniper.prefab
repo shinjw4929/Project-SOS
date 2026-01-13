@@ -18,6 +18,7 @@ GameObject:
   - component: {fileID: 7588288472778261467}
   - component: {fileID: 7138247794112937167}
   - component: {fileID: -3200572469814136834}
+  - component: {fileID: 2973800692130917052}
   m_Layer: 11
   m_Name: Sniper
   m_TagString: Untagged
@@ -168,9 +169,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   unitType: 5
-  cost: 30
+  cost: 100
   populationCost: 1
-  trainingTime: 3
+  trainingTime: 10
   maxHealth: 100
   defense: 0
   visionRange: 20
@@ -178,7 +179,7 @@ MonoBehaviour:
   radius: 0.8
   attackPower: 15
   attackSpeed: 0.5
-  attackRange: 12
+  attackRange: 15
   maxCarryAmount: 10
   gatheringSpeed: 1
   buildableStructures: []
@@ -194,9 +195,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d77a6b574ac39f44b952b5803ddaf254, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  MoveSpeed: 15
-  TurnSpeed: 10
-  ArrivalRadius: 0.5
 --- !u!114 &7138247794112937167
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -235,3 +233,18 @@ MonoBehaviour:
   UseSingleBaseline: 0
   RollbackPredictedSpawnedGhostState: 0
   RollbackPredictionOnStructuralChanges: 1
+--- !u!114 &2973800692130917052
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5905964026690146530}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fa5b9120047d80f4ab8813c7304de74b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  MoveSpeed: 10
+  ArrivalRadius: 0.5
+  AgentTypeIndex: 0

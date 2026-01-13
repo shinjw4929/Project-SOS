@@ -125,8 +125,10 @@ public partial class CameraSystem : SystemBase
         float2 screenSize = new float2(Screen.width, Screen.height);
 
         // 마우스가 화면 밖이거나 유효하지 않은 위치면 무시
+        // 상단/우측은 경계에서 screenSize와 같거나 약간 초과할 수 있으므로 여유 허용
         if (mousePos.x < 0 || mousePos.y < 0 ||
-            mousePos.x > screenSize.x || mousePos.y > screenSize.y)
+            mousePos.x > screenSize.x + settings.EdgeThreshold ||
+            mousePos.y > screenSize.y + settings.EdgeThreshold)
             return;
 
         float3 panDirection = float3.zero;

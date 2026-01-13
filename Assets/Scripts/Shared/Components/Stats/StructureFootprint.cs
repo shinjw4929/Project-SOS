@@ -2,12 +2,16 @@ using Unity.Entities;
 
 namespace Shared
 {
-    // 건물이 차지하는 그리드 칸 수
+    // 건물이 차지하는 크기 정보
     public struct StructureFootprint : IComponentData
     {
-        public int Width;  // 가로 길이
-        public int Length; // 세로 길이
+        // 그리드 칸 수 (건설/점유 시스템용)
+        public int Width;  // 가로 칸 수
+        public int Length; // 세로 칸 수
         public float Height; // 건물 높이
-        // 센터 포지션 계산을 위한 오프셋을 미리 계산해 둘 수도 있음
+
+        // 실제 월드 크기 (NavMeshObstacle용, 프리팹 Collider에서 추출)
+        public float WorldWidth;  // 실제 가로 크기
+        public float WorldLength; // 실제 세로 크기
     }
 }

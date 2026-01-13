@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Rendering;
@@ -7,25 +6,31 @@ using Shared;
 
 namespace Authoring
 {
+    /// <summary>
+    /// 적 엔티티 Authoring
+    /// - 이동 관련 컴포넌트는 MovementAuthoring에서 처리
+    /// </summary>
     public class EnemyAuthoring : MonoBehaviour
     {
         [Header("Base Status")]
-        public float moveSpeed = 10.0f;
         public float maxHealth = 100.0f;
         public float defense = 0.0f;
         public float visionRange = 10.0f;
 
         [Header("Collision")]
         [Min(0.1f)] public float radius = 1.5f;
-        
+
         [Header("Combat Status")]
         public float attackPower = 0.0f;
         public float attackSpeed = 1.0f;
         public float attackRange = 2.0f;
-        
+
         [Header("Enemy Status")]
-        public float aggroRange  = 15.0f;
-        
+        public float aggroRange = 15.0f;
+
+        [Header("Attack Type")]
+        public bool isRanged = false;
+
         class Baker : Baker<EnemyAuthoring>
         {
             public override void Bake(EnemyAuthoring authoring)
@@ -35,7 +40,13 @@ namespace Authoring
                 // =======================================================================
                 // 1. [정체성] 태그 설정
                 // =======================================================================
-                AddComponent(entity, new EnemyTag());  // Enemy 특화 쿼리용
+                AddComponent(entity, new EnemyTag());
+
+                // 원거리 적 태그
+                if (authoring.isRanged)
+                {
+                    AddComponent(entity, new RangedEnemyTag());
+                }
 
                 // =======================================================================
                 // 2. [기본 스탯]
@@ -50,31 +61,25 @@ namespace Authoring
                 // 데미지 이벤트 버퍼 (지연 데미지 적용용)
                 AddBuffer<DamageEvent>(entity);
 
-                // 이동 속도
-                AddComponent(entity, new MovementSpeed
-                {
-                    Value = authoring.moveSpeed
-                });
-                
                 // 방어력
                 AddComponent(entity, new Defense
                 {
                     Value = authoring.defense
                 });
-                
+
                 // 시야
                 AddComponent(entity, new VisionRange
                 {
                     Value = authoring.visionRange
                 });
-                
+
                 // 추격, 공격 대상
                 AddComponent(entity, new AggroTarget
                 {
                     TargetEntity = Entity.Null,
-                    LastTargetPosition = Vector3.zero,
+                    LastTargetPosition = float3.zero,
                 });
-                
+
                 AddComponent(entity, new EnemyChaseDistance
                 {
                     LoseTargetDistance = authoring.aggroRange
@@ -92,7 +97,7 @@ namespace Authoring
                 });
 
                 // =======================================================================
-                // 4. [전투 능력] - attackPower > 0일 때만 (UnitAuthoring 패턴)
+                // 4. [전투 능력] - attackPower > 0일 때만
                 // =======================================================================
                 if (authoring.attackPower > 0)
                 {
@@ -110,44 +115,17 @@ namespace Authoring
                     });
                 }
 
-                // =======================================================================
-                // 5. [NavMesh 이동 시스템] - 유닛과 동일한 경로 탐색 사용
-                // =======================================================================
-                // 최종 목적지 관리 (PathfindingSystem이 사용)
-                AddComponent(entity, new MovementGoal
-                {
-                    Destination = default,
-                    IsPathDirty = false,
-                    CurrentWaypointIndex = 0
-                });
-
-                // 실제 이동 웨이포인트 (초기엔 비활성화)
-                AddComponent(entity, new MovementWaypoints
-                {
-                    Current = float3.zero,
-                    Next = float3.zero,
-                    HasNext = false,
-                    ArrivalRadius = 0.5f  // 적 기본 도착 반경
-                });
-                SetComponentEnabled<MovementWaypoints>(entity, false); // 타겟 찾기 전까지 비활성화
-
-                // 유닛/적 간 밀어내기 힘
-                AddComponent(entity, new SeparationForce
-                {
-                    Force = float3.zero
-                });
-
-                // 경로 탐색 결과 버퍼 (PathfindingSystem이 채움)
-                AddBuffer<PathWaypoint>(entity);
-
                 // 충돌 반경 (도착 판정용)
                 AddComponent(entity, new ObstacleRadius
                 {
-                    Radius = authoring.radius  // 적 기본 반경
+                    Radius = authoring.radius
                 });
 
+                // 이동 관련 컴포넌트(MovementSpeed, MovementGoal, MovementWaypoints,
+                // PathWaypoint, NavMeshAgentConfig)는 MovementAuthoring에서 처리
+
                 // =======================================================================
-                // 6. [렌더링] - 적 시각적 구분
+                // 5. [렌더링] - 적 시각적 구분
                 // =======================================================================
                 AddComponent(entity, new URPMaterialPropertyBaseColor
                 {

@@ -17,6 +17,9 @@ public partial struct EnemyTargetSystem : ISystem
     {
         _transformLookup = state.GetComponentLookup<LocalTransform>(isReadOnly: true);
 
+        // GridSettings가 있어야 시스템 실행
+        state.RequireForUpdate<GridSettings>();
+
         // [핵심] 복합 조건 쿼리 생성 (Any 사용)
         // 조건: (LocalTransform AND Team) AND (UnitTag OR StructureTag) AND NOT (EnemyTag OR WallTag)
         var queryDesc = new EntityQueryDesc
@@ -51,19 +54,26 @@ public partial struct EnemyTargetSystem : ISystem
         var targetTransforms = _potentialTargetQuery.ToComponentDataArray<LocalTransform>(Allocator.TempJob);
         var targetTeams = _potentialTargetQuery.ToComponentDataArray<Team>(Allocator.TempJob);
 
+        // GridSettings 조회 (배회용)
+        var gridSettings = SystemAPI.GetSingleton<GridSettings>();
+        float elapsedTime = (float)SystemAPI.Time.ElapsedTime;
+
         // 2. Job 예약
         var job = new EnemyTargetJob
         {
             PotentialTargets = potentialTargets,
             TargetTransforms = targetTransforms,
             TargetTeams = targetTeams,
-            TransformLookup = _transformLookup
+            TransformLookup = _transformLookup,
+            GridSettings = gridSettings,
+            ElapsedTime = elapsedTime
         };
 
         state.Dependency = job.ScheduleParallel(state.Dependency);
     }
 
     [BurstCompile]
+    [WithOptions(EntityQueryOptions.IgnoreComponentEnabledState)]
     public partial struct EnemyTargetJob : IJobEntity
     {
         // [DeallocateOnJobCompletion]: Job이 끝나면 이 배열들을 자동으로 Dispose 함 (메모리 누수 방지)
@@ -72,6 +82,10 @@ public partial struct EnemyTargetSystem : ISystem
         [ReadOnly] [DeallocateOnJobCompletion] public NativeArray<Team> TargetTeams;
 
         [ReadOnly] public ComponentLookup<LocalTransform> TransformLookup;
+
+        // 배회용 필드
+        [ReadOnly] public GridSettings GridSettings;
+        public float ElapsedTime;
 
         // 목적지 변경 역치 (1m 이상 차이나야 경로 재계산)
         private const float DestinationThresholdSq = 1.0f;
@@ -86,6 +100,7 @@ public partial struct EnemyTargetSystem : ISystem
             RefRO<EnemyChaseDistance> chaseDistance,
             RefRO<Team> myTeam,
             RefRW<MovementGoal> goal,  // NavMesh 경로 탐색용
+            EnabledRefRW<MovementWaypoints> waypointsEnabled,  // 배회용 (도착 여부 판단)
             in EnemyTag enemyTag)
         {
             float3 myPos = myTransform.ValueRO.Position;
@@ -200,8 +215,42 @@ public partial struct EnemyTargetSystem : ISystem
             {
                 target.ValueRW.TargetEntity = Entity.Null;
 
-                // EnemyState를 Idle로 변경
-                enemyState.ValueRW.CurrentState = EnemyContext.Idle;
+                // ---------------------------------------------------------
+                // 배회 로직: 타겟 없으면 맵 전역을 랜덤하게 배회
+                // ---------------------------------------------------------
+                // 배회 목적지 생성 조건:
+                // 1. 현재 Wandering 상태가 아님 (처음 배회 시작)
+                // 2. 또는 MovementWaypoints가 비활성화됨 (목적지 도착)
+                bool needNewWanderTarget = enemyState.ValueRO.CurrentState != EnemyContext.Wandering
+                                           || !waypointsEnabled.ValueRO;
+
+                if (needNewWanderTarget)
+                {
+                    // 랜덤 목적지 생성 (entity.Index + ElapsedTime 기반 시드)
+                    var random = Random.CreateFromIndex((uint)(entity.Index + ElapsedTime * 1000));
+
+                    float2 mapMin = GridSettings.GridOrigin;
+                    float2 mapMax = mapMin + new float2(
+                        GridSettings.GridSize.x * GridSettings.CellSize,
+                        GridSettings.GridSize.y * GridSettings.CellSize
+                    );
+
+                    // 맵 경계에서 5m 여유 마진
+                    float3 wanderDest = new float3(
+                        random.NextFloat(mapMin.x + 5f, mapMax.x - 5f),
+                        myPos.y,  // 현재 높이 유지 (비행 적 대응)
+                        random.NextFloat(mapMin.y + 5f, mapMax.y - 5f)
+                    );
+
+                    goal.ValueRW.Destination = wanderDest;
+                    goal.ValueRW.IsPathDirty = true;
+
+                    // MovementWaypoints 활성화 (PathfindingSystem이 경로 계산)
+                    waypointsEnabled.ValueRW = true;
+                }
+
+                // EnemyState를 Wandering으로 변경
+                enemyState.ValueRW.CurrentState = EnemyContext.Wandering;
             }
         }
     }

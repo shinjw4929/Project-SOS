@@ -120,6 +120,7 @@ Thumbs.db
 
 # Claude & AI Tools
 .claude/
+tmpclaude-*-cwd
 
 # Others
 /nul

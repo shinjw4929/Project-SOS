@@ -76,6 +76,7 @@ namespace Server
                          RefRW<EnemyState>,
                          RefRO<Team>>()
                      .WithAll<EnemyTag>()
+                     .WithNone<RangedEnemyTag>()
                      .WithEntityAccess())
             {
                 ProcessMeleeAttack(

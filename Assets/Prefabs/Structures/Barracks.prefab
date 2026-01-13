@@ -173,6 +173,8 @@ MonoBehaviour:
   length: 3
   height: 3
   radius: 2.13
+  worldWidth: 3
+  worldLength: 3
   cost: 100
   buildTime: 3
   maxHealth: 10

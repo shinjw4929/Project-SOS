@@ -13,8 +13,6 @@ namespace Shared
         public int AmountPerGather;
         // 기본 채집 소요 시간 (난이도)
         public float BaseGatherDuration;
-        // 자원 노드 반지름 (도착 판정용)
-        public float Radius;
         // 최대 매장량 (일단 무한)
         // public int MaxAmount;
     }

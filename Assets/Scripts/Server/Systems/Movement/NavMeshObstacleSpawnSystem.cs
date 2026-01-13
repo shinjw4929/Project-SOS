@@ -24,19 +24,15 @@ namespace Server
         // NavMesh Agent Radius(보통 0.5)만큼 NavMesh가 자동으로 벌어지므로,
         // 이를 상쇄하기 위해 장애물 자체를 작게 만듭니다.
         // 값 추천: 0.2f ~ 0.5f (너무 크면 유닛이 건물 안으로 파고듬)
-        private const float ObstaclePadding = 0.5f;
+        private const float ObstaclePadding = 0.7f;
 
         protected override void OnCreate()
         {
-            RequireForUpdate<GridSettings>();
+            // GridSettings 의존성 제거 - WorldWidth/WorldLength 사용
         }
 
         protected override void OnUpdate()
         {
-            // GridSettings 가져오기 (CellSize 계산용)
-            var gridSettings = SystemAPI.GetSingleton<GridSettings>();
-            float cellSize = gridSettings.CellSize;
-
             var ecb = new EntityCommandBuffer(Unity.Collections.Allocator.Temp);
 
             foreach (var (transform, footprint, entity) in
@@ -55,18 +51,14 @@ namespace Server
                 obstacle.shape = NavMeshObstacleShape.Box;
 
                 // 3. 크기 및 중심점 계산
-                
+
                 // 중심점: 높이의 절반만큼 올려야 바닥에 묻히지 않음
                 obstacle.center = new Vector3(0, footprint.ValueRO.Height * 0.5f, 0);
 
-                // 월드 크기 계산: 그리드 칸 수 * 셀 크기
-                float worldWidth = footprint.ValueRO.Width * cellSize;
-                float worldLength = footprint.ValueRO.Length * cellSize;
-
                 // [핵심] Padding 적용: 실제 크기에서 Padding만큼 빼서 장애물을 축소
                 // math.max(0.1f, ...)는 크기가 음수가 되는 것을 방지
-                float sizeX = math.max(0.1f, worldWidth - ObstaclePadding);
-                float sizeZ = math.max(0.1f, worldLength - ObstaclePadding);
+                float sizeX = math.max(0.1f, footprint.ValueRO.WorldWidth - ObstaclePadding);
+                float sizeZ = math.max(0.1f, footprint.ValueRO.WorldLength - ObstaclePadding);
 
                 obstacle.size = new Vector3(
                     sizeX,

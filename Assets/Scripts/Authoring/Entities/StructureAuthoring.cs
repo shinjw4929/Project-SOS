@@ -24,11 +24,15 @@ namespace Authoring
         [Header("Unit Production Settings")]
         public List<GameObject> producibleUnits; // 이 건물이 생산할 수 있는 유닛 프리팹 목록
         
-        [Header("Size")]
+        [Header("Grid Size (그리드 칸 수)")]
         [Min(1)] public int width = 1;
         [Min(1)] public int length = 1;
         public float height = 1;
         public float radius = 1;
+
+        [Header("World Size (실제 크기, NavMeshObstacle용)")]
+        [Min(0.1f)] public float worldWidth = 1f;
+        [Min(0.1f)] public float worldLength = 1f;
         
         [Header("Build Info (Cost & Time)")]
         public int cost = 100;
@@ -175,7 +179,9 @@ namespace Authoring
                 {
                     Width = authoring.width,
                     Length = authoring.length,
-                    Height = authoring.height
+                    Height = authoring.height,
+                    WorldWidth = authoring.worldWidth,
+                    WorldLength = authoring.worldLength
                 });
                 
                 AddComponent(entity, new ObstacleRadius

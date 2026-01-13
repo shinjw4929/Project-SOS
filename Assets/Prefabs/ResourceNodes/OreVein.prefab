@@ -225,6 +225,8 @@ MonoBehaviour:
   width: 3
   length: 2
   height: 1
+  worldWidth: 3
+  worldLength: 2
   resourceType: 1
   amountPerGather: 10
   baseGatherDuration: 1
