@@ -104,6 +104,7 @@ public class StructurePreviewController : MonoBehaviour
             
             _currentPreview = Instantiate(targetPrefab);
             _currentPreview.name = targetPrefab.name + "(Preview)"; // 스트링 할당은 여기서 딱 한 번만
+            _currentPreview.hideFlags = HideFlags.DontSave; // 에디터 저장 시 제외 (Assertion 에러 방지)
             
             // 2. 컴포넌트 캐싱 (매 프레임 GetComponent 방지)
             _previewRenderer = _currentPreview.GetComponentInChildren<Renderer>();

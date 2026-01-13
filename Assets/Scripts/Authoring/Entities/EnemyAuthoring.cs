@@ -28,6 +28,9 @@ namespace Authoring
         [Header("Enemy Status")]
         public float aggroRange = 15.0f;
 
+        [Header("Attack Type")]
+        public bool isRanged = false;
+
         class Baker : Baker<EnemyAuthoring>
         {
             public override void Bake(EnemyAuthoring authoring)
@@ -38,6 +41,12 @@ namespace Authoring
                 // 1. [정체성] 태그 설정
                 // =======================================================================
                 AddComponent(entity, new EnemyTag());
+
+                // 원거리 적 태그
+                if (authoring.isRanged)
+                {
+                    AddComponent(entity, new RangedEnemyTag());
+                }
 
                 // =======================================================================
                 // 2. [기본 스탯]

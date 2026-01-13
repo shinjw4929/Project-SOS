@@ -131,6 +131,7 @@ Shared/
 ├── Components/
 │   ├── Data/
 │   │   ├── EnemyChaseDistance.cs            # 적 추적 거리
+│   │   ├── EnemySpawnPoint.cs               # 적 스폰 포인트 위치
 │   │   ├── ExplosionData.cs                 # 폭발 데이터
 │   │   ├── GridOccupancyCleanup.cs
 │   │   ├── GridPosition.cs
@@ -177,6 +178,7 @@ Shared/
 │   └── Tags/
 │       ├── CarriedResourceTag.cs            # 운반 자원 태그
 │       ├── IdentityTags.cs                  # UnitTag, StructureTag
+│       ├── RangedEnemyTag.cs                # 원거리 적 태그 (EnemyFlying)
 │       ├── RangedUnitTag.cs                 # 원거리 유닛 태그 (Trooper, Sniper)
 │       ├── SelfDestructTag.cs               # 자폭 태그
 │       ├── StructureTypeTags.cs             # WallTag, ProductionFacilityTag, ResourceCenterTag 등
@@ -194,11 +196,14 @@ Shared/
 │   ├── ProjectileVisualRpc.cs               # [미사용] 투사체 시각 효과 RPC
 │   └── SelfDestructRequestRpc.cs            # 자폭 요청 RPC
 ├── Singletons/
+│   ├── GamePhaseState.cs                    # Wave 상태 싱글톤 (WavePhase, ElapsedTime, TotalKillCount)
+│   ├── GameSettings.cs                      # 게임 설정 싱글톤 (Wave 전환 조건 포함)
 │   ├── GhostIdMap.cs                        # Ghost ID 맵 싱글톤
 │   ├── GridSettings.cs
 │   └── Ref/
 │       ├── CarriedResourcePrefabRef.cs      # 운반 자원 프리팹 참조
-│       ├── EnemyPrefabRef.cs                # 적 프리팹 참조
+│       ├── EnemyPrefabCatalog.cs            # 적 프리팹 카탈로그 (명시적 필드: Small/Big/Flying)
+│       ├── EnemyPrefabRef.cs                # [Deprecated] 적 프리팹 참조
 │       ├── ProjectilePrefabRef.cs           # 투사체 프리팹 참조
 │       ├── ResourceNodePrefabRef.cs         # 자원 노드 프리팹 참조
 │       └── UserEconomyPrefabRef.cs          # 유저 경제 프리팹 참조
@@ -210,7 +215,6 @@ Shared/
 │   │   └── CommandProcessingSystem.cs       # 명령 처리 시스템 (이동/공격/건설/채집)
 │   ├── Enemy/
 │   │   ├── EnemyMoveSystem.cs               # 적 이동 시스템
-│   │   ├── EnemySpawnerSystem.cs            # 적 스폰 시스템
 │   │   └── EnemyTargetSystem.cs             # 적 타겟 시스템
 │   ├── Grid/
 │   │   ├── GridOccupancyEventSystem.cs
@@ -236,6 +240,8 @@ Server/
     │   ├── MeleeAttackSystem.cs             # 근접 공격 시스템 (거리 기반, RangedUnitTag 제외)
     │   ├── RangedAttackSystem.cs            # 원거리 공격 시스템 (필중, 시각 투사체 생성)
     │   └── ServerDeathSystem.cs             # 서버 사망 처리
+    ├── Initialize/
+    │   └── GamePhaseInitSystem.cs           # GamePhaseState 싱글톤 초기화
     ├── Commands/
     │   ├── Construction/
     │   │   └── HandleBuildRequestSystem.cs
@@ -257,13 +263,18 @@ Server/
     │   ├── NavMeshObstacleSpawnSystem.cs    # NavMesh 장애물 생성
     │   ├── PathfindingSystem.cs             # Pathfinding 시스템
     │   └── PathFollowSystem.cs              # 경로 추적 시스템
-    └── Physics/
-        └── StructurePushOutSystem.cs        # 건물 충돌 밀어내기
+    ├── Physics/
+    │   └── StructurePushOutSystem.cs        # 건물 충돌 밀어내기
+    └── Wave/
+        ├── EnemyDeathCountSystem.cs         # 적 처치 수 카운팅 (ServerDeathSystem 전)
+        ├── EnemySpawnerSystem.cs            # Wave별 적 스폰 시스템
+        └── WaveManagerSystem.cs             # Wave 전환 조건 체크
 
 Authoring/
 ├── CatalogAndRef/
 │   ├── CarriedResourcePrefabRefAuthoring.cs # 운반 자원 프리팹 참조
-│   ├── EnemyPrefabRefAuthoring.cs           # 적 프리팹 참조
+│   ├── EnemyPrefabCatalogAuthoring.cs       # 적 프리팹 카탈로그 (명시적 필드, 순서 무관)
+│   ├── EnemyPrefabRefAuthoring.cs           # [Deprecated] 적 프리팹 참조
 │   ├── ProjectilePrefabRefAuthoring.cs      # 투사체 프리팹 참조
 │   ├── ResourceNodePrefabRefAuthoring.cs    # 자원 노드 프리팹 참조
 │   ├── StructureCatalogAuthoring.cs         # 건물 카탈로그
@@ -285,6 +296,8 @@ Authoring/
 │   ├── MovementAuthoring.cs                 # 공용 이동 오서링 (MovementSpeed, NavMesh 등)
 │   └── UnitMovementAuthoring.cs             # 유닛 전용 명령/상태 오서링 (UnitIntentState, UnitCommand)
 └── Settings/
+    ├── EnemySpawnPointAuthoring.cs          # 적 스폰 포인트 위치 지정
+    ├── GameSettingsAuthoring.cs             # 게임 설정 (Wave 포함)
     └── GridSettingsAuthoring.cs
 
 Root (Scripts)/
@@ -301,7 +314,8 @@ Root (Scripts)/
 |--------|------|--------|
 | ClientBootstrapSystem | Client | OrderFirst=true |
 | CatalogIndexMapInitSystem | Client | UpdateAfter: ClientBootstrapSystem |
-| ObstacleGridInitSystem | Shared | UpdateBefore: GridOccupancyEventSystem |
+| ObstacleGridInitSystem | Shared | - |
+| GamePhaseInitSystem | Server | - |
 
 #### 2. GhostInputSystemGroup (Client 입력 처리)
 
@@ -311,30 +325,24 @@ UserSelectionInputUpdateSystem
 EntitySelectionSystem
     ↓ UpdateAfter
 SelectedEntityInfoUpdateSystem
-    ↓ UpdateAfter
-UnitCommandInputSystem ←── GhostIdLookupSystem (UpdateAfter)
-    ↓ UpdateAfter
-StructurePlacementInputSystem
-    ↓ UpdateAfter
-PendingBuildExecuteSystem
+    ↓ UpdateAfter (분기)
+    ├─ UnitCommandInputSystem
+    │      ↓ UpdateAfter
+    │  StructurePlacementInputSystem
+    │      ↓ UpdateAfter
+    │  PendingBuildExecuteSystem
+    └─ StructureCommandInputSystem (병렬)
+ConstructionMenuInputSystem (독립)
 ```
-
-독립 시스템:
-- ConstructionMenuInputSystem
-- StructureCommandInputSystem (UpdateAfter: SelectedEntityInfoUpdateSystem)
-- FireProjectileClientRpcSystem
 
 #### 3. PredictedSimulationSystemGroup (Client/Server 공유)
 
-```
-GhostIdLookupSystem (OrderFirst, CompleteDependency)
-    ↓
-UnitSeparationSystem
-    ↓ UpdateAfter
-PredictedMovementSystem
-    ↓ UpdateAfter
-MovementArrivalSystem
-```
+| 시스템 | 위치 | 의존성 |
+|--------|------|--------|
+| GhostIdLookupSystem | Shared | OrderFirst=true |
+| CommandProcessingSystem | Shared | - |
+| PredictedMovementSystem | Shared | - |
+| MovementArrivalSystem | Shared | UpdateAfter: PredictedMovementSystem |
 
 #### 4. FixedStepSimulationSystemGroup (Server 전투)
 
@@ -343,11 +351,10 @@ PhysicsSimulationGroup
     ↓ UpdateAfter
 CombatDamageSystem (투사체 충돌 → DamageEvent, VisualOnlyTag 제외)
     ↓ UpdateAfter
-MeleeAttackSystem (근접 거리 판정 → DamageEvent, RangedUnitTag 제외)
+MeleeAttackSystem (근접 거리 판정 → DamageEvent, RangedUnitTag/RangedEnemyTag 제외)
     ↓ UpdateAfter
-RangedAttackSystem (원거리 필중 → DamageEvent + 시각 투사체 생성)
-    ↓ UpdateAfter
-DamageApplySystem (DamageEvent → Health 적용)
+RangedAttackSystem (원거리 필중 → DamageEvent + 시각 투사체 생성, RangedUnitTag/RangedEnemyTag 대상)
+DamageApplySystem (UpdateAfter: MeleeAttackSystem, DamageEvent → Health 적용)
 ```
 
 #### 5. SimulationSystemGroup
@@ -356,28 +363,33 @@ DamageApplySystem (DamageEvent → Health 적용)
 
 | 시스템 | 의존성 |
 |--------|--------|
-| GoInGameServerSystem | - |
 | HandleBuildRequestSystem | - |
 | StructurePushOutSystem | UpdateAfter: HandleBuildRequestSystem |
-| PathfindingSystem | - |
+| NavMeshObstacleSpawnSystem | - |
+| PathfindingSystem | UpdateAfter: NavMeshObstacleSpawnSystem |
 | PathFollowSystem | UpdateAfter: PathfindingSystem |
-| NavMeshObstacleSpawnSystem | UpdateAfter: ObstacleGridInitSystem |
-| NavMeshObstacleCleanupSystem | UpdateAfter: ServerDeathSystem |
-| FireProjectileServerSystem | OrderLast=true |
-| HandleProduceUnitRequestSystem | - |
 | HandleGatherRequestSystem | - |
+| HandleReturnResourceRequestSystem | - |
+| HandleProduceUnitRequestSystem | - |
 | SelfDestructTimerSystem | UpdateBefore: HandleSelfDestructRequestSystem |
 | HandleSelfDestructRequestSystem | - |
 | WorkerCarriedResourceSpawnSystem | - |
-| ResourceNodeCleanupSystem | OrderLast=true |
 | ServerDeathSystem | - |
+| NavMeshObstacleCleanupSystem | UpdateAfter: ServerDeathSystem |
+| TechStateRecalculateSystem | UpdateAfter: ServerDeathSystem |
+| InitialWallDecaySystem | - |
+| HeroDamageOnContactServerSystem | - |
+| WaveManagerSystem | - |
+| EnemyDeathCountSystem | UpdateBefore: ServerDeathSystem |
+| EnemySpawnerSystem | UpdateAfter: WaveManagerSystem |
+| FireProjectileServerSystem | OrderLast=true |
+| ResourceNodeCleanupSystem | OrderLast=true |
 
 **Shared:**
-- EnemyTargetSystem, EnemyMoveSystem, EnemySpawnerSystem, ProjectileMoveSystem
+- EnemyTargetSystem, ProjectileMoveSystem
 
 **Client:**
-- NotificationReceiveSystem, GoInGameClientSystem, ClientDeathSystem
-- ProjectileVisualSystem (시각 투사체 이동), ClientProjectileMoveSystem (시각 투사체 이동 처리)
+- SelectionRingSpawnSystem, NotificationReceiveSystem, ClientDeathSystem, ProjectileVisualSystem
 
 #### 6. LateSimulationSystemGroup
 
@@ -389,45 +401,49 @@ DamageApplySystem (DamageEvent → Health 적용)
 
 #### 7. TransformSystemGroup (Client/Server 공유)
 
-| 시스템 | 역할 |
-|--------|------|
-| CarriedResourceFollowSystem | Worker 위치 추적 + CarriedAmount 기반 Scale 토글 |
+| 시스템 | 위치 | 역할 |
+|--------|------|------|
+| CarriedResourceFollowSystem | Shared | Worker 위치 추적 + CarriedAmount 기반 Scale 토글 |
+| SelectionVisualizationSystem | Client | 선택 시각화 (노란색 링) |
 
 #### 8. PresentationSystemGroup (Client 시각화)
 
-```
-SelectionVisualizationSystem
-StructurePreviewUpdateSystem
-EnemyHpTextPresentationSystem
-```
+| 시스템 | 역할 |
+|--------|------|
+| StructurePreviewUpdateSystem | 건설 프리뷰 |
+| HeroHpTextPresentationSystem | 영웅 HP 텍스트 |
 
 #### 핵심 의존성 흐름 요약
 
 ```
 [입력] GhostInputSystemGroup
     → UserSelectionInputUpdateSystem → EntitySelectionSystem
-    → SelectedEntityInfoUpdateSystem → UnitCommandInputSystem
+    → SelectedEntityInfoUpdateSystem
+        ├─ UnitCommandInputSystem → StructurePlacementInputSystem → PendingBuildExecuteSystem
+        └─ StructureCommandInputSystem
 
-[시뮬레이션] PredictedSimulationSystemGroup
-    → UnitSeparationSystem → PredictedMovementSystem → MovementArrivalSystem
+[이동] PredictedSimulationSystemGroup
+    → GhostIdLookupSystem (OrderFirst)
+    → CommandProcessingSystem, PredictedMovementSystem → MovementArrivalSystem
 
 [전투] FixedStepSimulationSystemGroup (Server)
-    → CombatDamageSystem → MeleeAttackSystem → RangedAttackSystem → DamageApplySystem
+    → CombatDamageSystem → MeleeAttackSystem → RangedAttackSystem, DamageApplySystem
 
-[시각 효과] SimulationSystemGroup (Client)
-    → ProjectileVisualSystem → ClientProjectileMoveSystem
+[건설/경로] SimulationSystemGroup (Server)
+    → HandleBuildRequestSystem → StructurePushOutSystem
+    → NavMeshObstacleSpawnSystem → PathfindingSystem → PathFollowSystem
 
-[자원 채집] SimulationSystemGroup (Server)
-    → WorkerCarriedResourceSpawnSystem (Worker 생성 시 CarriedResource 연결)
+[정리] SimulationSystemGroup (Server)
+    → ServerDeathSystem → NavMeshObstacleCleanupSystem, TechStateRecalculateSystem
 
 [후처리] LateSimulationSystemGroup
     → GridOccupancyEventSystem, WorkerGatheringSystem, ProductionProgressSystem
 
-[Transform] TransformSystemGroup (Client/Server)
-    → CarriedResourceFollowSystem (위치 + Scale 동기화)
+[Transform] TransformSystemGroup
+    → CarriedResourceFollowSystem, SelectionVisualizationSystem
 
 [렌더링] PresentationSystemGroup (Client)
-    → SelectionVisualizationSystem, StructurePreviewUpdateSystem
+    → StructurePreviewUpdateSystem, HeroHpTextPresentationSystem
 ```
 
 ---
@@ -446,7 +462,7 @@ EnemyHpTextPresentationSystem
 - **MovementAuthoring**: MovementSpeed, MovementGoal, MovementWaypoints, PathWaypoint, NavMeshAgentConfig
 - **UnitMovementAuthoring**: UnitIntentState, UnitActionState, UnitCommand (RequireComponent: MovementAuthoring)
 - **UnitAuthoring**: UnitTag, Team, Health, ObstacleRadius, CombatStats 등 (유닛 정체성/스탯)
-- **EnemyAuthoring**: EnemyTag, Team, Health, ObstacleRadius, EnemyState 등 (적 정체성/스탯)
+- **EnemyAuthoring**: EnemyTag, Team, Health, ObstacleRadius, EnemyState 등 (적 정체성/스탯), isRanged=true 시 RangedEnemyTag 추가
 
 **User State Machine** (`Client/Component/Singleton/UserState.cs`):
 ```csharp
@@ -472,8 +488,8 @@ UnitCommandInputSystem               → 우클릭 명령 생성 (이동/공격)
 ```
 [FixedStepSimulationSystemGroup - Server]
 ├── CombatDamageSystem      → 투사체 충돌 시 DamageEvent 버퍼에 추가 (VisualOnlyTag 제외)
-├── MeleeAttackSystem       → 근접 거리 판정 후 DamageEvent 버퍼에 추가 (RangedUnitTag 제외)
-├── RangedAttackSystem      → 원거리 필중 데미지 + 시각 투사체 생성
+├── MeleeAttackSystem       → 근접 거리 판정 후 DamageEvent 버퍼에 추가 (RangedUnitTag/RangedEnemyTag 제외)
+├── RangedAttackSystem      → 원거리 필중 데미지 + 시각 투사체 생성 (유닛 + 적 모두 처리)
 └── DamageApplySystem       → DamageEvent 버퍼 합산 → Health 적용
 
 [SimulationSystemGroup - Server]
@@ -485,8 +501,9 @@ UnitCommandInputSystem               → 우클릭 명령 생성 (이동/공격)
 ```
 
 **공격 유형별 처리:**
-- **근접 공격**: 거리 계산 (distance ≤ AttackRange) → MeleeAttackSystem → DamageEvent 버퍼 (Swordsman 등)
-- **원거리 공격**: 거리 계산 → RangedAttackSystem → 즉시 DamageEvent + 시각 투사체 (Trooper, Sniper)
+- **근접 공격**: 거리 계산 (distance ≤ AttackRange) → MeleeAttackSystem → DamageEvent 버퍼 (Swordsman, EnemySmall, EnemyBig 등)
+- **원거리 공격 (유닛)**: 거리 계산 → RangedAttackSystem → 즉시 DamageEvent + 시각 투사체 (Trooper, Sniper - RangedUnitTag)
+- **원거리 공격 (적)**: 거리 계산 → RangedAttackSystem → 즉시 DamageEvent + 시각 투사체 (EnemyFlying - RangedEnemyTag)
 - **투사체 공격**: Physics Trigger → CombatDamageSystem → DamageEvent 버퍼 (VisualOnlyTag 제외)
 - **데미지 적용**: DamageApplySystem이 모든 DamageEvent를 Health에 적용
 - **시각 투사체**: 서버에서 생성 → Ghost로 클라이언트 복제 → 목표 도달 시 자동 삭제
@@ -516,6 +533,39 @@ UnitCommandInputSystem               → 우클릭 명령 생성 (이동/공격)
 - **Structural Change 없음**: Scale 값 변경만으로 가시성 제어
 - **네트워크 최적화**: CarriedResource 생성/삭제 RPC 불필요, WorkerState.CarriedAmount만 동기화
 - **자동 정리**: LinkedEntityGroup으로 Worker 삭제 시 CarriedResource 자동 삭제
+
+**Wave System Flow** (서버 전용):
+```
+[InitializationSystemGroup]
+GamePhaseInitSystem                  → GamePhaseState 싱글톤 생성
+
+[SimulationSystemGroup]
+WaveManagerSystem                    → ElapsedTime 업데이트, Wave 전환 조건 체크
+    ↓ UpdateAfter
+EnemyDeathCountSystem                → Health ≤ 0인 EnemyTag 카운트 → TotalKillCount 업데이트
+    ↓ UpdateBefore
+ServerDeathSystem                    → 엔티티 파괴
+    ↓ (병렬)
+EnemySpawnerSystem                   → Wave별 스폰 로직 실행
+    - Wave0: 초기 30마리 EnemyBig 즉시 스폰
+    - Wave1: 5초마다 3마리 (Small 60%, Big 40%)
+    - Wave2: 4초마다 4마리 (Small 50%, Big 35%, Flying 15%)
+    - Flying 적은 y += 5f로 공중 스폰
+```
+
+**EnemyPrefabCatalog 패턴** (명시적 필드 vs 버퍼):
+```csharp
+// UnitCatalog/StructureCatalog: 버퍼 패턴 (UI 인덱스 접근, 순서 상대적)
+var buffer = SystemAPI.GetBuffer<UnitCatalogElement>(catalogEntity);
+Entity prefab = buffer[request.UnitIndex].PrefabEntity;  // UI와 순서만 일치하면 OK
+
+// EnemyPrefabCatalog: 명시적 필드 패턴 (코드에서 타입 지정, 순서 절대적)
+var catalog = SystemAPI.GetSingleton<EnemyPrefabCatalog>();
+Entity prefab = catalog.BigPrefab;                       // 필드명으로 명확히 참조
+Entity prefab = catalog.GetPrefab(EnemyType.Flying);     // 또는 enum으로 조회
+```
+- **버퍼 패턴**: 동적 개수, UI 인덱스 접근 시 적합 (UnitCatalog, StructureCatalog)
+- **명시적 필드 패턴**: 고정 타입, 코드에서 직접 참조 시 적합 (EnemyPrefabCatalog)
 
 **Network RPCs** (in `Shared/RPCs/`):
 - `GoInGameRequestRpc` - Client join request
@@ -582,12 +632,13 @@ structureCommandPanel
 
 **Combat Systems:**
 - `Server/Systems/Combat/CombatDamageSystem.cs` - 투사체 충돌 데미지 (Physics Trigger, VisualOnlyTag 제외)
-- `Server/Systems/Combat/MeleeAttackSystem.cs` - 근접 공격 (거리 기반, RangedUnitTag 제외)
-- `Server/Systems/Combat/RangedAttackSystem.cs` - 원거리 공격 (필중, 시각 투사체 생성, RangedUnitTag 대상)
+- `Server/Systems/Combat/MeleeAttackSystem.cs` - 근접 공격 (거리 기반, RangedUnitTag/RangedEnemyTag 제외)
+- `Server/Systems/Combat/RangedAttackSystem.cs` - 원거리 공격 (필중, 시각 투사체 생성, RangedUnitTag/RangedEnemyTag 대상)
 - `Server/Systems/Combat/DamageApplySystem.cs` - DamageEvent 버퍼를 Health에 적용
 - `Client/Systems/Combat/ProjectileVisualSystem.cs` - 시각 투사체 이동 (클라이언트)
 - `Shared/Buffers/DamageEvent.cs` - 지연 데미지 적용 버퍼
 - `Shared/Components/Tags/RangedUnitTag.cs` - 원거리 유닛 태그 (Trooper, Sniper)
+- `Shared/Components/Tags/RangedEnemyTag.cs` - 원거리 적 태그 (EnemyFlying)
 - `Shared/Components/Tags/VisualOnlyTag.cs` - 시각 전용 투사체 태그 (데미지 없음)
 - `Shared/Components/State/AttackCooldown.cs` - 공격 쿨다운 타이머
 - `Shared/Components/State/AggroTarget.cs` - 유닛/적 공통 타겟 추적
@@ -598,7 +649,9 @@ structureCommandPanel
 ```
 Assets/Prefabs/
 ├── Enemy/
-│   └── Enemy.prefab                 # 적 프리팹
+│   ├── EnemySmall.prefab            # 작은 적 (빠름, 근접)
+│   ├── EnemyBig.prefab              # 큰 적 (강력함, 근접)
+│   └── EnemyFlying.prefab           # 비행 적 (벽 무시, 원거리 공격, isRanged=true)
 ├── Ground.prefab                    # 지면 프리팹
 ├── Resources/
 │   └── OreVein.prefab               # 광석 자원 프리팹
@@ -637,12 +690,25 @@ Assets/Scenes/
 
 Wave 단계마다 적대 유닛의 수, 종류가 증가하며 난이도 상승
 
-| Wave | 설명 |
-|------|------|
-| Wave0 | 게임 진입 상태. 임의의 수의 적(벽 통과 불가)이 벽에 갇혀있음. 벽은 일정 시간(~30초) 후 제거됨 |
-| Wave1 | 일정 시간(~3분) 경과 또는 초기 적 일정 수 제거 시 다음 웨이브로 전환. 벽 사이로 들어오는 적 스폰 시작 |
-| Wave2+ | 벽 사이로 들어오는 적, 벽을 뛰어넘는 적, 나는 적 등 다양한 유형 스폰 |
-| END | 모든 웨이브 완료 시 게임 종료, 유저 승리 |
+| Wave | 전환 조건 | 스폰 내용 |
+|------|-----------|-----------|
+| Wave0 | 게임 시작 | EnemyBig 30마리 즉시 스폰 |
+| Wave1 | 60초 경과 OR 15마리 처치 | EnemySmall + EnemyBig 주기적 스폰 (5초마다 3마리) |
+| Wave2 | 120초 경과 OR 30마리 처치 | EnemySmall + EnemyBig + EnemyFlying 주기적 스폰 (4초마다 4마리) |
+
+**Wave 시스템 구현 파일:**
+- `Shared/Singletons/GamePhaseState.cs` - Wave 상태 싱글톤
+- `Shared/Singletons/GameSettings.cs` - Wave 전환 조건 설정
+- `Server/Systems/Wave/WaveManagerSystem.cs` - Wave 전환 조건 체크
+- `Server/Systems/Wave/EnemyDeathCountSystem.cs` - 적 처치 수 카운팅
+- `Server/Systems/Wave/EnemySpawnerSystem.cs` - Wave별 적 스폰
+
+**적 타입:**
+| 프리팹 | 특징 |
+|--------|------|
+| EnemySmall | 작고 빠름, 근접 공격 (체력50, 공격력1, 속도15) |
+| EnemyBig | 크고 강함, 근접 공격 (체력50, 공격력5, 속도12) |
+| EnemyFlying | 비행, 원거리 공격 (레이어 13, 벽 무시, 공중 스폰 y+5, isRanged=true, attackRange=8) |
 
 ### Commander (User) State
 
@@ -745,8 +811,9 @@ Wave 단계마다 적대 유닛의 수, 종류가 증가하며 난이도 상승
    - `AggroTarget.TargetEntity`: 공격/추적할 대상
    - `AggroTarget.LastTargetPosition`: 타겟의 마지막 알려진 위치
 
-4. **원거리 공격 시스템**: RangedUnitTag 기반 자동 원거리 공격
-   - **대상 유닛**: Trooper (AttackRange: 6), Sniper (AttackRange: 12)
+4. **원거리 공격 시스템**: RangedUnitTag/RangedEnemyTag 기반 자동 원거리 공격
+   - **대상 유닛**: Trooper (AttackRange: 8), Sniper (AttackRange: 15) - RangedUnitTag
+   - **대상 적**: EnemyFlying (AttackRange: 8) - RangedEnemyTag
    - **필중 메커니즘**: 거리 판정 후 즉시 DamageEvent 버퍼에 추가 (Physics 불필요)
    - **시각 효과**: 서버에서 투사체 엔티티 생성 → Ghost로 클라이언트 복제
    - **이동 제어**: 사거리 내 → MovementWaypoints 비활성화 (멈춤), 사거리 밖 → 활성화 (추적)

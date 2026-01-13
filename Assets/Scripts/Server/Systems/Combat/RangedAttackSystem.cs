@@ -97,6 +97,35 @@ namespace Server
                     projectilePrefab,
                     ref _movementGoalLookup);
             }
+
+            // =====================================================================
+            // 원거리 적 공격 처리 (RangedEnemyTag)
+            // - EnemyFlying 등 원거리 공격 적 처리
+            // =====================================================================
+            foreach (var (transform, aggroTarget, combatStats, cooldown, enemyState, myTeam, entity) in
+                     SystemAPI.Query<
+                         RefRW<LocalTransform>,
+                         RefRO<AggroTarget>,
+                         RefRO<CombatStats>,
+                         RefRW<AttackCooldown>,
+                         RefRW<EnemyState>,
+                         RefRO<Team>>()
+                     .WithAll<EnemyTag, RangedEnemyTag>()
+                     .WithEntityAccess())
+            {
+                ProcessEnemyRangedAttack(
+                    entity,
+                    ref transform.ValueRW,
+                    aggroTarget.ValueRO,
+                    combatStats.ValueRO,
+                    ref cooldown.ValueRW,
+                    ref enemyState.ValueRW,
+                    myTeam.ValueRO,
+                    deltaTime,
+                    ecb,
+                    projectilePrefab,
+                    ref _movementGoalLookup);
+            }
         }
 
         /// <summary>
@@ -263,6 +292,132 @@ namespace Server
             });
 
             // 시각 전용 태그 추가 (CombatDamageSystem에서 무시하도록)
+            ecb.AddComponent(projectile, new VisualOnlyTag());
+
+            // 쿨다운 리셋
+            cooldown.RemainingTime = stats.AttackSpeed > 0
+                ? 1.0f / stats.AttackSpeed
+                : 1.0f;
+        }
+
+        /// <summary>
+        /// 적 원거리 공격 처리
+        /// - AggroTarget 기반 자동 공격
+        /// - 사거리 내: 멈추고 공격, 사거리 밖: 추적
+        /// </summary>
+        private void ProcessEnemyRangedAttack(
+            Entity enemyEntity,
+            ref LocalTransform myTransform,
+            AggroTarget aggroTarget,
+            CombatStats stats,
+            ref AttackCooldown cooldown,
+            ref EnemyState enemyState,
+            Team myTeam,
+            float deltaTime,
+            EntityCommandBuffer ecb,
+            Entity projectilePrefab,
+            ref ComponentLookup<MovementGoal> movementGoalLookup)
+        {
+            // 쿨다운 감소
+            cooldown.RemainingTime = math.max(0, cooldown.RemainingTime - deltaTime);
+
+            Entity targetEntity = aggroTarget.TargetEntity;
+
+            // 타겟 없음
+            if (targetEntity == Entity.Null) return;
+
+            // 타겟 유효성 검사
+            if (!_transformLookup.HasComponent(targetEntity) ||
+                !_healthLookup.HasComponent(targetEntity))
+            {
+                return;
+            }
+
+            // 아군 히트 방지
+            if (_teamLookup.HasComponent(targetEntity))
+            {
+                if (_teamLookup[targetEntity].teamId == myTeam.teamId)
+                    return;
+            }
+
+            // 타겟이 이미 사망했으면 무시
+            var targetHealth = _healthLookup[targetEntity];
+            if (targetHealth.CurrentValue <= 0) return;
+
+            // 거리 계산
+            float3 targetPos = _transformLookup[targetEntity].Position;
+            float3 myPos = myTransform.Position;
+            float distance = math.distance(myPos, targetPos);
+
+            // 공격 사거리 체크
+            if (distance > stats.AttackRange)
+            {
+                // 사거리 밖 → 추적
+                if (enemyState.CurrentState == EnemyContext.Attacking)
+                {
+                    enemyState.CurrentState = EnemyContext.Chasing;
+                    ecb.SetComponentEnabled<MovementWaypoints>(enemyEntity, true);
+
+                    // 경로 재계산 트리거
+                    if (movementGoalLookup.TryGetComponent(enemyEntity, out var goal))
+                    {
+                        goal.IsPathDirty = true;
+                        movementGoalLookup[enemyEntity] = goal;
+                    }
+                }
+                return;
+            }
+
+            // 사거리 내 → 멈추고 공격
+            if (enemyState.CurrentState != EnemyContext.Attacking)
+            {
+                enemyState.CurrentState = EnemyContext.Attacking;
+                ecb.SetComponentEnabled<MovementWaypoints>(enemyEntity, false);
+            }
+
+            // 타겟 방향 회전
+            float3 direction = math.normalize(targetPos - myPos);
+            direction.y = 0;
+            if (math.lengthsq(direction) > 0.001f)
+            {
+                myTransform.Rotation = quaternion.LookRotationSafe(direction, math.up());
+            }
+
+            // 쿨다운 체크
+            if (cooldown.RemainingTime > 0) return;
+
+            // 데미지 계산
+            float defenseValue = _defenseLookup.HasComponent(targetEntity)
+                ? _defenseLookup[targetEntity].Value
+                : 0f;
+
+            float finalDamage = DamageUtility.CalculateDamage(stats.AttackPower, defenseValue);
+
+            // DamageEvent 버퍼에 데미지 추가 (즉시 적용 = 필중)
+            if (_damageEventLookup.HasBuffer(targetEntity))
+            {
+                var damageBuffer = _damageEventLookup[targetEntity];
+                damageBuffer.Add(new DamageEvent { Damage = finalDamage });
+            }
+
+            // 시각 효과 투사체 생성
+            float3 startPos = myPos + new float3(0, 1f, 0);
+            float3 endPos = targetPos + new float3(0, 1f, 0);
+            float3 projectileDir = math.normalize(endPos - startPos);
+            float projectileDistance = math.distance(startPos, endPos);
+
+            Entity projectile = ecb.Instantiate(projectilePrefab);
+
+            quaternion rotation = quaternion.LookRotationSafe(projectileDir, math.up());
+            ecb.SetComponent(projectile, LocalTransform.FromPositionRotationScale(startPos, rotation, 1f));
+
+            ecb.SetComponent(projectile, new ProjectileMove
+            {
+                Direction = projectileDir,
+                Speed = 30f,
+                RemainingDistance = projectileDistance
+            });
+
             ecb.AddComponent(projectile, new VisualOnlyTag());
 
             // 쿨다운 리셋

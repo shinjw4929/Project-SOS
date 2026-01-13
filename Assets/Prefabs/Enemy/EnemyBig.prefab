@@ -145,6 +145,7 @@ MonoBehaviour:
   attackSpeed: 3
   attackRange: 2
   aggroRange: 15
+  isRanged: 0
 --- !u!114 &-167978000647739316
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -197,4 +198,4 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   MoveSpeed: 12
   ArrivalRadius: 0.5
-  AgentTypeIndex: 1
+  AgentTypeIndex: 2
