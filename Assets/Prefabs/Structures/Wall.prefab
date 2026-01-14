@@ -99,7 +99,7 @@ BoxCollider:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2697124028170181865}
-  m_Material: {fileID: 0}
+  m_Material: {fileID: 13400000, guid: a1b2c3d4e5f6789012345678abcdef01, type: 2}
   m_IncludeLayers:
     serializedVersion: 2
     m_Bits: 6336
@@ -111,7 +111,7 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 1, y: 1, z: 1}
+  m_Size: {x: 0.4, y: 1, z: 0.4}
   m_Center: {x: 0, y: 0, z: 0}
 --- !u!54 &-4329564950412688463
 Rigidbody:
@@ -170,8 +170,8 @@ MonoBehaviour:
   length: 2
   height: 2
   radius: 1.42
-  worldWidth: 1.4
-  worldLength: 1.4
+  worldWidth: 0.5
+  worldLength: 0.5
   cost: 0
   buildTime: 1
   maxHealth: 10

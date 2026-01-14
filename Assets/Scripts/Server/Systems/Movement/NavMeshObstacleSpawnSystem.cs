@@ -24,7 +24,7 @@ namespace Server
         // NavMesh Agent Radius(보통 0.5)만큼 NavMesh가 자동으로 벌어지므로,
         // 이를 상쇄하기 위해 장애물 자체를 작게 만듭니다.
         // 값 추천: 0.2f ~ 0.5f (너무 크면 유닛이 건물 안으로 파고듬)
-        private const float ObstaclePadding = 0.7f;
+        private const float ObstaclePadding = 0.0f;
 
         protected override void OnCreate()
         {
