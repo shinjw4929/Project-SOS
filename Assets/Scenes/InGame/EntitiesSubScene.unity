@@ -2598,7 +2598,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   initialWallDecayTime: 60
-  wave0InitialSpawnCount: 8
+  wave0InitialSpawnCount: 1
   wave1TriggerTime: 180
   wave1TriggerKillCount: 10
   wave2TriggerTime: 360

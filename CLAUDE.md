@@ -177,7 +177,8 @@ Shared/
 │   │   ├── StructureState.cs
 │   │   ├── UnitActionState.cs               # 유닛 액션 상태
 │   │   ├── UnitIntentState.cs               # 유닛 의도 상태
-│   │   └── WorkerState.cs                   # 일꾼 상태 (CarriedAmount, GatherPhase)
+│   │   ├── WorkerState.cs                   # 일꾼 상태 (CarriedAmount, GatherPhase)
+│   │   └── SpawnStunTimer.cs                # 스폰 후 경직 타이머
 │   ├── Stats/
 │   │   ├── CombatStats.cs
 │   │   ├── Defense.cs
@@ -246,7 +247,8 @@ Shared/
 │       └── GhostIdLookupSystem.cs           # Ghost ID 조회 시스템
 └── Utilities/
     ├── DamageUtility.cs                     # 데미지 계산 유틸리티
-    └── GridUtility.cs                       # 그리드 유틸리티
+    ├── GridUtility.cs                       # 그리드 유틸리티
+    └── MovementMath.cs                      # 이동 계산 유틸리티 (가속/감속)
 
 Server/
 ├── Data/
@@ -285,8 +287,6 @@ Server/
     │   ├── NavMeshObstacleSpawnSystem.cs    # NavMesh 장애물 생성
     │   ├── PathfindingSystem.cs             # Pathfinding 시스템
     │   └── PathFollowSystem.cs              # 경로 추적 시스템
-    ├── Physics/
-    │   └── StructurePushOutSystem.cs        # 건물 충돌 밀어내기
     ├── TechStateRecalculateSystem.cs        # 기술 상태 재계산 시스템
     └── Wave/
         ├── EnemyDeathCountSystem.cs         # 적 처치 수 카운팅 (ServerDeathSystem 전)
@@ -331,6 +331,21 @@ Authoring/
 
 Root (Scripts)/
 └── GameBootStrap.cs                         # 게임 진입점
+
+Tests/
+├── EditMode/
+│   ├── EditModeTests.asmdef                 # Edit 모드 테스트 어셈블리
+│   └── Utilities/
+│       ├── DamageUtilityTests.cs            # DamageUtility 단위 테스트
+│       ├── GridUtilityTests.cs              # GridUtility 단위 테스트
+│       └── MovementCalculationTests.cs      # MovementMath 단위 테스트
+└── PlayMode/
+    ├── PlayModeTests.asmdef                 # Play 모드 테스트 어셈블리
+    ├── ECSTestBase.cs                       # ECS 테스트 베이스 클래스
+    └── Systems/
+        ├── DamageApplySystemTests.cs        # DamageApplySystem 통합 테스트
+        ├── MovementSystemTests.cs           # 이동 시스템 통합 테스트
+        └── WaveSystemTests.cs               # Wave 시스템 통합 테스트
 ```
 
 ### System Groups & Dependencies
@@ -393,7 +408,6 @@ DamageApplySystem (UpdateAfter: MeleeAttackSystem, DamageEvent → Health 적용
 | 시스템 | 의존성 |
 |--------|--------|
 | HandleBuildRequestSystem | - |
-| StructurePushOutSystem | UpdateAfter: HandleBuildRequestSystem |
 | NavMeshObstacleSpawnSystem | - |
 | PathfindingSystem | UpdateAfter: NavMeshObstacleSpawnSystem |
 | PathFollowSystem | UpdateAfter: PathfindingSystem |
@@ -459,7 +473,7 @@ DamageApplySystem (UpdateAfter: MeleeAttackSystem, DamageEvent → Health 적용
     → CombatDamageSystem → MeleeAttackSystem → RangedAttackSystem, DamageApplySystem
 
 [건설/경로] SimulationSystemGroup (Server)
-    → HandleBuildRequestSystem → StructurePushOutSystem
+    → HandleBuildRequestSystem
     → NavMeshObstacleSpawnSystem → PathfindingSystem → PathFollowSystem
 
 [정리] SimulationSystemGroup (Server)
@@ -780,6 +794,23 @@ Wave 단계마다 적대 유닛의 수, 종류가 증가하며 난이도 상승
    - **"Player" 금지**: 유저를 지칭할 때 "Player" 대신 **"User"**를 사용한다.
      - 예: `UserResources`, `UserState`, `UserResourcesTag`
      - 이유: 멀티플레이어 환경에서 "Player"는 Unity Player(실행 인스턴스)와 혼동될 수 있음
+
+4. **테스트 코드 작성 원칙**: 새로운 로직 추가 시 반드시 테스트 코드를 함께 작성한다.
+   - **테스트 분류**:
+     - **EditMode 테스트**: 순수 함수, 유틸리티 클래스 단위 테스트 (ECS 의존성 없음)
+       - 위치: `Assets/Tests/EditMode/`
+       - 예: `DamageUtilityTests.cs`, `GridUtilityTests.cs`, `MovementCalculationTests.cs`
+     - **PlayMode 테스트**: ECS 시스템 통합 테스트 (World, Entity 생성 필요)
+       - 위치: `Assets/Tests/PlayMode/`
+       - 베이스 클래스: `ECSTestBase` 상속
+       - 예: `DamageApplySystemTests.cs`, `MovementSystemTests.cs`, `WaveSystemTests.cs`
+   - **테스트 명명 규칙**: `[테스트대상]_[시나리오]_[예상결과]` 형식
+     - 예: `CalculateFinalDamage_WithDefense_ReturnsReducedDamage`
+   - **테스트 커버리지 대상**:
+     - 새로운 Utility 함수 → EditMode 단위 테스트
+     - 새로운 System 로직 → PlayMode 통합 테스트
+     - 버그 수정 → 해당 버그를 재현하는 회귀 테스트
+   - **테스트 실행**: Unity Test Runner (Window > General > Test Runner)
 
 ## Unity DOTS: Data Access & Validity Rules
 
