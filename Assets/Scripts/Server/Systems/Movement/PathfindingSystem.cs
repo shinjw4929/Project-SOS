@@ -43,6 +43,7 @@ namespace Server
             if (NavMesh.GetSettingsCount() == 0) return;
 
             int processedCount = 0;
+            int dirtyCount = 0;
 
             // [중요] IgnoreComponentEnabledState 추가하여 비활성화 상태의 MovementWaypoints도 쿼리
             foreach (var (goal, pathBuffer, waypoints, waypointsEnabled, transform, agentConfig) in
@@ -58,6 +59,9 @@ namespace Server
             {
                 if (!goal.ValueRO.IsPathDirty)
                     continue;
+
+                dirtyCount++;
+                Debug.Log($"[Pathfinding] Processing dirty goal: Destination={goal.ValueRO.Destination}, CurrentPos={transform.ValueRO.Position}");
 
                 if (processedCount >= MaxPathRequestsPerFrame)
                     break;
@@ -126,15 +130,21 @@ namespace Server
                     // 즉시 이동 시작을 위해 MovementWaypoints 초기화
                     waypoints.ValueRW.Current = pathBuffer[firstTargetIndex].Position;
 
+                    float3 waypointCurrent = pathBuffer[firstTargetIndex].Position;
+                    float distToFirstWaypoint = math.distance(currentPos, waypointCurrent);
+                    Debug.Log($"[Pathfinding] Setting waypoint: firstTargetIndex={firstTargetIndex}, Current={waypointCurrent}, distFromUnit={distToFirstWaypoint:F3}");
+
                     // 다음 웨이포인트가 있다면 미리 세팅 (코너링용)
                     if (pathBuffer.Length > firstTargetIndex + 1)
                     {
                         waypoints.ValueRW.Next = pathBuffer[firstTargetIndex + 1].Position;
                         waypoints.ValueRW.HasNext = true;
+                        Debug.Log($"[Pathfinding] HasNext=true, Next={pathBuffer[firstTargetIndex + 1].Position}");
                     }
                     else
                     {
                         waypoints.ValueRW.HasNext = false;
+                        Debug.Log($"[Pathfinding] HasNext=false (no more waypoints after index {firstTargetIndex})");
                     }
 
                     // 컴포넌트 활성화 -> PredictedMovementSystem이 작동 시작
@@ -176,7 +186,11 @@ namespace Server
         {
             pathBuffer.Clear();
 
-            if (!math.isfinite(start.x) || !math.isfinite(end.x)) return false;
+            if (!math.isfinite(start.x) || !math.isfinite(end.x))
+            {
+                Debug.LogWarning($"[Pathfinding] Invalid position: start={start}, end={end}");
+                return false;
+            }
 
             // Agent Type별 필터 생성
             NavMeshQueryFilter filter = new NavMeshQueryFilter
@@ -187,11 +201,22 @@ namespace Server
 
             // NavMesh 샘플링 (Agent Type별 필터 적용)
             NavMeshHit hit;
-            if (!NavMesh.SamplePosition(start, out hit, 5.0f, filter)) return false;
+            if (!NavMesh.SamplePosition(start, out hit, 5.0f, filter))
+            {
+                Debug.LogWarning($"[Pathfinding] SamplePosition FAILED for START: {start} (agentTypeID={agentTypeID})");
+                return false;
+            }
             Vector3 startPoint = hit.position;
+            Debug.Log($"[Pathfinding] NavMesh sampled START: requested={start}, sampled={startPoint}");
 
-            if (!NavMesh.SamplePosition(end, out hit, 5.0f, filter)) return false;
+            if (!NavMesh.SamplePosition(end, out hit, 5.0f, filter))
+            {
+                Debug.LogWarning($"[Pathfinding] SamplePosition FAILED for END: {end} (agentTypeID={agentTypeID})");
+                return false;
+            }
             Vector3 endPoint = hit.position;
+            float samplingError = Vector3.Distance((Vector3)end, endPoint);
+            Debug.Log($"[Pathfinding] NavMesh sampled END: requested={end}, sampled={endPoint}, error={samplingError:F2}");
 
             NavMeshPath path = new NavMeshPath();
             if (NavMesh.CalculatePath(startPoint, endPoint, filter, path))
@@ -203,12 +228,22 @@ namespace Server
                 {
                     var corners = path.corners;
                     int count = math.min(corners.Length, MaxPathLength);
+                    Debug.Log($"[Pathfinding] Path calculated: status={path.status}, corners={corners.Length}");
                     for (int i = 0; i < count; i++)
                     {
                         pathBuffer.Add(new PathWaypoint { Position = corners[i] });
+                        Debug.Log($"[Pathfinding]   corner[{i}] = {corners[i]}");
                     }
                     return true;
                 }
+                else
+                {
+                    Debug.LogWarning($"[Pathfinding] Path status: {path.status}, start={startPoint}, end={endPoint}");
+                }
+            }
+            else
+            {
+                Debug.LogWarning($"[Pathfinding] CalculatePath returned false, start={startPoint}, end={endPoint}");
             }
 
             // PathInvalid 또는 CalculatePath 실패 - 재시도

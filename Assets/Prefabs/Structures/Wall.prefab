@@ -107,7 +107,7 @@ BoxCollider:
     serializedVersion: 2
     m_Bits: 0
   m_LayerOverridePriority: 0
-  m_IsTrigger: 0
+  m_IsTrigger: 1
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
@@ -169,7 +169,7 @@ MonoBehaviour:
   width: 2
   length: 2
   height: 2
-  radius: 1.42
+  radius: 1
   worldWidth: 0.5
   worldLength: 0.5
   cost: 0

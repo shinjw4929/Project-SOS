@@ -67,8 +67,6 @@ Client/
 │   ├── Catalog/
 │   │   ├── StructurePrefabIndexMap.cs       # 건물 프리팹 인덱스 맵
 │   │   └── UnitPrefabIndexMap.cs            # 유닛 프리팹 인덱스 맵
-│   ├── Commands/
-│   │   └── PendingBuildRequest.cs           # 대기 중인 건설 요청
 │   ├── Singleton/
 │   │   ├── CameraState.cs                   # 카메라 상태 싱글톤
 │   │   ├── NotificationState.cs             # 서버 알림 상태 싱글톤
@@ -100,8 +98,7 @@ Client/
 │   ├── Commands/
 │   │   ├── Construction/
 │   │   │   ├── ConstructionMenuInputSystem.cs   # Q키 건설 메뉴 (BuildSelectionUtility 사용)
-│   │   │   ├── PendingBuildExecuteSystem.cs     # 대기 건설 요청 실행
-│   │   │   ├── StructurePlacementInputSystem.cs # 건설 배치 입력
+│   │   │   ├── StructurePlacementInputSystem.cs # 건설 배치 입력 (BuildRequestRpc/BuildMoveRequestRpc 전송)
 │   │   │   └── StructurePreviewUpdateSystem.cs  # 프리뷰 업데이트
 │   │   ├── Selection/
 │   │   │   ├── EntitySelectionSystem.cs     # Selected 컴포넌트 토글
@@ -112,7 +109,7 @@ Client/
 │   │   ├── StructureAction/
 │   │   │   └── StructureCommandInputSystem.cs   # 건물 명령 입력 (생산/자폭)
 │   │   └── UnitControl/
-│   │       └── UnitCommandInputSystem.cs    # 유닛 명령 입력 (이동/공격)
+│   │       └── UnitCommandInputSystem.cs    # 유닛 명령 RPC 전송 (MoveRequestRpc/AttackRequestRpc)
 │   ├── HeroHpTextPresentationSystem.cs      # 영웅 HP 텍스트 프레젠테이션
 │   ├── Initialize/
 │   │   ├── CatalogIndexMapInitSystem.cs     # 카탈로그 인덱스 맵 초기화
@@ -205,10 +202,13 @@ Shared/
 ├── GhostVariants/
 │   └── PhysicsVelocityGhostOverride.cs      # Physics Velocity Ghost 오버라이드
 ├── RPCs/
-│   ├── BuildRequestRpc.cs                   # 건설 요청 RPC
+│   ├── AttackRequestRpc.cs                  # 공격 명령 RPC (Reliable)
+│   ├── BuildMoveRequestRpc.cs               # 건설 이동 명령 RPC (사거리 밖 건설)
+│   ├── BuildRequestRpc.cs                   # 건설 요청 RPC (사거리 내 즉시 건설)
 │   ├── FireProjectileRpc.cs                 # [미사용] 투사체 발사 요청 RPC
 │   ├── GatherRequestRpc.cs                  # 자원 채집 요청 RPC
 │   ├── GoInGameRequestRpc.cs                # 게임 진입 요청 RPC
+│   ├── MoveRequestRpc.cs                    # 이동 명령 RPC (Reliable)
 │   ├── NotificationRpc.cs                   # 서버 알림 RPC (자원 부족 등)
 │   ├── ProduceUnitRequestRpc.cs             # 유닛 생산 요청 RPC
 │   ├── ProjectileVisualRpc.cs               # [미사용] 투사체 시각 효과 RPC
@@ -233,15 +233,13 @@ Shared/
 │   ├── Combats/
 │   │   └── ProjectileMoveSystem.cs          # 투사체 이동 시스템
 │   ├── Commands/
-│   │   └── CommandProcessingSystem.cs       # 명령 처리 시스템 (이동/공격/건설/채집)
+│   │   └── CommandProcessingSystem.cs       # [빈 시스템] 모든 명령이 RPC 시스템으로 이전됨
 │   ├── Enemy/
 │   │   └── EnemyTargetSystem.cs             # 적 타겟 시스템
 │   ├── Grid/
 │   │   ├── GridOccupancyEventSystem.cs
 │   │   └── ObstacleGridInitSystem.cs        # 장애물 그리드 초기화 시스템
 │   ├── Movement/
-│   │   ├── MovementArrivalSystem.cs         # 이동 도착 처리
-│   │   ├── PredictedMovementSystem.cs       # 예측 기반 유닛 이동 시스템
 │   │   └── YPositionLockSystem.cs           # Y축 위치 고정 시스템
 │   └── Utils/
 │       └── GhostIdLookupSystem.cs           # Ghost ID 조회 시스템
@@ -252,7 +250,8 @@ Shared/
 
 Server/
 ├── Data/
-│   └── BuildActionRequest.cs                # 건설 액션 요청 데이터
+│   ├── BuildActionRequest.cs                # 건설 액션 요청 데이터
+│   └── PendingBuildServerData.cs            # 서버 전용 대기 건설 데이터 (이동 후 건설)
 ├── GoInGameServerSystem.cs
 └── Systems/
     ├── Combat/
@@ -262,11 +261,17 @@ Server/
     │   ├── RangedAttackSystem.cs            # 원거리 공격 시스템 (필중, 시각 투사체 생성)
     │   └── ServerDeathSystem.cs             # 서버 사망 처리
     ├── Commands/
+    │   ├── Combat/
+    │   │   └── HandleAttackRequestSystem.cs        # 공격 명령 RPC 처리
     │   ├── Construction/
-    │   │   └── HandleBuildRequestSystem.cs
+    │   │   ├── BuildArrivalSystem.cs               # 건설 도착 시스템 (도착 시 건물 생성)
+    │   │   ├── HandleBuildMoveRequestSystem.cs     # 건설 이동 명령 RPC 처리
+    │   │   └── HandleBuildRequestSystem.cs         # 건설 요청 RPC 처리 (사거리 내)
     │   ├── Gathering/
     │   │   ├── HandleGatherRequestSystem.cs         # 자원 채집 요청 처리
     │   │   └── HandleReturnResourceRequestSystem.cs # 자원 반납 요청 처리
+    │   ├── Movement/
+    │   │   └── HandleMoveRequestSystem.cs          # 이동 명령 RPC 처리
     │   ├── Production/
     │   │   ├── HandleProduceUnitRequestSystem.cs    # 유닛 생산 요청 처리
     │   │   └── ProductionProgressSystem.cs          # 생산 진행 시스템
@@ -283,10 +288,12 @@ Server/
     │   └── GamePhaseInitSystem.cs           # GamePhaseState 싱글톤 초기화
     ├── InitialWallDecaySystem.cs            # 초기 벽 붕괴 시스템
     ├── Movement/
+    │   ├── MovementArrivalSystem.cs         # 이동 도착 처리 (서버 전용)
     │   ├── NavMeshObstacleCleanupSystem.cs  # NavMesh 장애물 정리
     │   ├── NavMeshObstacleSpawnSystem.cs    # NavMesh 장애물 생성
     │   ├── PathfindingSystem.cs             # Pathfinding 시스템
-    │   └── PathFollowSystem.cs              # 경로 추적 시스템
+    │   ├── PathFollowSystem.cs              # 경로 추적 시스템
+    │   └── PredictedMovementSystem.cs       # 유닛 이동 시스템 (서버 전용)
     ├── TechStateRecalculateSystem.cs        # 기술 상태 재계산 시스템
     └── Wave/
         ├── EnemyDeathCountSystem.cs         # 적 처치 수 카운팅 (ServerDeathSystem 전)
@@ -372,9 +379,7 @@ SelectedEntityInfoUpdateSystem
     ↓ UpdateAfter (분기)
     ├─ UnitCommandInputSystem
     │      ↓ UpdateAfter
-    │  StructurePlacementInputSystem
-    │      ↓ UpdateAfter
-    │  PendingBuildExecuteSystem
+    │  StructurePlacementInputSystem (BuildRequestRpc/BuildMoveRequestRpc 전송)
     └─ StructureCommandInputSystem (병렬)
 ConstructionMenuInputSystem (독립)
 ```
@@ -384,9 +389,7 @@ ConstructionMenuInputSystem (독립)
 | 시스템 | 위치 | 의존성 |
 |--------|------|--------|
 | GhostIdLookupSystem | Shared | OrderFirst=true |
-| CommandProcessingSystem | Shared | - |
-| PredictedMovementSystem | Shared | - |
-| MovementArrivalSystem | Shared | UpdateAfter: PredictedMovementSystem |
+| CommandProcessingSystem | Shared | [빈 시스템] |
 
 #### 4. FixedStepSimulationSystemGroup (Server 전투)
 
@@ -407,7 +410,13 @@ DamageApplySystem (UpdateAfter: MeleeAttackSystem, DamageEvent → Health 적용
 
 | 시스템 | 의존성 |
 |--------|--------|
+| HandleMoveRequestSystem | - |
+| HandleAttackRequestSystem | - |
 | HandleBuildRequestSystem | - |
+| HandleBuildMoveRequestSystem | - |
+| PredictedMovementSystem | - |
+| MovementArrivalSystem | UpdateAfter: PredictedMovementSystem |
+| BuildArrivalSystem | UpdateAfter: MovementArrivalSystem |
 | NavMeshObstacleSpawnSystem | - |
 | PathfindingSystem | UpdateAfter: NavMeshObstacleSpawnSystem |
 | PathFollowSystem | UpdateAfter: PathfindingSystem |
@@ -459,21 +468,28 @@ DamageApplySystem (UpdateAfter: MeleeAttackSystem, DamageEvent → Health 적용
 #### 핵심 의존성 흐름 요약
 
 ```
-[입력] GhostInputSystemGroup
+[입력] GhostInputSystemGroup (Client)
     → UserSelectionInputUpdateSystem → EntitySelectionSystem
     → SelectedEntityInfoUpdateSystem
-        ├─ UnitCommandInputSystem → StructurePlacementInputSystem → PendingBuildExecuteSystem
+        ├─ UnitCommandInputSystem → RPC 전송 (MoveRequestRpc/AttackRequestRpc)
+        │      ↓ UpdateAfter
+        │  StructurePlacementInputSystem → RPC 전송 (BuildRequestRpc/BuildMoveRequestRpc)
         └─ StructureCommandInputSystem
 
-[이동] PredictedSimulationSystemGroup
-    → GhostIdLookupSystem (OrderFirst)
-    → CommandProcessingSystem, PredictedMovementSystem → MovementArrivalSystem
+[명령 처리] SimulationSystemGroup (Server)
+    → HandleMoveRequestSystem → MovementGoal, Intent.Move 설정
+    → HandleAttackRequestSystem → AggroTarget, Intent.Attack 설정
+    → HandleBuildRequestSystem → 사거리 내 즉시 건설
+    → HandleBuildMoveRequestSystem → 이동 시작 + PendingBuildServerData 추가
+    → HandleGatherRequestSystem, HandleReturnResourceRequestSystem
+
+[이동] SimulationSystemGroup (Server)
+    → PredictedMovementSystem → MovementArrivalSystem → BuildArrivalSystem (도착 시 건설)
 
 [전투] FixedStepSimulationSystemGroup (Server)
     → CombatDamageSystem → MeleeAttackSystem → RangedAttackSystem, DamageApplySystem
 
-[건설/경로] SimulationSystemGroup (Server)
-    → HandleBuildRequestSystem
+[경로] SimulationSystemGroup (Server)
     → NavMeshObstacleSpawnSystem → PathfindingSystem → PathFollowSystem
 
 [정리] SimulationSystemGroup (Server)
@@ -524,7 +540,7 @@ public enum UserContext : byte {
 UserSelectionInputUpdateSystem      → UserSelectionInputState.Phase 업데이트
 EntitySelectionSystem                → Phase가 Pending*일 때만 Selected 토글
 SelectedEntityInfoUpdateSystem       → SelectedEntityInfoState 싱글톤 계산
-UnitCommandInputSystem               → 우클릭 명령 생성 (이동/공격)
+UnitCommandInputSystem               → 우클릭 → RPC 전송 (MoveRequestRpc/AttackRequestRpc)
 ```
 
 **Combat System Flow** (DamageEvent 버퍼 패턴):
@@ -611,8 +627,10 @@ Entity prefab = catalog.GetPrefab(EnemyType.Flying);     // 또는 enum으로 �
 
 **Network RPCs** (in `Shared/RPCs/`):
 - `GoInGameRequestRpc` - Client join request
-- `BuildRequestRpc` - Building placement request
-- `FireProjectileRpc` - 투사체 발사 요청
+- `MoveRequestRpc` - 이동 명령 (Reliable)
+- `AttackRequestRpc` - 공격 명령 (Reliable)
+- `BuildRequestRpc` - 사거리 내 즉시 건설 요청
+- `BuildMoveRequestRpc` - 사거리 밖 건설 (이동 후 건설)
 - `GatherRequestRpc` - 자원 채집 요청
 - `ReturnResourceRequestRpc` - 자원 반납 요청
 - `ProduceUnitRequestRpc` - 유닛 생산 요청

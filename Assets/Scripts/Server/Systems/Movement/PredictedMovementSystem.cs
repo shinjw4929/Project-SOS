@@ -4,24 +4,29 @@ using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Physics;
 using Unity.Transforms;
-using Unity.NetCode;
+using UnityEngine;
+using Shared;
 
-namespace Shared
+namespace Server
 {
     /// <summary>
-    /// 서버 전용 이동 시스템
-    /// - LocalTransform 직접 제어
+    /// 서버 전용 Kinematic 이동 시스템
+    /// - LocalTransform 직접 제어 (Kinematic Body)
     /// - Entity 위치 기반 Separation
+    /// - 벽 충돌 검사 (SphereCast)
     /// - 클라이언트는 Ghost 보간으로 부드럽게 표시
     /// </summary>
     [UpdateInGroup(typeof(SimulationSystemGroup))]
-    [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)] // 서버에서만 실행
+    [UpdateAfter(typeof(PathfindingSystem))]
+    [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
     public partial struct PredictedMovementSystem : ISystem
     {
         private EntityQuery _movingEntitiesQuery;
 
         public void OnCreate(ref SystemState state)
         {
+            state.RequireForUpdate<PhysicsWorldSingleton>();
+
             // Separation 대상 쿼리 (위치 + 반경이 있는 모든 이동 가능 엔티티)
             _movingEntitiesQuery = state.GetEntityQuery(
                 ComponentType.ReadOnly<LocalTransform>(),
@@ -29,9 +34,10 @@ namespace Shared
             );
         }
 
-        [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
+            // PhysicsWorld 가져오기 (벽 충돌 검사용)
+            var physicsWorld = SystemAPI.GetSingleton<PhysicsWorldSingleton>().PhysicsWorld;
             float deltaTime = SystemAPI.Time.DeltaTime;
 
             // 모든 이동 가능 엔티티의 위치/반경 수집 (Separation용)
@@ -45,6 +51,15 @@ namespace Shared
                 radii[i] = state.EntityManager.GetComponentData<ObstacleRadius>(entities[i]).Radius;
             }
 
+            // 장애물 레이어 필터 (리소스 노드 + 건물 충돌 체크)
+            // Unity Physics CollisionFilter: BelongsTo=자신, CollidesWith=대상
+            var structureFilter = new CollisionFilter
+            {
+                BelongsTo = ~0u,                        // 모든 레이어
+                CollidesWith = (1u << 6) | (1u << 7),  // ResourceNode(6) + Structure(7)
+                GroupIndex = 0
+            };
+
             var job = new KinematicMovementJob
             {
                 DeltaTime = deltaTime,
@@ -52,7 +67,9 @@ namespace Shared
                 AllPositions = positions,
                 AllRadii = radii,
                 SeparationStrength = 5.0f,
-                MaxSeparationDistance = 2.0f
+                MaxSeparationDistance = 2.0f,
+                CollisionWorld = physicsWorld.CollisionWorld,
+                StructureFilter = structureFilter
             };
 
             state.Dependency = job.ScheduleParallel(state.Dependency);
@@ -73,6 +90,10 @@ namespace Shared
         [ReadOnly] public NativeArray<float> AllRadii;
         public float SeparationStrength;
         public float MaxSeparationDistance;
+
+        // 벽 충돌 검사용
+        [ReadOnly] public CollisionWorld CollisionWorld;
+        public CollisionFilter StructureFilter;
 
         /// <summary>
         /// Kinematic 이동 처리 (LocalTransform 직접 제어)
@@ -135,23 +156,32 @@ namespace Shared
             // 2. Separation (Entity 위치 기반 - 결정론적)
             // ============================================
             float3 separationVelocity = CalculateSeparation(currentPos, obstacleRadius.Radius, entity);
-            float3 finalVelocity = moveVelocity + separationVelocity * SeparationStrength;
 
             // ============================================
-            // 3. 최종 위치 적용
+            // 3. 희망 속도 (Desired Velocity)
+            // ============================================
+            float3 desiredVelocity = moveVelocity + separationVelocity * SeparationStrength;
+            desiredVelocity.y = 0f;
+
+            // ============================================
+            // 4. 벽 충돌 해결 (ResolveWallCollision)
+            // ============================================
+            float3 finalVelocity = ResolveWallCollision(currentPos, desiredVelocity, obstacleRadius.Radius);
+
+            // ============================================
+            // 5. 최종 위치 적용 (Kinematic이므로 직접 설정 필수!)
             // ============================================
             float3 newPos = currentPos + finalVelocity * DeltaTime;
             newPos.y = currentPos.y;
             transform.Position = newPos;
 
             // ============================================
-            // 4. PhysicsVelocity 동기화
+            // 6. PhysicsVelocity 동기화
             // ============================================
-            finalVelocity.y = 0f;
             velocity.Linear = finalVelocity;
 
             // ============================================
-            // 5. 회전 처리
+            // 7. 회전 처리
             // ============================================
             if (math.lengthsq(moveDir) > 0.001f)
             {
@@ -216,6 +246,62 @@ namespace Shared
             }
 
             return separationForce;
+        }
+
+        /// <summary>
+        /// 벽 충돌 해결 - 벽에 부딪히면 미끄러지는 속도 반환
+        /// </summary>
+        private float3 ResolveWallCollision(float3 currentPos, float3 velocity, float radius)
+        {
+            float speed = math.length(velocity);
+            if (speed < 0.001f) return velocity;
+
+            float3 moveDir = velocity / speed;
+
+            // RayCast 시작점: 유닛 중심에서 반경만큼 이동 방향으로 앞으로
+            // (이미 건물 안에 있을 때 내부에서 시작하는 것 방지)
+            float3 rayStart = currentPos + new float3(0, 0.5f, 0);
+
+            // 목표 지점까지 체크
+            float castDistance = radius + 0.5f;
+            float3 rayEnd = rayStart + moveDir * castDistance;
+
+            var rayInput = new RaycastInput
+            {
+                Start = rayStart,
+                End = rayEnd,
+                Filter = StructureFilter
+            };
+
+            if (CollisionWorld.CastRay(rayInput, out Unity.Physics.RaycastHit hit))
+            {
+                // 벽까지 거리
+                float hitDistance = hit.Fraction * castDistance;
+
+                // 벽이 가까우면 충돌 처리
+                if (hitDistance < radius)
+                {
+                    // 벽면 법선 구하기
+                    float3 normal = hit.SurfaceNormal;
+                    normal.y = 0;
+                    float normalLen = math.length(normal);
+
+                    if (normalLen > 0.001f)
+                    {
+                        normal = normal / normalLen;
+
+                        // 속도에서 벽 방향 성분 제거 (미끄러짐)
+                        float dot = math.dot(velocity, normal);
+                        if (dot < 0) // 벽을 향해 가는 경우만
+                        {
+                            return velocity - dot * normal;
+                        }
+                    }
+                }
+            }
+
+            // 충돌 없으면 원래 속도 유지
+            return velocity;
         }
     }
 }

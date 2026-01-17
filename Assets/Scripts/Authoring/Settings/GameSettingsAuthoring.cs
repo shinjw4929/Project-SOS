@@ -17,7 +17,7 @@ namespace Authoring
 
         [Header("Wave0 Settings")]
         [Tooltip("게임 시작 시 초기 스폰할 적 수")]
-        [Min(1)]
+        [Min(0)]
         public int wave0InitialSpawnCount = 30;
 
         [Header("Wave Transition Conditions")]

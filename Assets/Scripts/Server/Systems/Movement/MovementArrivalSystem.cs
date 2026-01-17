@@ -3,9 +3,9 @@ using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Physics;
 using Unity.Transforms;
-using Unity.NetCode;
+using Shared;
 
-namespace Shared
+namespace Server
 {
     /// <summary>
     /// 이동 도착 판정 시스템

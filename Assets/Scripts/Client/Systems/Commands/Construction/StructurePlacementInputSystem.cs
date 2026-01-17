@@ -5,7 +5,6 @@ using Unity.Transforms;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using Shared;
-using Unity.Collections;
 
 namespace Client
 {
@@ -16,25 +15,20 @@ namespace Client
     {
         private Camera _mainCamera;
         private int _groundMask;
-        private BufferLookup<UnitCommand> _unitCommandLookup;
 
         protected override void OnCreate()
         {
             RequireForUpdate<NetworkStreamInGame>();
-            RequireForUpdate<NetworkTime>();
             RequireForUpdate<UserState>();
             RequireForUpdate<GridSettings>();
             RequireForUpdate<SelectedEntityInfoState>();
             _groundMask = 1 << 3; // 3: Ground
-            _unitCommandLookup = GetBufferLookup<UnitCommand>(false);
         }
 
         protected override void OnUpdate()
         {
             var userState = SystemAPI.GetSingleton<UserState>();
             if (userState.CurrentState != UserContext.Construction) return;
-
-            _unitCommandLookup.Update(this);
 
             // 1. 카메라 캐싱 (매 프레임 FindObject 방지)
             if (_mainCamera == null)
@@ -128,6 +122,12 @@ namespace Client
             if (!EntityManager.HasComponent<BuilderTag>(builderEntity))
                 return;
 
+            // GhostInstance 확인
+            if (!EntityManager.HasComponent<GhostInstance>(builderEntity))
+                return;
+
+            int builderGhostId = EntityManager.GetComponentData<GhostInstance>(builderEntity).ghostId;
+
             // 건물 Footprint 조회
             if (!EntityManager.HasComponent<StructureFootprint>(previewState.SelectedPrefab))
                 return;
@@ -142,13 +142,6 @@ namespace Client
                 footprint.Length,
                 gridSettings
             );
-
-            // workRange 조회
-            float workRange = 2f; // 기본값
-            if (EntityManager.HasComponent<WorkRange>(builderEntity))
-            {
-                workRange = EntityManager.GetComponentData<WorkRange>(builderEntity).Value;
-            }
 
             // 건물 반지름 조회 (ObstacleRadius)
             float structureRadius = 1.5f; // 기본값 (Wall:1.42, Barracks:2.13 등 고려)
@@ -166,50 +159,26 @@ namespace Client
 
             // 유닛 현재 위치 조회
             float3 unitPos = float3.zero;
-            if (EntityManager.HasComponent<Unity.Transforms.LocalTransform>(builderEntity))
+            if (EntityManager.HasComponent<LocalTransform>(builderEntity))
             {
-                unitPos = EntityManager.GetComponentData<Unity.Transforms.LocalTransform>(builderEntity).Position;
+                unitPos = EntityManager.GetComponentData<LocalTransform>(builderEntity).Position;
             }
 
             // 이동 목표 계산: 건물 중심 방향으로, 건물 표면 + 유닛 반지름 + 여유분 지점
             float3 moveTarget = CalculateMoveTarget(unitPos, buildCenter, structureRadius, unitRadius);
 
-            // PendingBuildRequest 부착 (기존 있으면 덮어쓰기)
-            var pendingRequest = new PendingBuildRequest
+            // BuildMoveRequestRpc 전송 (서버에서 이동 + 도착 시 건설 처리)
+            var rpcEntity = ecb.CreateEntity();
+            ecb.AddComponent(rpcEntity, new BuildMoveRequestRpc
             {
+                BuilderGhostId = builderGhostId,
                 StructureIndex = previewState.SelectedPrefabIndex,
                 GridPosition = gridPos,
+                MoveTarget = moveTarget,
                 BuildSiteCenter = buildCenter,
-                RequiredRange = workRange,
-                Width = footprint.Width,
-                Length = footprint.Length,
                 StructureRadius = structureRadius
-            };
-
-            if (EntityManager.HasComponent<PendingBuildRequest>(builderEntity))
-            {
-                ecb.SetComponent(builderEntity, pendingRequest);
-            }
-            else
-            {
-                ecb.AddComponent(builderEntity, pendingRequest);
-            }
-
-            // UnitCommand 버퍼에 BuildKey 명령 추가
-            // CommandProcessingSystem에서 MovementGoal 설정 및 경로 계산 트리거
-            if (_unitCommandLookup.HasBuffer(builderEntity))
-            {
-                var networkTime = SystemAPI.GetSingleton<NetworkTime>();
-                var inputBuffer = _unitCommandLookup[builderEntity];
-
-                inputBuffer.AddCommandData(new UnitCommand
-                {
-                    Tick = networkTime.ServerTick,
-                    CommandType = UnitCommandType.BuildKey,
-                    GoalPosition = moveTarget,
-                    TargetGhostId = 0
-                });
-            }
+            });
+            ecb.AddComponent<SendRpcCommandRequest>(rpcEntity);
         }
 
         /// <summary>

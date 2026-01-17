@@ -13,12 +13,12 @@ GameObject:
   - component: {fileID: 5993142842393927599}
   - component: {fileID: 273674340279548180}
   - component: {fileID: -1956919634800290057}
+  - component: {fileID: 6316959222296917830}
   - component: {fileID: 2142624865458360963}
   - component: {fileID: 1205268191314873420}
   - component: {fileID: 144182510915702866}
   - component: {fileID: 3591145102254405203}
   - component: {fileID: 843709809492544232}
-  - component: {fileID: 6316959222296917830}
   m_Layer: 11
   m_Name: Hero
   m_TagString: Untagged
@@ -133,6 +133,29 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a71c64b884ae6f64c963a8a8ad5f364d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!136 &6316959222296917830
+CapsuleCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4751367205981193261}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 6336
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 2
+  m_Radius: 0.5
+  m_Height: 2
+  m_Direction: 1
+  m_Center: {x: 0, y: 0, z: 0}
 --- !u!114 &2142624865458360963
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -153,7 +176,7 @@ MonoBehaviour:
   defense: 0
   visionRange: 12
   workRange: 0
-  radius: 1.2
+  radius: 0.5
   attackPower: 1
   attackSpeed: 1
   attackRange: 1
@@ -231,27 +254,3 @@ MonoBehaviour:
   RotationSpeed: 12
   ArrivalRadius: 0.5
   AgentTypeIndex: 0
-  PhysicsRadiusOverride: 0
---- !u!136 &6316959222296917830
-CapsuleCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4751367205981193261}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 6336
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 0
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 2
-  m_Radius: 0.5
-  m_Height: 1
-  m_Direction: 1
-  m_Center: {x: 0, y: 0, z: 0}

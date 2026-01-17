@@ -39,6 +39,9 @@ namespace Client
         {
             if (!SystemAPI.TryGetSingleton(out Shared.SelectionRingPrefabRef prefabRef)) return;
 
+            // GhostOwnerIsLocal이 Job에서 업데이트되므로 의존성 완료 필요
+            state.CompleteDependency();
+
             _teamLookup.Update(ref state);
             _enemyTagLookup.Update(ref state);
             _ghostOwnerIsLocalLookup.Update(ref state);

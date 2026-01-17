@@ -12,22 +12,25 @@ using Shared;
 namespace Client
 {
     /// <summary>
-    /// 사용자의 마우스/키보드 입력을 UnitCommand로 변환하여 전송하는 시스템
+    /// 사용자의 마우스/키보드 입력을 RPC로 변환하여 서버에 전송하는 시스템
+    /// - 이동 명령: MoveRequestRpc
+    /// - 공격 명령: AttackRequestRpc
+    /// - 채집 명령: GatherRequestRpc
+    /// - 반납 명령: ReturnResourceRequestRpc
     /// </summary>
     [UpdateInGroup(typeof(GhostInputSystemGroup))]
     [UpdateAfter(typeof(SelectedEntityInfoUpdateSystem))]
-    // GhostIdLookupSystem은 PredictedSimulationSystemGroup에서 Complete()로 동기화하므로 UpdateAfter 불필요
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
     public partial struct UnitCommandInputSystem : ISystem
     {
-        private ComponentLookup<PendingBuildRequest> _pendingBuildLookup;
         private ComponentLookup<GhostInstance> _ghostInstanceLookup;
         private ComponentLookup<ResourceNodeTag> _resourceNodeTagLookup;
         private ComponentLookup<WorkerTag> _workerTagLookup;
         private ComponentLookup<ResourceCenterTag> _resourceCenterTagLookup;
         private ComponentLookup<WorkerState> _workerStateLookup;
+        private ComponentLookup<EnemyTag> _enemyTagLookup;
         private EntityQuery _physicsWorldQuery;
-        
+
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<NetworkStreamInGame>();
@@ -38,12 +41,12 @@ namespace Client
             state.RequireForUpdate<NetworkTime>();
             state.RequireForUpdate<PhysicsWorldSingleton>();
 
-            _pendingBuildLookup = state.GetComponentLookup<PendingBuildRequest>(true);
             _ghostInstanceLookup = state.GetComponentLookup<GhostInstance>(true);
             _resourceNodeTagLookup = state.GetComponentLookup<ResourceNodeTag>(true);
             _workerTagLookup = state.GetComponentLookup<WorkerTag>(true);
             _resourceCenterTagLookup = state.GetComponentLookup<ResourceCenterTag>(true);
             _workerStateLookup = state.GetComponentLookup<WorkerState>(true);
+            _enemyTagLookup = state.GetComponentLookup<EnemyTag>(true);
         }
 
         public void OnUpdate(ref SystemState state)
@@ -56,12 +59,12 @@ namespace Client
             if (userState.CurrentState == UserContext.Construction) return;
 
             // Lookup 업데이트
-            _pendingBuildLookup.Update(ref state);
             _ghostInstanceLookup.Update(ref state);
             _resourceNodeTagLookup.Update(ref state);
             _workerTagLookup.Update(ref state);
             _resourceCenterTagLookup.Update(ref state);
             _workerStateLookup.Update(ref state);
+            _enemyTagLookup.Update(ref state);
 
             ProcessMouseInput(ref state);
         }
@@ -102,133 +105,95 @@ namespace Client
                         targetGhostId = _ghostInstanceLookup[hitEntity].ghostId;
                     }
 
-                    // 4. 명령 전송
-                    SendCommandToSelectedUnits(ref state, hit.Position, targetGhostId);
-                    return;
+                    // 4. 명령 전송 (RPC 기반)
+                    SendCommandToSelectedUnits(ref state, hit.Position, targetGhostId, hitEntity);
                 }
             }
-
-            // 입력이 없을 때는 빈 명령(None) 전송하여 이전 명령 반복 방지
-            SendEmptyCommandToAllUnits(ref state);
         }
 
-        private void SendCommandToSelectedUnits(ref SystemState state, float3 goalPos, int targetGhostId)
+        private void SendCommandToSelectedUnits(ref SystemState state, float3 goalPos, int targetGhostId, Entity hitEntity)
         {
-            var networkTime = SystemAPI.GetSingleton<NetworkTime>();
-            var tick = networkTime.ServerTick;
-
             var ecb = SystemAPI.GetSingleton<BeginSimulationEntityCommandBufferSystem.Singleton>()
                 .CreateCommandBuffer(state.WorldUnmanaged);
 
-            // GhostIdMap 획득 (UpdateAfter로 Job 동기화 보장됨)
-            if (!SystemAPI.TryGetSingleton<GhostIdMap>(out var ghostIdMapData))
-                return;
-            var ghostIdMap = ghostIdMapData.Map;
-
-            // 타겟 엔티티 조회
-            Entity targetEntity = Entity.Null;
-            bool isResourceNode = false;
-            bool isResourceCenter = false;
-
-            if (targetGhostId != 0 && ghostIdMap.TryGetValue(targetGhostId, out targetEntity))
-            {
-                isResourceNode = _resourceNodeTagLookup.HasComponent(targetEntity);
-                isResourceCenter = _resourceCenterTagLookup.HasComponent(targetEntity);
-            }
-
-            int selectedCount = 0;
+            // 타겟 유형 확인
+            bool isResourceNode = _resourceNodeTagLookup.HasComponent(hitEntity);
+            bool isResourceCenter = _resourceCenterTagLookup.HasComponent(hitEntity);
+            bool isEnemy = _enemyTagLookup.HasComponent(hitEntity);
 
             // 선택된 내 유닛들에게 명령 하달
-            foreach (var (inputBuffer, entity) in SystemAPI.Query<DynamicBuffer<UnitCommand>>()
-                .WithAll<Selected, GhostOwnerIsLocal>() // 내가 소유하고 선택한 유닛만
+            foreach (var (_, entity) in SystemAPI.Query<RefRO<UnitTag>>()
+                .WithAll<Selected, GhostOwnerIsLocal>()
                 .WithEntityAccess())
             {
-                selectedCount++;
+                // 유닛의 GhostId 획득
+                if (!_ghostInstanceLookup.TryGetComponent(entity, out var unitGhost))
+                    continue;
 
-                // 1. UnitCommand 생성
-                var command = new UnitCommand
-                {
-                    Tick = tick,
-                    CommandType = UnitCommandType.RightClick, // 우클릭 통합 명령
-                    GoalPosition = goalPos,
-                    TargetGhostId = targetGhostId,
-                };
+                int unitGhostId = unitGhost.ghostId;
 
-                // 2. 버퍼에 추가 (Netcode가 서버로 전송함)
-                inputBuffer.AddCommandData(command);
-
-                // 3. Worker + ResourceNode 조합일 때 GatherRequestRpc 전송
+                // 1. Worker + ResourceNode 조합일 때 GatherRequestRpc 전송
                 if (isResourceNode && _workerTagLookup.HasComponent(entity))
                 {
-                    if (_ghostInstanceLookup.TryGetComponent(entity, out var workerGhost))
+                    Entity rpcEntity = ecb.CreateEntity();
+                    ecb.AddComponent(rpcEntity, new GatherRequestRpc
                     {
-                        Entity rpcEntity = ecb.CreateEntity();
-                        ecb.AddComponent(rpcEntity, new GatherRequestRpc
-                        {
-                            WorkerGhostId = workerGhost.ghostId,
-                            ResourceNodeGhostId = targetGhostId,
-                            ReturnPointGhostId = 0 // 자동 선택
-                        });
-                        ecb.AddComponent<SendRpcCommandRequest>(rpcEntity);
-                    }
+                        WorkerGhostId = unitGhostId,
+                        ResourceNodeGhostId = targetGhostId,
+                        ReturnPointGhostId = 0 // 자동 선택
+                    });
+                    ecb.AddComponent<SendRpcCommandRequest>(rpcEntity);
                 }
-
-                // 4. Worker + ResourceCenter + 자원 소지 시 ReturnResourceRequestRpc 전송
-                if (isResourceCenter && _workerTagLookup.HasComponent(entity))
+                // 2. Worker + ResourceCenter + 자원 소지 시 ReturnResourceRequestRpc 전송
+                else if (isResourceCenter && _workerTagLookup.HasComponent(entity))
                 {
                     // 자원을 들고 있는지 확인
                     if (_workerStateLookup.TryGetComponent(entity, out var workerState) &&
                         workerState.CarriedAmount > 0)
                     {
-                        if (_ghostInstanceLookup.TryGetComponent(entity, out var workerGhost))
+                        Entity rpcEntity = ecb.CreateEntity();
+                        ecb.AddComponent(rpcEntity, new ReturnResourceRequestRpc
                         {
-                            Entity rpcEntity = ecb.CreateEntity();
-                            ecb.AddComponent(rpcEntity, new ReturnResourceRequestRpc
-                            {
-                                WorkerGhostId = workerGhost.ghostId,
-                                ResourceCenterGhostId = targetGhostId
-                            });
-                            ecb.AddComponent<SendRpcCommandRequest>(rpcEntity);
-                        }
+                            WorkerGhostId = unitGhostId,
+                            ResourceCenterGhostId = targetGhostId
+                        });
+                        ecb.AddComponent<SendRpcCommandRequest>(rpcEntity);
+                    }
+                    else
+                    {
+                        // 자원이 없으면 이동으로 처리
+                        Entity rpcEntity = ecb.CreateEntity();
+                        ecb.AddComponent(rpcEntity, new MoveRequestRpc
+                        {
+                            UnitGhostId = unitGhostId,
+                            TargetPosition = goalPos
+                        });
+                        ecb.AddComponent<SendRpcCommandRequest>(rpcEntity);
                     }
                 }
-
-                // 5. 건설 대기 상태였다면 취소 (이동 명령이 우선이므로)
-                if (_pendingBuildLookup.HasComponent(entity))
+                // 3. 적 클릭 시 AttackRequestRpc 전송
+                else if (isEnemy && targetGhostId != 0)
                 {
-                    ecb.RemoveComponent<PendingBuildRequest>(entity);
+                    Entity rpcEntity = ecb.CreateEntity();
+                    ecb.AddComponent(rpcEntity, new AttackRequestRpc
+                    {
+                        UnitGhostId = unitGhostId,
+                        TargetGhostId = targetGhostId,
+                        TargetPosition = goalPos
+                    });
+                    ecb.AddComponent<SendRpcCommandRequest>(rpcEntity);
                 }
-            }
-
-            // if (selectedCount == 0)
-            // {
-            //     UnityEngine.Debug.LogWarning("[CLIENT] 우클릭했지만 선택된 유닛이 없음!");
-            // }
-        }
-
-        /// <summary>
-        /// 빈 명령(None)을 모든 유닛에 전송하여 이전 명령 반복 방지
-        /// </summary>
-        private void SendEmptyCommandToAllUnits(ref SystemState state)
-        {
-            var networkTime = SystemAPI.GetSingleton<NetworkTime>();
-            var tick = networkTime.ServerTick;
-
-            // 내 유닛들에게 빈 명령 전송 (이전 명령 반복 방지)
-            // PendingBuildRequest가 있는 유닛은 제외 (BuildKey 명령 보호)
-            foreach (var inputBuffer in SystemAPI.Query<DynamicBuffer<UnitCommand>>()
-                .WithAll<GhostOwnerIsLocal>()
-                .WithNone<PendingBuildRequest>())
-            {
-                var emptyCommand = new UnitCommand
+                // 4. 그 외 (땅 클릭 등) → MoveRequestRpc 전송
+                else
                 {
-                    Tick = tick,
-                    CommandType = UnitCommandType.None,
-                    GoalPosition = default,
-                    TargetGhostId = 0,
-                };
-
-                inputBuffer.AddCommandData(emptyCommand);
+                    Entity rpcEntity = ecb.CreateEntity();
+                    ecb.AddComponent(rpcEntity, new MoveRequestRpc
+                    {
+                        UnitGhostId = unitGhostId,
+                        TargetPosition = goalPos
+                    });
+                    ecb.AddComponent<SendRpcCommandRequest>(rpcEntity);
+                }
             }
         }
     }
