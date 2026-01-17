@@ -1,5 +1,6 @@
 using Unity.Entities;
 using Unity.Mathematics;
+using Unity.Physics;
 using UnityEngine;
 using Shared;
 
@@ -12,9 +13,18 @@ namespace Authoring
     /// </summary>
     public class MovementAuthoring : MonoBehaviour
     {
-        [Header("Stats")]
-        [Tooltip("이동 속도")]
-        public float MoveSpeed = 5.0f;
+        [Header("Movement Dynamics")]
+        [Tooltip("최대 이동 속도 (m/s)")]
+        public float MaxSpeed = 10.0f;
+
+        [Tooltip("가속도 (m/s^2)")]
+        public float Acceleration = 180.0f;
+
+        [Tooltip("감속도 (m/s^2)")]
+        public float Deceleration = 240.0f;
+
+        [Tooltip("회전 속도 (rad/s)")]
+        public float RotationSpeed = 12.0f;
 
         [Header("Pathfinding")]
         [Tooltip("도착 판정 반경")]
@@ -31,9 +41,15 @@ namespace Authoring
                 Entity entity = GetEntity(TransformUsageFlags.Dynamic);
 
                 // ==========================================================
-                // 1. Stats (이동 속도)
+                // 1. Movement Dynamics (가속도/감속도 기반 이동)
                 // ==========================================================
-                AddComponent(entity, new MovementSpeed { Value = authoring.MoveSpeed });
+                AddComponent(entity, new MovementDynamics
+                {
+                    MaxSpeed = authoring.MaxSpeed,
+                    Acceleration = authoring.Acceleration,
+                    Deceleration = authoring.Deceleration,
+                    RotationSpeed = authoring.RotationSpeed
+                });
 
                 // ==========================================================
                 // 2. High Level Logic (경로 탐색용)
@@ -73,6 +89,19 @@ namespace Authoring
                 {
                     AgentTypeIndex = authoring.AgentTypeIndex
                 });
+
+                // ==========================================================
+                // 6. Kinematic Mass (LocalTransform 직접 제어)
+                // ==========================================================
+                // 주의: Unity DOTS Physics는 Rigidbody 컴포넌트가 있으면 자동으로
+                // PhysicsMass를 베이킹합니다. 프리팹에서 Rigidbody.isKinematic=true로
+                // 설정하는 것이 권장됩니다.
+                // Rigidbody가 없는 경우에만 수동으로 Kinematic Mass를 추가합니다.
+                var rigidbody = authoring.GetComponent<Rigidbody>();
+                if (rigidbody == null)
+                {
+                    AddComponent(entity, PhysicsMass.CreateKinematic(MassProperties.UnitSphere));
+                }
             }
         }
     }

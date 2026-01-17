@@ -100,7 +100,11 @@ namespace Shared
                         // ------------------------------------------------------
                         // A. 땅을 클릭한 경우 (타겟 없음) -> 무조건 이동
                         // ------------------------------------------------------
-                        if (math.distance(movementGoal.ValueRW.Destination, inputCommand.GoalPosition) > 0.1f)
+                        // 정지 상태이거나 새 목표가 기존 목표와 충분히 다르면 이동
+                        bool isStopped = !waypointsEnabled.ValueRO;
+                        bool isNewDestination = math.distance(movementGoal.ValueRW.Destination, inputCommand.GoalPosition) > 0.1f;
+
+                        if (isStopped || isNewDestination)
                         {
                             SetUnitMovement(ref movementGoal.ValueRW, ref waypoints.ValueRW, inputCommand.GoalPosition, waypointsEnabled);
                             SetUnitIntentState(ref unitIntentState.ValueRW, Intent.Move, ref targetEntity); // targetEntity는 Null
@@ -124,7 +128,10 @@ namespace Shared
                             else
                             {
                                 // Worker가 아니면 이동으로 처리
-                                if (math.distance(movementGoal.ValueRW.Destination, inputCommand.GoalPosition) > 0.1f)
+                                bool isStopped = !waypointsEnabled.ValueRO;
+                                bool isNewDestination = math.distance(movementGoal.ValueRW.Destination, inputCommand.GoalPosition) > 0.1f;
+
+                                if (isStopped || isNewDestination)
                                 {
                                     SetUnitMovement(ref movementGoal.ValueRW, ref waypoints.ValueRW, inputCommand.GoalPosition, waypointsEnabled);
                                     SetUnitIntentState(ref unitIntentState.ValueRW, Intent.Move, ref targetEntity);
@@ -142,7 +149,10 @@ namespace Shared
                             aggroTarget.ValueRW.LastTargetPosition = inputCommand.GoalPosition;
 
                             // 타겟 위치로 이동 (추격)
-                            if (math.distance(movementGoal.ValueRW.Destination, inputCommand.GoalPosition) > 0.1f)
+                            bool isStopped = !waypointsEnabled.ValueRO;
+                            bool isNewDestination = math.distance(movementGoal.ValueRW.Destination, inputCommand.GoalPosition) > 0.1f;
+
+                            if (isStopped || isNewDestination)
                             {
                                 SetUnitMovement(ref movementGoal.ValueRW, ref waypoints.ValueRW, inputCommand.GoalPosition, waypointsEnabled);
                             }
@@ -162,7 +172,10 @@ namespace Shared
                             else
                             {
                                 // 자원이 없으면 일반 이동으로 처리
-                                if (math.distance(movementGoal.ValueRW.Destination, inputCommand.GoalPosition) > 0.1f)
+                                bool isStopped = !waypointsEnabled.ValueRO;
+                                bool isNewDestination = math.distance(movementGoal.ValueRW.Destination, inputCommand.GoalPosition) > 0.1f;
+
+                                if (isStopped || isNewDestination)
                                 {
                                     SetUnitMovement(ref movementGoal.ValueRW, ref waypoints.ValueRW, inputCommand.GoalPosition, waypointsEnabled);
                                     Entity nullEntity = Entity.Null;
@@ -173,7 +186,10 @@ namespace Shared
                         // Case 4: 기타 (이동)
                         else
                         {
-                            if (math.distance(movementGoal.ValueRW.Destination, inputCommand.GoalPosition) > 0.1f)
+                            bool isStopped = !waypointsEnabled.ValueRO;
+                            bool isNewDestination = math.distance(movementGoal.ValueRW.Destination, inputCommand.GoalPosition) > 0.1f;
+
+                            if (isStopped || isNewDestination)
                             {
                                 SetUnitMovement(ref movementGoal.ValueRW, ref waypoints.ValueRW, inputCommand.GoalPosition, waypointsEnabled);
                                 Entity nullEntity = Entity.Null;
@@ -188,8 +204,11 @@ namespace Shared
                 // ==========================================================
                 else if (inputCommand.CommandType == UnitCommandType.BuildKey)
                 {
-                    // 건설 위치로 이동 (이동 목표가 변경되었을 때만)
-                    if (math.distance(movementGoal.ValueRW.Destination, inputCommand.GoalPosition) > 0.1f)
+                    // 건설 위치로 이동
+                    bool isStopped = !waypointsEnabled.ValueRO;
+                    bool isNewDestination = math.distance(movementGoal.ValueRW.Destination, inputCommand.GoalPosition) > 0.1f;
+
+                    if (isStopped || isNewDestination)
                     {
                         SetUnitMovement(ref movementGoal.ValueRW, ref waypoints.ValueRW, inputCommand.GoalPosition, waypointsEnabled);
                         Entity nullEntity = Entity.Null;
@@ -213,7 +232,7 @@ namespace Shared
             // 서버 경로 도착 시 Ghost 동기화로 자동 교체됨
             waypoints.Current = position;
             waypoints.Next = position;
-            waypoints.HasNext = false;
+            waypoints.HasNext = true; // 감속 방지: 서버 경로 도착 시 PathFollowSystem이 교체
 
             enabledState.ValueRW = true; // 즉시 이동 시작
         }

@@ -21,6 +21,7 @@ namespace Server
     public partial struct EnemySpawnerSystem : ISystem
     {
         private EntityQuery _spawnPointQuery;
+        private uint _spawnCounter; // 스폰마다 증가하는 카운터 (고유 시드용)
 
         [BurstCompile]
         public void OnCreate(ref SystemState state)
@@ -33,6 +34,8 @@ namespace Server
             _spawnPointQuery = new EntityQueryBuilder(Allocator.Temp)
                 .WithAll<EnemySpawnPoint>()
                 .Build(ref state);
+
+            _spawnCounter = 1;
         }
 
         [BurstCompile]
@@ -111,8 +114,13 @@ namespace Server
 
             int toSpawn = settings.Wave0InitialSpawnCount - phaseState.Wave0SpawnedCount;
 
-            // 랜덤 시드 초기화
-            var random = Random.CreateFromIndex((uint)(SystemAPI.Time.ElapsedTime * 1000 + 1));
+            // 고유 시드 사용 (스폰 카운터 기반)
+            var random = Random.CreateFromIndex(_spawnCounter);
+            _spawnCounter++;
+
+            // 그리드 기반 분산 스폰: 적들이 겹치지 않도록 간격 보장
+            const float gridSpacing = 2.5f; // 적 간 최소 거리
+            int gridSize = (int)math.ceil(math.sqrt(toSpawn)); // 그리드 한 변 크기
 
             for (int i = 0; i < toSpawn; i++)
             {
@@ -120,13 +128,19 @@ namespace Server
                 int spawnIndex = random.NextInt(0, spawnPoints.Length);
                 float3 basePos = spawnPoints[spawnIndex].Position;
 
-                // 스폰 위치에 약간의 랜덤 오프셋 추가
-                float3 offset = new float3(
-                    random.NextFloat(-3f, 3f),
+                // 그리드 기반 위치 계산 + 약간의 랜덤 오프셋
+                int gridX = i % gridSize;
+                int gridZ = i / gridSize;
+                float3 gridOffset = new float3(
+                    (gridX - gridSize / 2f) * gridSpacing + random.NextFloat(-0.5f, 0.5f),
                     0,
-                    random.NextFloat(-3f, 3f)
+                    (gridZ - gridSize / 2f) * gridSpacing + random.NextFloat(-0.5f, 0.5f)
                 );
-                float3 spawnPos = basePos + offset;
+                float3 spawnPos = basePos + gridOffset;
+
+                // 프리팹의 y 오프셋 적용 (BoxCollider 반 높이, Ground 충돌 방지)
+                var prefabTransform = state.EntityManager.GetComponentData<LocalTransform>(prefabBig);
+                spawnPos.y += prefabTransform.Position.y;
 
                 Entity enemy = ecb.Instantiate(prefabBig);
                 ecb.SetComponent(enemy, LocalTransform.FromPosition(spawnPos));
@@ -155,7 +169,12 @@ namespace Server
 
             phaseState.SpawnTimer -= spawnInterval;
 
-            var random = Random.CreateFromIndex((uint)(SystemAPI.Time.ElapsedTime * 1000 + 1));
+            // 고유 시드 사용 (스폰 카운터 기반)
+            var random = Random.CreateFromIndex(_spawnCounter);
+            _spawnCounter++;
+
+            // 주기적 스폰도 간격 보장
+            const float spacing = 3f; // 적 간 최소 거리
 
             for (int i = 0; i < spawnCount; i++)
             {
@@ -163,10 +182,13 @@ namespace Server
                 int spawnIndex = random.NextInt(0, spawnPoints.Length);
                 float3 basePos = spawnPoints[spawnIndex].Position;
 
+                // 원형 분산 배치: 각 적이 서로 다른 각도에 스폰
+                float angle = (i / (float)spawnCount) * math.PI * 2f + random.NextFloat(-0.3f, 0.3f);
+                float radius = spacing + random.NextFloat(0f, 1f);
                 float3 offset = new float3(
-                    random.NextFloat(-2f, 2f),
+                    math.cos(angle) * radius,
                     0,
-                    random.NextFloat(-2f, 2f)
+                    math.sin(angle) * radius
                 );
                 float3 spawnPos = basePos + offset;
 
@@ -174,12 +196,10 @@ namespace Server
                 Entity prefab = SelectEnemyPrefab(ref random, prefabSmall, prefabBig, prefabFlying);
                 if (prefab == Entity.Null) continue;
 
-                // 비행 적은 공중에 스폰
+                // 프리팹의 y 오프셋 적용 (BoxCollider 반 높이, Ground 충돌 방지)
+                var prefabTransform = state.EntityManager.GetComponentData<LocalTransform>(prefab);
                 float3 finalSpawnPos = spawnPos;
-                if (prefab == prefabFlying)
-                {
-                    finalSpawnPos.y += 5f;
-                }
+                finalSpawnPos.y += prefabTransform.Position.y;
 
                 Entity enemy = ecb.Instantiate(prefab);
                 ecb.SetComponent(enemy, LocalTransform.FromPosition(finalSpawnPos));

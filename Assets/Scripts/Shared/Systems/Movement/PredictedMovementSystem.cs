@@ -1,130 +1,221 @@
 using Unity.Burst;
+using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Physics;
 using Unity.Transforms;
 using Unity.NetCode;
-using Unity.Collections;
 
 namespace Shared
 {
-    [UpdateInGroup(typeof(PredictedSimulationSystemGroup))]
-    [BurstCompile]
+    /// <summary>
+    /// 서버 전용 이동 시스템
+    /// - LocalTransform 직접 제어
+    /// - Entity 위치 기반 Separation
+    /// - 클라이언트는 Ghost 보간으로 부드럽게 표시
+    /// </summary>
+    [UpdateInGroup(typeof(SimulationSystemGroup))]
+    [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)] // 서버에서만 실행
     public partial struct PredictedMovementSystem : ISystem
     {
-        [BurstCompile]
+        private EntityQuery _movingEntitiesQuery;
+
         public void OnCreate(ref SystemState state)
         {
-            state.RequireForUpdate<PhysicsWorldSingleton>();
-            state.RequireForUpdate<NetworkTime>();
+            // Separation 대상 쿼리 (위치 + 반경이 있는 모든 이동 가능 엔티티)
+            _movingEntitiesQuery = state.GetEntityQuery(
+                ComponentType.ReadOnly<LocalTransform>(),
+                ComponentType.ReadOnly<ObstacleRadius>()
+            );
         }
 
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
-            var physicsWorld = SystemAPI.GetSingleton<PhysicsWorldSingleton>();
             float deltaTime = SystemAPI.Time.DeltaTime;
 
-            var job = new MoveJob
+            // 모든 이동 가능 엔티티의 위치/반경 수집 (Separation용)
+            var entities = _movingEntitiesQuery.ToEntityArray(Allocator.TempJob);
+            var positions = new NativeArray<float3>(entities.Length, Allocator.TempJob);
+            var radii = new NativeArray<float>(entities.Length, Allocator.TempJob);
+
+            for (int i = 0; i < entities.Length; i++)
+            {
+                positions[i] = state.EntityManager.GetComponentData<LocalTransform>(entities[i]).Position;
+                radii[i] = state.EntityManager.GetComponentData<ObstacleRadius>(entities[i]).Radius;
+            }
+
+            var job = new KinematicMovementJob
             {
                 DeltaTime = deltaTime,
-                CollisionWorld = physicsWorld.CollisionWorld,
-                // [필터 설정] 아군/적군/건물 등 충돌 레이어 설정
-                CollisionFilter = new CollisionFilter
-                {
-                    BelongsTo = 1u << 11 | 1u << 12, // Unit | Enemy
-                    CollidesWith = 1u << 6 | 1u << 7 | 1u << 11 | 1u << 12,  // Ground | Structure | Unit | Enemy
-                    GroupIndex = 0
-                }
+                AllEntities = entities,
+                AllPositions = positions,
+                AllRadii = radii,
+                SeparationStrength = 5.0f,
+                MaxSeparationDistance = 2.0f
             };
 
             state.Dependency = job.ScheduleParallel(state.Dependency);
+
+            // Job 완료 후 해제
+            entities.Dispose(state.Dependency);
+            positions.Dispose(state.Dependency);
+            radii.Dispose(state.Dependency);
         }
     }
 
     [BurstCompile]
-    public partial struct MoveJob : IJobEntity
+    public partial struct KinematicMovementJob : IJobEntity
     {
         public float DeltaTime;
-        [ReadOnly] public CollisionWorld CollisionWorld;
-        public CollisionFilter CollisionFilter;
+        [ReadOnly] public NativeArray<Entity> AllEntities;
+        [ReadOnly] public NativeArray<float3> AllPositions;
+        [ReadOnly] public NativeArray<float> AllRadii;
+        public float SeparationStrength;
+        public float MaxSeparationDistance;
 
-        private const float CornerRadius = 0.5f;
-        private const float WallCheckDistance = 1.0f;
-        private const float RotationSpeed = 20.0f; // 회전 보간 속도
-
-        // [최적화] IEnableableComponent인 MovementDestination을 사용하여
-        // 활성화된(이동 중인) 유닛만 자동으로 처리됩니다.
+        /// <summary>
+        /// Kinematic 이동 처리 (LocalTransform 직접 제어)
+        /// </summary>
         private void Execute(
+            Entity entity,
             ref LocalTransform transform,
+            ref PhysicsVelocity velocity,
             ref MovementWaypoints waypoints,
-            in MovementSpeed speed)
+            in MovementDynamics dynamics,
+            in ObstacleRadius obstacleRadius)
         {
             float3 currentPos = transform.Position;
-            float3 targetPos = waypoints.Current; // 현재 가야할 웨이포인트
 
-            // Y축 고정 (RTS는 보통 2D 평면 이동)
+            // ============================================
+            // 1. Waypoint 이동 속도 계산
+            // ============================================
+            float3 targetPos = waypoints.Current;
             targetPos.y = currentPos.y;
 
-            float distance = math.distance(currentPos, targetPos);
+            float3 toTarget = targetPos - currentPos;
+            float distance = math.length(toTarget);
 
-            // 1. 코너링 (웨이포인트 스위칭)
-            // 다음 웨이포인트가 있고, 코너링 반경 안에 들어왔다면 타겟 변경
+            // 코너링 (웨이포인트 스위칭)
+            const float CornerRadius = 0.5f;
             if (waypoints.HasNext && distance < CornerRadius)
             {
                 waypoints.Current = waypoints.Next;
-                waypoints.HasNext = false; // 소비함
+                waypoints.HasNext = false;
 
-                // 타겟 변경 후 재계산
                 targetPos = waypoints.Current;
                 targetPos.y = currentPos.y;
-                distance = math.distance(currentPos, targetPos);
+                toTarget = targetPos - currentPos;
+                distance = math.length(toTarget);
             }
 
-            // 2. 이동할 필요가 없으면 리턴 (도착 판정은 ArrivalSystem에서 함)
-            if (distance <= 0.001f) return;
-
-            // 3. 방향 계산
-            float3 toTarget = targetPos - currentPos;
-            float3 finalDirection = math.normalize(toTarget);
-
-            // 4. 벽/유닛 슬라이딩 (Raycast)
-            // 장애물에 비비며 이동하도록 처리
-            var rayInput = new RaycastInput
+            // 도착 근처면 완전 정지
+            const float ArrivalThreshold = 0.3f;
+            if (!waypoints.HasNext && distance < ArrivalThreshold)
             {
-                Start = currentPos,
-                End = currentPos + (finalDirection * WallCheckDistance),
-                Filter = CollisionFilter
-            };
+                velocity.Linear = float3.zero;
+                velocity.Angular = float3.zero;
+                return;
+            }
 
-            if (CollisionWorld.CastRay(rayInput, out var hit))
+            float3 moveDir = math.normalizesafe(toTarget);
+            float targetSpeed = CalculateTargetSpeed(dynamics, distance, waypoints.HasNext);
+
+            // 가속/감속 적용
+            float currentSpeedInDir = math.max(0f, math.dot(velocity.Linear, moveDir));
+            float speedDiff = targetSpeed - currentSpeedInDir;
+            float accelToUse = speedDiff > 0f ? dynamics.Acceleration : dynamics.Deceleration;
+            float newSpeed = currentSpeedInDir + math.sign(speedDiff) * math.min(math.abs(speedDiff), accelToUse * DeltaTime);
+            newSpeed = math.clamp(newSpeed, 0f, dynamics.MaxSpeed);
+
+            float3 moveVelocity = moveDir * newSpeed;
+            moveVelocity.y = 0f;
+
+            // ============================================
+            // 2. Separation (Entity 위치 기반 - 결정론적)
+            // ============================================
+            float3 separationVelocity = CalculateSeparation(currentPos, obstacleRadius.Radius, entity);
+            float3 finalVelocity = moveVelocity + separationVelocity * SeparationStrength;
+
+            // ============================================
+            // 3. 최종 위치 적용
+            // ============================================
+            float3 newPos = currentPos + finalVelocity * DeltaTime;
+            newPos.y = currentPos.y;
+            transform.Position = newPos;
+
+            // ============================================
+            // 4. PhysicsVelocity 동기화
+            // ============================================
+            finalVelocity.y = 0f;
+            velocity.Linear = finalVelocity;
+
+            // ============================================
+            // 5. 회전 처리
+            // ============================================
+            if (math.lengthsq(moveDir) > 0.001f)
             {
-                float3 normal = hit.SurfaceNormal;
-                float dot = math.dot(finalDirection, normal);
+                quaternion targetRotation = quaternion.LookRotationSafe(moveDir, math.up());
+                float t = math.saturate(DeltaTime * dynamics.RotationSpeed);
+                transform.Rotation = math.slerp(transform.Rotation, targetRotation, t);
+            }
+        }
 
-                // 벽을 향해 가고 있다면 (내적 < 0)
-                if (dot < 0)
+        /// <summary>
+        /// 목표 속도 계산 (Arrival 감속 로직)
+        /// </summary>
+        private float CalculateTargetSpeed(in MovementDynamics dynamics, float distance, bool hasNext)
+        {
+            float targetSpeed = dynamics.MaxSpeed;
+
+            // 최종 목적지인 경우만 감속
+            if (!hasNext)
+            {
+                float slowingDistance = (dynamics.MaxSpeed * dynamics.MaxSpeed) / (2f * dynamics.Deceleration);
+                if (distance < slowingDistance)
                 {
-                    // 벽면을 따라가는 벡터 투영
-                    float3 slideDir = finalDirection - (dot * normal);
-                    if (math.lengthsq(slideDir) > 0.0001f)
-                    {
-                        finalDirection = math.normalize(slideDir);
-                    }
+                    targetSpeed = dynamics.MaxSpeed * (distance / slowingDistance);
+                    targetSpeed = math.max(targetSpeed, 0.5f);
                 }
             }
 
-            // 6. 최종 위치 적용
-            float moveStep = speed.Value * DeltaTime;
-            transform.Position += finalDirection * moveStep;
+            return targetSpeed;
+        }
 
-            // 7. 회전 (바라보는 방향) - Slerp로 부드럽게 보간
-            if (math.lengthsq(finalDirection) > 0.001f)
+        /// <summary>
+        /// Separation 계산 (Entity 위치 기반 - 결정론적)
+        /// </summary>
+        private float3 CalculateSeparation(float3 myPos, float myRadius, Entity myEntity)
+        {
+            float3 separationForce = float3.zero;
+            float searchRadius = myRadius + MaxSeparationDistance;
+
+            for (int i = 0; i < AllEntities.Length; i++)
             {
-                quaternion targetRotation = quaternion.LookRotationSafe(finalDirection, math.up());
-                float t = math.saturate(DeltaTime * RotationSpeed);
-                transform.Rotation = math.slerp(transform.Rotation, targetRotation, t);
+                if (AllEntities[i] == myEntity) continue;
+
+                float3 otherPos = AllPositions[i];
+                float otherRadius = AllRadii[i];
+
+                float3 toOther = otherPos - myPos;
+                toOther.y = 0;
+                float dist = math.length(toOther);
+
+                // 검색 범위 밖이면 스킵
+                if (dist > searchRadius) continue;
+
+                float combinedRadius = myRadius + otherRadius;
+
+                if (dist < combinedRadius && dist > 0.001f)
+                {
+                    float overlap = combinedRadius - dist;
+                    float3 pushDir = -math.normalize(toOther);
+                    float strength = math.saturate(overlap / combinedRadius);
+                    separationForce += pushDir * overlap * strength;
+                }
             }
+
+            return separationForce;
         }
     }
 }

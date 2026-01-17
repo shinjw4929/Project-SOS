@@ -17,6 +17,7 @@ GameObject:
   - component: {fileID: -167978000647739316}
   - component: {fileID: -2567770639342092885}
   - component: {fileID: 8228669969362642872}
+  - component: {fileID: 7837240674632787096}
   m_Layer: 12
   m_Name: EnemyBig
   m_TagString: Untagged
@@ -33,7 +34,7 @@ Transform:
   m_GameObject: {fileID: 9087793863335566927}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0.6, z: 0}
+  m_LocalPosition: {x: 0, y: 1.2, z: 0}
   m_LocalScale: {x: 2, y: 2.4, z: 4}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -102,7 +103,7 @@ BoxCollider:
   m_Material: {fileID: 0}
   m_IncludeLayers:
     serializedVersion: 2
-    m_Bits: 2240
+    m_Bits: 6336
   m_ExcludeLayers:
     serializedVersion: 2
     m_Bits: 0
@@ -196,6 +197,38 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fa5b9120047d80f4ab8813c7304de74b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  MoveSpeed: 12
+  MaxSpeed: 10
+  Acceleration: 180
+  Deceleration: 240
+  RotationSpeed: 12
   ArrivalRadius: 0.5
   AgentTypeIndex: 2
+  LockYPosition: 1
+  PhysicsRadiusOverride: 0
+--- !u!54 &7837240674632787096
+Rigidbody:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9087793863335566927}
+  serializedVersion: 4
+  m_Mass: 1
+  m_Drag: 8
+  m_AngularDrag: 10
+  m_CenterOfMass: {x: 0, y: 0, z: 0}
+  m_InertiaTensor: {x: 1, y: 1, z: 1}
+  m_InertiaRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ImplicitCom: 1
+  m_ImplicitTensor: 1
+  m_UseGravity: 0
+  m_IsKinematic: 1
+  m_Interpolate: 0
+  m_Constraints: 116
+  m_CollisionDetection: 0

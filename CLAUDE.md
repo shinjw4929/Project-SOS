@@ -70,6 +70,7 @@ Client/
 │   ├── Commands/
 │   │   └── PendingBuildRequest.cs           # 대기 중인 건설 요청
 │   ├── Singleton/
+│   │   ├── CameraState.cs                   # 카메라 상태 싱글톤
 │   │   ├── NotificationState.cs             # 서버 알림 상태 싱글톤
 │   │   ├── SelectedEntityInfoState.cs       # 현재 선택된 엔티티 정보 싱글톤
 │   │   ├── UserSelectionInputState.cs       # 유저 선택 입력 상태 (Phase 기반)
@@ -77,6 +78,8 @@ Client/
 │   └── Structures/
 │       └── StructurePreviewState.cs         # 건설 프리뷰 상태
 ├── Controller/
+│   ├── Camera/
+│   │   └── CameraSystem.cs                  # 카메라 이동 시스템
 │   ├── StructurePreviewController.cs        # 건설 프리뷰 GameObject 컨트롤러
 │   └── UI/
 │       ├── Commands/
@@ -84,6 +87,8 @@ Client/
 │       │   ├── SelectionBoxRenderer.cs      # 드래그 박스 렌더링
 │       │   ├── StructureCommandUIController.cs  # 건물 명령 UI (통합)
 │       │   └── UnitCommandUIController.cs   # 유닛 명령 UI (통합)
+│       ├── Cursor/
+│       │   └── TestCursorController.cs      # 테스트 커서 컨트롤러
 │       ├── Info/
 │       │   ├── EntityInfoRenderer.cs        # 엔티티 정보 UI
 │       │   └── UserResourceInfoRenderer.cs  # 유저 경제 UI 렌더러
@@ -98,25 +103,27 @@ Client/
 │   │   │   ├── PendingBuildExecuteSystem.cs     # 대기 건설 요청 실행
 │   │   │   ├── StructurePlacementInputSystem.cs # 건설 배치 입력
 │   │   │   └── StructurePreviewUpdateSystem.cs  # 프리뷰 업데이트
-│   │   ├── FireProjectileClientRpcSystem.cs # [비활성화] 수동 투사체 발사 (DisableAutoCreation)
 │   │   ├── Selection/
 │   │   │   ├── EntitySelectionSystem.cs     # Selected 컴포넌트 토글
 │   │   │   ├── SelectedEntityInfoUpdateSystem.cs  # 선택된 엔티티 정보 업데이트
+│   │   │   ├── SelectionRingSpawnSystem.cs  # 선택 링 스폰 시스템
 │   │   │   ├── SelectionVisualizationSystem.cs
 │   │   │   └── UserSelectionInputUpdateSystem.cs  # 마우스 입력 → Phase 업데이트
 │   │   ├── StructureAction/
 │   │   │   └── StructureCommandInputSystem.cs   # 건물 명령 입력 (생산/자폭)
 │   │   └── UnitControl/
 │   │       └── UnitCommandInputSystem.cs    # 유닛 명령 입력 (이동/공격)
+│   ├── HeroHpTextPresentationSystem.cs      # 영웅 HP 텍스트 프레젠테이션
 │   ├── Initialize/
 │   │   ├── CatalogIndexMapInitSystem.cs     # 카탈로그 인덱스 맵 초기화
 │   │   ├── ClientBootstrapSystem.cs         # 클라이언트 초기화
 │   │   └── GoInGameClientSystem.cs          # 게임 진입 클라이언트
 │   └── NotificationReceiveSystem.cs         # 서버 알림 RPC 수신
 ├── UI/
-│   └── Enemy/
-│       ├── EnemyHpTextPresentationSystem.cs # 적 HP 텍스트 프레젠테이션
-│       └── EnemyHpUIBridge.cs               # 적 HP UI 브릿지
+│   ├── Enemy/
+│   │   ├── EnemyHpTextPresentationSystem.cs # 적 HP 텍스트 프레젠테이션
+│   │   └── EnemyHpUIBridge.cs               # 적 HP UI 브릿지
+│   └── HeroHpTextManager.cs                 # 영웅 HP 텍스트 매니저
 └── Utilities/
     ├── BuildSelectionUtility.cs             # 건설 명령 공통 유틸리티
     └── ProduceSelectionUtility.cs           # 생산 명령 공통 유틸리티
@@ -129,6 +136,8 @@ Shared/
 │   ├── PathWaypoint.cs                      # 경로 웨이포인트 버퍼
 │   └── StructurePrefabStore.cs              # 건물 프리팹 저장소
 ├── Components/
+│   ├── ContactDamage.cs                     # 접촉 데미지 컴포넌트
+│   ├── HeroHealth.cs                        # 영웅 체력 컴포넌트
 │   ├── Data/
 │   │   ├── EnemyChaseDistance.cs            # 적 추적 거리
 │   │   ├── EnemySpawnPoint.cs               # 적 스폰 포인트 위치
@@ -140,16 +149,22 @@ Shared/
 │   │   ├── ProductionQueue.cs
 │   │   ├── ProjectileMove.cs                # 투사체 이동
 │   │   ├── UserCurrency.cs
-│   │   └── UserPopulation.cs
+│   │   ├── UserPopulation.cs
+│   │   └── UserTechState.cs                 # 유저 기술 상태
 │   ├── Flags/
 │   │   └── SelectedTag.cs                   # Selected (EnableableComponent)
 │   ├── Inputs/
 │   │   └── UnitCommand.cs                   # 유닛 명령 입력
 │   ├── Movement/
+│   │   ├── LockedYPosition.cs               # Y축 고정 위치
+│   │   ├── MovementDynamics.cs              # 이동 역학 (속도, 가속도)
 │   │   ├── MovementGoal.cs                  # 이동 목표
-│   │   ├── MovementSpeed.cs
 │   │   ├── MovementWaypoints.cs             # 이동 웨이포인트
-│   │   └── SeparationForce.cs               # 분리력 (충돌 회피)
+│   │   └── NavMeshAgentConfig.cs            # NavMesh 에이전트 설정
+│   ├── Selection/
+│   │   ├── SelectionRingLinked.cs           # 선택 링 연결 태그
+│   │   ├── SelectionRingOwner.cs            # 선택 링 소유자
+│   │   └── SelectionRingTag.cs              # 선택 링 태그
 │   ├── State/
 │   │   ├── AggroTarget.cs                   # 공격/추적 대상 (유닛/적 공통)
 │   │   ├── AttackCooldown.cs                # 공격 쿨다운 타이머
@@ -157,13 +172,13 @@ Shared/
 │   │   ├── ConstructionState.cs
 │   │   ├── EnemyState.cs                    # 적 상태
 │   │   ├── GatheringTarget.cs               # 자원 채집 타겟
+│   │   ├── InitialWallDecayTimer.cs         # 초기 벽 붕괴 타이머
 │   │   ├── ResourceNodeState.cs             # 자원 노드 상태
 │   │   ├── StructureState.cs
-│   │   ├── Target.cs
 │   │   ├── UnitActionState.cs               # 유닛 액션 상태
 │   │   ├── UnitIntentState.cs               # 유닛 의도 상태
-│   │   ├── UnitState.cs                     # 유닛 상태 (Idle/Moving/Combat)
-│   │   └── WorkerState.cs                   # 일꾼 상태 (CarriedAmount, GatherPhase)
+│   │   ├── WorkerState.cs                   # 일꾼 상태 (CarriedAmount, GatherPhase)
+│   │   └── SpawnStunTimer.cs                # 스폰 후 경직 타이머
 │   ├── Stats/
 │   │   ├── CombatStats.cs
 │   │   ├── Defense.cs
@@ -178,6 +193,7 @@ Shared/
 │   └── Tags/
 │       ├── CarriedResourceTag.cs            # 운반 자원 태그
 │       ├── IdentityTags.cs                  # UnitTag, StructureTag
+│       ├── InitialWallTag.cs                # 초기 벽 태그
 │       ├── RangedEnemyTag.cs                # 원거리 적 태그 (EnemyFlying)
 │       ├── RangedUnitTag.cs                 # 원거리 유닛 태그 (Trooper, Sniper)
 │       ├── SelfDestructTag.cs               # 자폭 태그
@@ -186,6 +202,8 @@ Shared/
 │       ├── UnitTypeTags.cs                  # HeroTag, WorkerTag, BuilderTag, SwordsmanTag, TrooperTag, SniperTag 등
 │       ├── UserEconomyTag.cs                # 유저 경제 엔티티 태그
 │       └── VisualOnlyTag.cs                 # 시각 전용 태그 (데미지 없는 투사체)
+├── GhostVariants/
+│   └── PhysicsVelocityGhostOverride.cs      # Physics Velocity Ghost 오버라이드
 ├── RPCs/
 │   ├── BuildRequestRpc.cs                   # 건설 요청 RPC
 │   ├── FireProjectileRpc.cs                 # [미사용] 투사체 발사 요청 RPC
@@ -194,8 +212,10 @@ Shared/
 │   ├── NotificationRpc.cs                   # 서버 알림 RPC (자원 부족 등)
 │   ├── ProduceUnitRequestRpc.cs             # 유닛 생산 요청 RPC
 │   ├── ProjectileVisualRpc.cs               # [미사용] 투사체 시각 효과 RPC
+│   ├── ReturnResourceRequestRpc.cs          # 자원 반납 요청 RPC
 │   └── SelfDestructRequestRpc.cs            # 자폭 요청 RPC
 ├── Singletons/
+│   ├── CameraSettings.cs                    # 카메라 설정 싱글톤
 │   ├── GamePhaseState.cs                    # Wave 상태 싱글톤 (WavePhase, ElapsedTime, TotalKillCount)
 │   ├── GameSettings.cs                      # 게임 설정 싱글톤 (Wave 전환 조건 포함)
 │   ├── GhostIdMap.cs                        # Ghost ID 맵 싱글톤
@@ -206,6 +226,7 @@ Shared/
 │       ├── EnemyPrefabRef.cs                # [Deprecated] 적 프리팹 참조
 │       ├── ProjectilePrefabRef.cs           # 투사체 프리팹 참조
 │       ├── ResourceNodePrefabRef.cs         # 자원 노드 프리팹 참조
+│       ├── SelectionRingPrefabRef.cs        # 선택 링 프리팹 참조
 │       └── UserEconomyPrefabRef.cs          # 유저 경제 프리팹 참조
 ├── Systems/
 │   ├── CarriedResourceFollowSystem.cs       # 운반 자원 위치/가시성 (Scale 토글)
@@ -214,7 +235,6 @@ Shared/
 │   ├── Commands/
 │   │   └── CommandProcessingSystem.cs       # 명령 처리 시스템 (이동/공격/건설/채집)
 │   ├── Enemy/
-│   │   ├── EnemyMoveSystem.cs               # 적 이동 시스템
 │   │   └── EnemyTargetSystem.cs             # 적 타겟 시스템
 │   ├── Grid/
 │   │   ├── GridOccupancyEventSystem.cs
@@ -222,12 +242,13 @@ Shared/
 │   ├── Movement/
 │   │   ├── MovementArrivalSystem.cs         # 이동 도착 처리
 │   │   ├── PredictedMovementSystem.cs       # 예측 기반 유닛 이동 시스템
-│   │   └── UnitSeparationSystem.cs          # 유닛 분리 시스템 (충돌 회피)
+│   │   └── YPositionLockSystem.cs           # Y축 위치 고정 시스템
 │   └── Utils/
 │       └── GhostIdLookupSystem.cs           # Ghost ID 조회 시스템
 └── Utilities/
     ├── DamageUtility.cs                     # 데미지 계산 유틸리티
-    └── GridUtility.cs                       # 그리드 유틸리티
+    ├── GridUtility.cs                       # 그리드 유틸리티
+    └── MovementMath.cs                      # 이동 계산 유틸리티 (가속/감속)
 
 Server/
 ├── Data/
@@ -240,13 +261,12 @@ Server/
     │   ├── MeleeAttackSystem.cs             # 근접 공격 시스템 (거리 기반, RangedUnitTag 제외)
     │   ├── RangedAttackSystem.cs            # 원거리 공격 시스템 (필중, 시각 투사체 생성)
     │   └── ServerDeathSystem.cs             # 서버 사망 처리
-    ├── Initialize/
-    │   └── GamePhaseInitSystem.cs           # GamePhaseState 싱글톤 초기화
     ├── Commands/
     │   ├── Construction/
     │   │   └── HandleBuildRequestSystem.cs
     │   ├── Gathering/
-    │   │   └── HandleGatherRequestSystem.cs # 자원 채집 요청 처리
+    │   │   ├── HandleGatherRequestSystem.cs         # 자원 채집 요청 처리
+    │   │   └── HandleReturnResourceRequestSystem.cs # 자원 반납 요청 처리
     │   ├── Production/
     │   │   ├── HandleProduceUnitRequestSystem.cs    # 유닛 생산 요청 처리
     │   │   └── ProductionProgressSystem.cs          # 생산 진행 시스템
@@ -258,13 +278,16 @@ Server/
     │   ├── ResourceNodeCleanupSystem.cs     # 자원 노드 정리 시스템
     │   ├── WorkerCarriedResourceSpawnSystem.cs  # Worker 스폰 시 CarriedResource 자동 생성
     │   └── WorkerGatheringSystem.cs         # 일꾼 자원 채집 시스템
+    ├── HeroDamageOnContactServerSystem.cs   # 영웅 접촉 데미지 시스템
+    ├── Initialize/
+    │   └── GamePhaseInitSystem.cs           # GamePhaseState 싱글톤 초기화
+    ├── InitialWallDecaySystem.cs            # 초기 벽 붕괴 시스템
     ├── Movement/
     │   ├── NavMeshObstacleCleanupSystem.cs  # NavMesh 장애물 정리
     │   ├── NavMeshObstacleSpawnSystem.cs    # NavMesh 장애물 생성
     │   ├── PathfindingSystem.cs             # Pathfinding 시스템
     │   └── PathFollowSystem.cs              # 경로 추적 시스템
-    ├── Physics/
-    │   └── StructurePushOutSystem.cs        # 건물 충돌 밀어내기
+    ├── TechStateRecalculateSystem.cs        # 기술 상태 재계산 시스템
     └── Wave/
         ├── EnemyDeathCountSystem.cs         # 적 처치 수 카운팅 (ServerDeathSystem 전)
         ├── EnemySpawnerSystem.cs            # Wave별 적 스폰 시스템
@@ -286,6 +309,8 @@ Authoring/
 │   └── SelectedAuthoring.cs                 # Selected 태그 오서링
 ├── Economy/
 │   └── UserEconomyAuthoring.cs              # 유저 경제 오서링 (Ghost 프리팹용)
+├── Enemies/
+│   └── ContactDamageAuthoring.cs            # 접촉 데미지 오서링
 ├── Entities/
 │   ├── CarriedResourceAuthoring.cs          # 운반 자원 오서링
 │   ├── EnemyAuthoring.cs                    # 적 오서링 (스탯/전투, 이동은 MovementAuthoring)
@@ -293,15 +318,34 @@ Authoring/
 │   ├── StructureAuthoring.cs                # 건물 오서링 (Wall/Barracks/Turret/ResourceCenter)
 │   └── UnitAuthoring.cs                     # 유닛 오서링 (스탯/전투/정체성)
 ├── Movement/
-│   ├── MovementAuthoring.cs                 # 공용 이동 오서링 (MovementSpeed, NavMesh 등)
+│   ├── MovementAuthoring.cs                 # 공용 이동 오서링 (MovementDynamics, NavMesh 등)
 │   └── UnitMovementAuthoring.cs             # 유닛 전용 명령/상태 오서링 (UnitIntentState, UnitCommand)
+├── Selection/
+│   ├── SelectionRingAuthoring.cs            # 선택 링 오서링
+│   └── SelectionRingPrefabRefAuthoring.cs   # 선택 링 프리팹 참조 오서링
 └── Settings/
+    ├── CameraSettingsAuthoring.cs           # 카메라 설정 오서링
     ├── EnemySpawnPointAuthoring.cs          # 적 스폰 포인트 위치 지정
     ├── GameSettingsAuthoring.cs             # 게임 설정 (Wave 포함)
     └── GridSettingsAuthoring.cs
 
 Root (Scripts)/
 └── GameBootStrap.cs                         # 게임 진입점
+
+Tests/
+├── EditMode/
+│   ├── EditModeTests.asmdef                 # Edit 모드 테스트 어셈블리
+│   └── Utilities/
+│       ├── DamageUtilityTests.cs            # DamageUtility 단위 테스트
+│       ├── GridUtilityTests.cs              # GridUtility 단위 테스트
+│       └── MovementCalculationTests.cs      # MovementMath 단위 테스트
+└── PlayMode/
+    ├── PlayModeTests.asmdef                 # Play 모드 테스트 어셈블리
+    ├── ECSTestBase.cs                       # ECS 테스트 베이스 클래스
+    └── Systems/
+        ├── DamageApplySystemTests.cs        # DamageApplySystem 통합 테스트
+        ├── MovementSystemTests.cs           # 이동 시스템 통합 테스트
+        └── WaveSystemTests.cs               # Wave 시스템 통합 테스트
 ```
 
 ### System Groups & Dependencies
@@ -364,7 +408,6 @@ DamageApplySystem (UpdateAfter: MeleeAttackSystem, DamageEvent → Health 적용
 | 시스템 | 의존성 |
 |--------|--------|
 | HandleBuildRequestSystem | - |
-| StructurePushOutSystem | UpdateAfter: HandleBuildRequestSystem |
 | NavMeshObstacleSpawnSystem | - |
 | PathfindingSystem | UpdateAfter: NavMeshObstacleSpawnSystem |
 | PathFollowSystem | UpdateAfter: PathfindingSystem |
@@ -430,7 +473,7 @@ DamageApplySystem (UpdateAfter: MeleeAttackSystem, DamageEvent → Health 적용
     → CombatDamageSystem → MeleeAttackSystem → RangedAttackSystem, DamageApplySystem
 
 [건설/경로] SimulationSystemGroup (Server)
-    → HandleBuildRequestSystem → StructurePushOutSystem
+    → HandleBuildRequestSystem
     → NavMeshObstacleSpawnSystem → PathfindingSystem → PathFollowSystem
 
 [정리] SimulationSystemGroup (Server)
@@ -459,7 +502,7 @@ DamageApplySystem (UpdateAfter: MeleeAttackSystem, DamageEvent → Health 적용
 | 건물 (Wall, Barracks 등) | StructureAuthoring | 건물 스탯/생산 |
 
 각 Authoring이 베이킹하는 컴포넌트:
-- **MovementAuthoring**: MovementSpeed, MovementGoal, MovementWaypoints, PathWaypoint, NavMeshAgentConfig
+- **MovementAuthoring**: MovementDynamics, MovementGoal, MovementWaypoints, PathWaypoint, NavMeshAgentConfig, LockedYPosition
 - **UnitMovementAuthoring**: UnitIntentState, UnitActionState, UnitCommand (RequireComponent: MovementAuthoring)
 - **UnitAuthoring**: UnitTag, Team, Health, ObstacleRadius, CombatStats 등 (유닛 정체성/스탯)
 - **EnemyAuthoring**: EnemyTag, Team, Health, ObstacleRadius, EnemyState 등 (적 정체성/스탯), isRanged=true 시 RangedEnemyTag 추가
@@ -496,8 +539,7 @@ UnitCommandInputSystem               → 우클릭 명령 생성 (이동/공격)
 └── ServerDeathSystem       → Health ≤ 0 엔티티 삭제
 
 [SimulationSystemGroup - Client]
-├── ProjectileVisualSystem      → Ghost 복제된 시각 투사체 수신
-└── ClientProjectileMoveSystem  → 시각 투사체 이동 및 삭제
+└── ProjectileVisualSystem  → Ghost 복제된 시각 투사체 수신 및 이동
 ```
 
 **공격 유형별 처리:**
@@ -572,6 +614,7 @@ Entity prefab = catalog.GetPrefab(EnemyType.Flying);     // 또는 enum으로 �
 - `BuildRequestRpc` - Building placement request
 - `FireProjectileRpc` - 투사체 발사 요청
 - `GatherRequestRpc` - 자원 채집 요청
+- `ReturnResourceRequestRpc` - 자원 반납 요청
 - `ProduceUnitRequestRpc` - 유닛 생산 요청
 - `SelfDestructRequestRpc` - 건물 자폭 요청
 - `NotificationRpc` - 서버→클라이언트 알림 (자원 부족 등)
@@ -751,6 +794,23 @@ Wave 단계마다 적대 유닛의 수, 종류가 증가하며 난이도 상승
    - **"Player" 금지**: 유저를 지칭할 때 "Player" 대신 **"User"**를 사용한다.
      - 예: `UserResources`, `UserState`, `UserResourcesTag`
      - 이유: 멀티플레이어 환경에서 "Player"는 Unity Player(실행 인스턴스)와 혼동될 수 있음
+
+4. **테스트 코드 작성 원칙**: 새로운 로직 추가 시 반드시 테스트 코드를 함께 작성한다.
+   - **테스트 분류**:
+     - **EditMode 테스트**: 순수 함수, 유틸리티 클래스 단위 테스트 (ECS 의존성 없음)
+       - 위치: `Assets/Tests/EditMode/`
+       - 예: `DamageUtilityTests.cs`, `GridUtilityTests.cs`, `MovementCalculationTests.cs`
+     - **PlayMode 테스트**: ECS 시스템 통합 테스트 (World, Entity 생성 필요)
+       - 위치: `Assets/Tests/PlayMode/`
+       - 베이스 클래스: `ECSTestBase` 상속
+       - 예: `DamageApplySystemTests.cs`, `MovementSystemTests.cs`, `WaveSystemTests.cs`
+   - **테스트 명명 규칙**: `[테스트대상]_[시나리오]_[예상결과]` 형식
+     - 예: `CalculateFinalDamage_WithDefense_ReturnsReducedDamage`
+   - **테스트 커버리지 대상**:
+     - 새로운 Utility 함수 → EditMode 단위 테스트
+     - 새로운 System 로직 → PlayMode 통합 테스트
+     - 버그 수정 → 해당 버그를 재현하는 회귀 테스트
+   - **테스트 실행**: Unity Test Runner (Window > General > Test Runner)
 
 ## Unity DOTS: Data Access & Validity Rules
 
