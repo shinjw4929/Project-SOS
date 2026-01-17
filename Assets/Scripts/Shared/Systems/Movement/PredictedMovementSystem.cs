@@ -3,63 +3,65 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Physics;
-using Unity.Physics.Systems;
 using Unity.Transforms;
 using Unity.NetCode;
 
 namespace Shared
 {
     /// <summary>
-    /// Kinematic 기반 통합 이동 시스템
-    /// - LocalTransform 직접 제어 (IsKinematic)
-    /// - Separation (유닛 간 밀어내기) + 건물 충돌 해결을 단일 파이프라인으로 처리
+    /// 서버 전용 이동 시스템
+    /// - LocalTransform 직접 제어
+    /// - Entity 위치 기반 Separation
+    /// - 클라이언트는 Ghost 보간으로 부드럽게 표시
     /// </summary>
-    [UpdateInGroup(typeof(PredictedSimulationSystemGroup))]
+    [UpdateInGroup(typeof(SimulationSystemGroup))]
+    [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)] // 서버에서만 실행
     [BurstCompile]
     public partial struct PredictedMovementSystem : ISystem
     {
-        private ComponentLookup<ObstacleRadius> _obstacleRadiusLookup;
+        private EntityQuery _movingEntitiesQuery;
 
         [BurstCompile]
         public void OnCreate(ref SystemState state)
         {
-            state.RequireForUpdate<NetworkTime>();
-            state.RequireForUpdate<PhysicsWorldSingleton>();
-            _obstacleRadiusLookup = state.GetComponentLookup<ObstacleRadius>(true);
+            // Separation 대상 쿼리 (위치 + 반경이 있는 모든 이동 가능 엔티티)
+            _movingEntitiesQuery = state.GetEntityQuery(
+                ComponentType.ReadOnly<LocalTransform>(),
+                ComponentType.ReadOnly<ObstacleRadius>()
+            );
         }
 
-        [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
-            _obstacleRadiusLookup.Update(ref state);
-
-            var physicsWorld = SystemAPI.GetSingleton<PhysicsWorldSingleton>();
             float deltaTime = SystemAPI.Time.DeltaTime;
+
+            // 모든 이동 가능 엔티티의 위치/반경 수집 (Separation용)
+            var entities = _movingEntitiesQuery.ToEntityArray(Allocator.TempJob);
+            var positions = new NativeArray<float3>(entities.Length, Allocator.TempJob);
+            var radii = new NativeArray<float>(entities.Length, Allocator.TempJob);
+
+            for (int i = 0; i < entities.Length; i++)
+            {
+                positions[i] = state.EntityManager.GetComponentData<LocalTransform>(entities[i]).Position;
+                radii[i] = state.EntityManager.GetComponentData<ObstacleRadius>(entities[i]).Radius;
+            }
 
             var job = new KinematicMovementJob
             {
                 DeltaTime = deltaTime,
-                CollisionWorld = physicsWorld.CollisionWorld,
-                ObstacleRadiusLookup = _obstacleRadiusLookup,
-                SeparationStrength = 8.0f,
-                MaxSeparationDistance = 2.0f,
-                // Unit(11) + Enemy(12) 레이어 필터
-                UnitEnemyFilter = new CollisionFilter
-                {
-                    BelongsTo = ~0u,
-                    CollidesWith = (1u << 11) | (1u << 12),
-                    GroupIndex = 0
-                },
-                // Structure(7) 레이어 필터
-                StructureFilter = new CollisionFilter
-                {
-                    BelongsTo = ~0u,
-                    CollidesWith = (1u << 7),
-                    GroupIndex = 0
-                }
+                AllEntities = entities,
+                AllPositions = positions,
+                AllRadii = radii,
+                SeparationStrength = 5.0f,
+                MaxSeparationDistance = 2.0f
             };
 
             state.Dependency = job.ScheduleParallel(state.Dependency);
+
+            // Job 완료 후 해제
+            entities.Dispose(state.Dependency);
+            positions.Dispose(state.Dependency);
+            radii.Dispose(state.Dependency);
         }
     }
 
@@ -67,16 +69,14 @@ namespace Shared
     public partial struct KinematicMovementJob : IJobEntity
     {
         public float DeltaTime;
-        [ReadOnly] public CollisionWorld CollisionWorld;
-        [ReadOnly] public ComponentLookup<ObstacleRadius> ObstacleRadiusLookup;
+        [ReadOnly] public NativeArray<Entity> AllEntities;
+        [ReadOnly] public NativeArray<float3> AllPositions;
+        [ReadOnly] public NativeArray<float> AllRadii;
         public float SeparationStrength;
         public float MaxSeparationDistance;
-        public CollisionFilter UnitEnemyFilter;
-        public CollisionFilter StructureFilter;
 
         /// <summary>
         /// Kinematic 이동 처리 (LocalTransform 직접 제어)
-        /// - MovementWaypoints가 활성화된 엔티티만 처리
         /// </summary>
         private void Execute(
             Entity entity,
@@ -84,8 +84,7 @@ namespace Shared
             ref PhysicsVelocity velocity,
             ref MovementWaypoints waypoints,
             in MovementDynamics dynamics,
-            in ObstacleRadius obstacleRadius,
-            in PhysicsRadius physicsRadius)
+            in ObstacleRadius obstacleRadius)
         {
             float3 currentPos = transform.Position;
 
@@ -96,8 +95,7 @@ namespace Shared
             targetPos.y = currentPos.y;
 
             float3 toTarget = targetPos - currentPos;
-            float distanceSq = math.lengthsq(toTarget);
-            float distance = math.sqrt(distanceSq);
+            float distance = math.length(toTarget);
 
             // 코너링 (웨이포인트 스위칭)
             const float CornerRadius = 0.5f;
@@ -109,8 +107,7 @@ namespace Shared
                 targetPos = waypoints.Current;
                 targetPos.y = currentPos.y;
                 toTarget = targetPos - currentPos;
-                distanceSq = math.lengthsq(toTarget);
-                distance = math.sqrt(distanceSq);
+                distance = math.length(toTarget);
             }
 
             // 도착 근처면 완전 정지
@@ -126,53 +123,36 @@ namespace Shared
             float targetSpeed = CalculateTargetSpeed(dynamics, distance, waypoints.HasNext);
 
             // 가속/감속 적용
-            float3 currentVelocity = velocity.Linear;
-            float currentSpeed = math.length(currentVelocity);
-
-            float speedDiff = targetSpeed - currentSpeed;
+            float currentSpeedInDir = math.max(0f, math.dot(velocity.Linear, moveDir));
+            float speedDiff = targetSpeed - currentSpeedInDir;
             float accelToUse = speedDiff > 0f ? dynamics.Acceleration : dynamics.Deceleration;
-            float newSpeed = currentSpeed + math.sign(speedDiff) * math.min(math.abs(speedDiff), accelToUse * DeltaTime);
-            newSpeed = math.max(0f, newSpeed);
+            float newSpeed = currentSpeedInDir + math.sign(speedDiff) * math.min(math.abs(speedDiff), accelToUse * DeltaTime);
+            newSpeed = math.clamp(newSpeed, 0f, dynamics.MaxSpeed);
 
             float3 moveVelocity = moveDir * newSpeed;
             moveVelocity.y = 0f;
 
             // ============================================
-            // 2. Separation (유닛/적 간 밀어내기)
+            // 2. Separation (Entity 위치 기반 - 결정론적)
             // ============================================
-            float3 separationVelocity = CalculateSeparation(
-                currentPos,
-                obstacleRadius.Radius,
-                entity);
+            float3 separationVelocity = CalculateSeparation(currentPos, obstacleRadius.Radius, entity);
+            float3 finalVelocity = moveVelocity + separationVelocity * SeparationStrength;
 
             // ============================================
-            // 3. 속도 합산
-            // ============================================
-            float3 desiredVelocity = moveVelocity + separationVelocity * SeparationStrength;
-
-            // ============================================
-            // 4. 건물 충돌 해결 (Wall Sliding)
-            // ============================================
-            float3 finalVelocity = ResolveStructureCollision(
-                currentPos,
-                desiredVelocity,
-                physicsRadius.Value);
-
-            // ============================================
-            // 5. 최종 위치 적용 (Y축 유지)
+            // 3. 최종 위치 적용
             // ============================================
             float3 newPos = currentPos + finalVelocity * DeltaTime;
-            newPos.y = currentPos.y; // Kinematic이므로 Y축 그대로 유지
+            newPos.y = currentPos.y;
             transform.Position = newPos;
 
             // ============================================
-            // 6. PhysicsVelocity 동기화 (네트워크/다른 시스템용)
+            // 4. PhysicsVelocity 동기화
             // ============================================
             finalVelocity.y = 0f;
             velocity.Linear = finalVelocity;
 
             // ============================================
-            // 7. 회전 처리
+            // 5. 회전 처리
             // ============================================
             if (math.lengthsq(moveDir) > 0.001f)
             {
@@ -204,118 +184,39 @@ namespace Shared
         }
 
         /// <summary>
-        /// Separation 계산 (CollisionWorld.CalculateDistance 활용)
-        /// - 주변 유닛/적과의 겹침을 감지하고 밀어내기 벡터 계산
+        /// Separation 계산 (Entity 위치 기반 - 결정론적)
         /// </summary>
         private float3 CalculateSeparation(float3 myPos, float myRadius, Entity myEntity)
         {
             float3 separationForce = float3.zero;
             float searchRadius = myRadius + MaxSeparationDistance;
 
-            // Point로부터 가까운 충돌체 검색
-            var hits = new NativeList<DistanceHit>(16, Allocator.Temp);
-
-            var input = new PointDistanceInput
+            for (int i = 0; i < AllEntities.Length; i++)
             {
-                Position = myPos,
-                MaxDistance = searchRadius,
-                Filter = UnitEnemyFilter
-            };
+                if (AllEntities[i] == myEntity) continue;
 
-            if (CollisionWorld.CalculateDistance(input, ref hits))
-            {
-                for (int i = 0; i < hits.Length; i++)
+                float3 otherPos = AllPositions[i];
+                float otherRadius = AllRadii[i];
+
+                float3 toOther = otherPos - myPos;
+                toOther.y = 0;
+                float dist = math.length(toOther);
+
+                // 검색 범위 밖이면 스킵
+                if (dist > searchRadius) continue;
+
+                float combinedRadius = myRadius + otherRadius;
+
+                if (dist < combinedRadius && dist > 0.001f)
                 {
-                    var hit = hits[i];
-                    if (hit.Entity == myEntity) continue;
-
-                    float3 toOther = hit.Position - myPos;
-                    toOther.y = 0;
-                    float dist = math.length(toOther);
-
-                    // ObstacleRadius 기반 겹침 계산
-                    float otherRadius = myRadius; // 기본값
-                    if (ObstacleRadiusLookup.HasComponent(hit.Entity))
-                    {
-                        otherRadius = ObstacleRadiusLookup[hit.Entity].Radius;
-                    }
-
-                    float combinedRadius = myRadius + otherRadius;
-
-                    if (dist < combinedRadius && dist > 0.001f)
-                    {
-                        float overlap = combinedRadius - dist;
-                        float3 pushDir = -math.normalize(toOther);
-                        float strength = math.saturate(overlap / combinedRadius);
-                        separationForce += pushDir * overlap * strength;
-                    }
+                    float overlap = combinedRadius - dist;
+                    float3 pushDir = -math.normalize(toOther);
+                    float strength = math.saturate(overlap / combinedRadius);
+                    separationForce += pushDir * overlap * strength;
                 }
             }
 
-            hits.Dispose();
             return separationForce;
-        }
-
-        /// <summary>
-        /// 건물 충돌 해결 (PointDistance 활용)
-        /// - 45도 기준: 수직 충돌 시 멈춤, 사선 충돌 시 미끄러짐
-        /// </summary>
-        private float3 ResolveStructureCollision(float3 currentPos, float3 velocity, float radius)
-        {
-            if (math.lengthsq(velocity) < 0.0001f)
-            {
-                return velocity;
-            }
-
-            // 이동 후 예상 위치
-            float3 targetPos = currentPos + velocity * DeltaTime;
-
-            // 예상 위치에서 건물과의 거리 검사
-            var input = new PointDistanceInput
-            {
-                Position = targetPos,
-                MaxDistance = radius + 0.1f, // 약간의 여유
-                Filter = StructureFilter
-            };
-
-            if (CollisionWorld.CalculateDistance(input, out DistanceHit hit))
-            {
-                // 건물과 충돌 예정
-                float penetration = radius - hit.Distance;
-
-                if (penetration > 0)
-                {
-                    // 충돌 방향 (건물 표면에서 유닛을 향하는 방향)
-                    float3 surfaceNormal = math.normalizesafe(hit.Position - targetPos);
-                    surfaceNormal.y = 0;
-                    float normalLen = math.length(surfaceNormal);
-
-                    if (normalLen < 0.001f)
-                    {
-                        return velocity;
-                    }
-
-                    surfaceNormal = surfaceNormal / normalLen;
-
-                    float3 moveDir = math.normalizesafe(velocity);
-                    float dot = math.dot(moveDir, surfaceNormal);
-
-                    // cos(45°) ≈ 0.707
-                    if (math.abs(dot) > 0.707f)
-                    {
-                        // 수직 충돌 - 멈춤
-                        return float3.zero;
-                    }
-                    else
-                    {
-                        // 사선 충돌 - 벽면에 투영 (미끄러짐)
-                        float3 slidingVelocity = velocity - math.project(velocity, surfaceNormal);
-                        return slidingVelocity;
-                    }
-                }
-            }
-
-            return velocity; // 충돌 없음
         }
     }
 }

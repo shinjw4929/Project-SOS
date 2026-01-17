@@ -9,11 +9,12 @@ namespace Shared
 {
     /// <summary>
     /// 이동 도착 판정 시스템
-    /// - PhysicsVelocity 기반 이동과 호환
     /// - 거리 + 속도 조건으로 도착 판정
+    /// - 서버에서만 실행 (클라이언트는 Ghost 보간)
     /// </summary>
-    [UpdateInGroup(typeof(PredictedSimulationSystemGroup))]
+    [UpdateInGroup(typeof(SimulationSystemGroup))]
     [UpdateAfter(typeof(PredictedMovementSystem))]
+    [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
     [BurstCompile]
     public partial struct MovementArrivalSystem : ISystem
     {
@@ -27,8 +28,7 @@ namespace Shared
                              RefRO<LocalTransform>,
                              RefRO<ObstacleRadius>,
                              RefRW<PhysicsVelocity>,
-                             EnabledRefRW<MovementWaypoints>>()
-                         .WithAll<Simulate>())
+                             EnabledRefRW<MovementWaypoints>>())
             {
                 float3 targetPos = destination.ValueRO.Current;
                 targetPos.y = transform.ValueRO.Position.y;
