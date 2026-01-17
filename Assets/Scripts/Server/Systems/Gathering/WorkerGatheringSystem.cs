@@ -4,6 +4,7 @@ using Unity.Burst;
 using Unity.Transforms;
 using Unity.Mathematics;
 using Unity.Collections;
+using Unity.Physics;
 using Shared;
 
 namespace Server
@@ -14,6 +15,7 @@ namespace Server
     /// <para>상태: Intent.Gather + WorkerState.Phase 조합으로 세부 단계 추적</para>
     /// </summary>
     [UpdateInGroup(typeof(SimulationSystemGroup))]
+    [UpdateAfter(typeof(HandleBuildRequestSystem))]
     [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
     [BurstCompile]
     public partial struct WorkerGatheringSystem : ISystem
@@ -26,6 +28,7 @@ namespace Server
         private ComponentLookup<WorkRange> _workRangeLookup;
         private ComponentLookup<ResourceNodeSetting> _resourceNodeSettingLookup;
         private ComponentLookup<ObstacleRadius> _obstacleRadiusLookup;
+        private ComponentLookup<PhysicsVelocity> _physicsVelocityLookup;
 
         public void OnCreate(ref SystemState state)
         {
@@ -38,11 +41,16 @@ namespace Server
             _workRangeLookup = state.GetComponentLookup<WorkRange>(true);
             _resourceNodeSettingLookup = state.GetComponentLookup<ResourceNodeSetting>(true);
             _obstacleRadiusLookup = state.GetComponentLookup<ObstacleRadius>(true);
+            _physicsVelocityLookup = state.GetComponentLookup<PhysicsVelocity>(false);
         }
 
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
+            // HandleBuildRequestSystem의 ExecuteBuildRequestJob이 UserCurrency에 쓰기 작업을 스케줄링하므로
+            // 해당 Job이 완료된 후에 UserCurrencyLookup에 접근해야 함
+            state.CompleteDependency();
+
             UpdateLookups(ref state);
 
             float deltaTime = SystemAPI.Time.DeltaTime;
@@ -87,6 +95,7 @@ namespace Server
             _workRangeLookup.Update(ref state);
             _resourceNodeSettingLookup.Update(ref state);
             _obstacleRadiusLookup.Update(ref state);
+            _physicsVelocityLookup.Update(ref state);
         }
 
         /// <summary>
@@ -208,6 +217,12 @@ namespace Server
 
                             // 이동 비활성화 (채집 중에는 멈춤)
                             SystemAPI.SetComponentEnabled<MovementWaypoints>(entity, false);
+
+                            // PhysicsVelocity 초기화 (관성으로 인한 이동 방지)
+                            if (_physicsVelocityLookup.HasComponent(entity))
+                            {
+                                _physicsVelocityLookup.GetRefRW(entity).ValueRW.Linear = float3.zero;
+                            }
                         }
                         // 다른 워커가 점유 중 → WaitingForNode로 전환
                         else
@@ -547,6 +562,12 @@ namespace Server
                     workerState.ValueRW.GatheringProgress = 0f;
 
                     SystemAPI.SetComponentEnabled<MovementWaypoints>(entity, false);
+
+                    // PhysicsVelocity 초기화 (관성으로 인한 이동 방지)
+                    if (_physicsVelocityLookup.HasComponent(entity))
+                    {
+                        _physicsVelocityLookup.GetRefRW(entity).ValueRW.Linear = float3.zero;
+                    }
                 }
             }
         }

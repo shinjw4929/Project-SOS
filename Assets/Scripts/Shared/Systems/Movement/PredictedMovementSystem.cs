@@ -16,12 +16,10 @@ namespace Shared
     /// </summary>
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)] // 서버에서만 실행
-    [BurstCompile]
     public partial struct PredictedMovementSystem : ISystem
     {
         private EntityQuery _movingEntitiesQuery;
 
-        [BurstCompile]
         public void OnCreate(ref SystemState state)
         {
             // Separation 대상 쿼리 (위치 + 반경이 있는 모든 이동 가능 엔티티)
@@ -31,6 +29,7 @@ namespace Shared
             );
         }
 
+        [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
             float deltaTime = SystemAPI.Time.DeltaTime;
