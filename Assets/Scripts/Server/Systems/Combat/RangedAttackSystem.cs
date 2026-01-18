@@ -165,13 +165,13 @@ namespace Server
             if (aggroTarget.TargetEntity != targetEntity)
             {
                 aggroTarget.TargetEntity = targetEntity;
-                if (_transformLookup.TryGetComponent(targetEntity, out var targetTransform))
+                if (_transformLookup.TryGetComponent(targetEntity, out var syncTransform))
                 {
-                    aggroTarget.LastTargetPosition = targetTransform.Position;
+                    aggroTarget.LastTargetPosition = syncTransform.Position;
                 }
             }
 
-            // 타겟 유효성 검사
+            // 타겟 유효성 검사 (TryGetComponent로 중복 룩업 제거)
             if (targetEntity == Entity.Null)
             {
                 intentState.State = Intent.Idle;
@@ -179,8 +179,8 @@ namespace Server
                 return;
             }
 
-            if (!_transformLookup.HasComponent(targetEntity) ||
-                !_healthLookup.HasComponent(targetEntity))
+            if (!_transformLookup.TryGetComponent(targetEntity, out var targetTransform) ||
+                !_healthLookup.TryGetComponent(targetEntity, out var targetHealth))
             {
                 intentState.State = Intent.Idle;
                 intentState.TargetEntity = Entity.Null;
@@ -190,9 +190,9 @@ namespace Server
             }
 
             // 아군 히트 방지
-            if (_teamLookup.HasComponent(targetEntity))
+            if (_teamLookup.TryGetComponent(targetEntity, out var targetTeam))
             {
-                if (_teamLookup[targetEntity].teamId == myTeam.teamId)
+                if (targetTeam.teamId == myTeam.teamId)
                 {
                     intentState.State = Intent.Idle;
                     intentState.TargetEntity = Entity.Null;
@@ -203,7 +203,6 @@ namespace Server
             }
 
             // 타겟이 이미 사망했으면 무시
-            var targetHealth = _healthLookup[targetEntity];
             if (targetHealth.CurrentValue <= 0)
             {
                 intentState.State = Intent.Idle;
@@ -213,8 +212,8 @@ namespace Server
                 return;
             }
 
-            // 거리 계산
-            float3 targetPos = _transformLookup[targetEntity].Position;
+            // 거리 계산 (위에서 TryGetComponent로 이미 조회한 targetTransform 사용)
+            float3 targetPos = targetTransform.Position;
             float3 myPos = myTransform.Position;
             float distance = math.distance(myPos, targetPos);
 
@@ -257,17 +256,16 @@ namespace Server
             // 쿨다운 체크
             if (cooldown.RemainingTime > 0) return;
 
-            // 데미지 계산
-            float defenseValue = _defenseLookup.HasComponent(targetEntity)
-                ? _defenseLookup[targetEntity].Value
+            // 데미지 계산 (TryGetComponent로 중복 룩업 제거)
+            float defenseValue = _defenseLookup.TryGetComponent(targetEntity, out var defense)
+                ? defense.Value
                 : 0f;
 
             float finalDamage = DamageUtility.CalculateDamage(stats.AttackPower, defenseValue);
 
             // DamageEvent 버퍼에 데미지 추가 (즉시 적용 = 필중)
-            if (_damageEventLookup.HasBuffer(targetEntity))
+            if (_damageEventLookup.TryGetBuffer(targetEntity, out var damageBuffer))
             {
-                var damageBuffer = _damageEventLookup[targetEntity];
                 damageBuffer.Add(new DamageEvent { Damage = finalDamage });
             }
 
@@ -326,26 +324,25 @@ namespace Server
             // 타겟 없음
             if (targetEntity == Entity.Null) return;
 
-            // 타겟 유효성 검사
-            if (!_transformLookup.HasComponent(targetEntity) ||
-                !_healthLookup.HasComponent(targetEntity))
+            // 타겟 유효성 검사 (TryGetComponent로 중복 룩업 제거)
+            if (!_transformLookup.TryGetComponent(targetEntity, out var targetTransform) ||
+                !_healthLookup.TryGetComponent(targetEntity, out var targetHealth))
             {
                 return;
             }
 
             // 아군 히트 방지
-            if (_teamLookup.HasComponent(targetEntity))
+            if (_teamLookup.TryGetComponent(targetEntity, out var targetTeam))
             {
-                if (_teamLookup[targetEntity].teamId == myTeam.teamId)
+                if (targetTeam.teamId == myTeam.teamId)
                     return;
             }
 
             // 타겟이 이미 사망했으면 무시
-            var targetHealth = _healthLookup[targetEntity];
             if (targetHealth.CurrentValue <= 0) return;
 
-            // 거리 계산
-            float3 targetPos = _transformLookup[targetEntity].Position;
+            // 거리 계산 (위에서 TryGetComponent로 이미 조회한 targetTransform 사용)
+            float3 targetPos = targetTransform.Position;
             float3 myPos = myTransform.Position;
             float distance = math.distance(myPos, targetPos);
 
@@ -386,17 +383,16 @@ namespace Server
             // 쿨다운 체크
             if (cooldown.RemainingTime > 0) return;
 
-            // 데미지 계산
-            float defenseValue = _defenseLookup.HasComponent(targetEntity)
-                ? _defenseLookup[targetEntity].Value
+            // 데미지 계산 (TryGetComponent로 중복 룩업 제거)
+            float defenseValue = _defenseLookup.TryGetComponent(targetEntity, out var defense)
+                ? defense.Value
                 : 0f;
 
             float finalDamage = DamageUtility.CalculateDamage(stats.AttackPower, defenseValue);
 
             // DamageEvent 버퍼에 데미지 추가 (즉시 적용 = 필중)
-            if (_damageEventLookup.HasBuffer(targetEntity))
+            if (_damageEventLookup.TryGetBuffer(targetEntity, out var damageBuffer))
             {
-                var damageBuffer = _damageEventLookup[targetEntity];
                 damageBuffer.Add(new DamageEvent { Damage = finalDamage });
             }
 

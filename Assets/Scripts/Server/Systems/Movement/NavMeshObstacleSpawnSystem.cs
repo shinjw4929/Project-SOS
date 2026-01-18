@@ -16,7 +16,8 @@ namespace Server
     [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
     public partial class NavMeshObstacleSpawnSystem : SystemBase
     {
-        private const float PathInvalidationRadius = 15f;
+        private const float PathInvalidationRadius = 8f; // 건물 최대 크기의 2배로 축소
+        private const int MaxObstaclesPerFrame = 2; // 프레임당 스폰 제한
         
         // [핵심 설정] 장애물을 실제 크기보다 얼마나 작게 만들 것인가?
         // NavMesh Agent Radius(보통 0.5)만큼 NavMesh가 자동으로 벌어지므로,
@@ -32,6 +33,7 @@ namespace Server
         protected override void OnUpdate()
         {
             var ecb = new EntityCommandBuffer(Unity.Collections.Allocator.Temp);
+            int spawnsThisFrame = 0;
 
             foreach (var (transform, footprint, entity) in
                 SystemAPI.Query<RefRO<LocalTransform>, RefRO<StructureFootprint>>()
@@ -39,6 +41,10 @@ namespace Server
                     .WithAll<NeedsNavMeshObstacle>()
                     .WithEntityAccess())
             {
+                // 프레임당 스폰 제한: 나머지는 다음 프레임으로 미룸
+                if (spawnsThisFrame >= MaxObstaclesPerFrame)
+                    break;
+
                 // 1. GameObject 생성
                 GameObject obstacleObj = new GameObject($"NavMeshObstacle_{entity.Index}");
                 obstacleObj.transform.position = transform.ValueRO.Position;
@@ -64,11 +70,11 @@ namespace Server
                     sizeZ
                 );
 
-                // Carving 설정
+                // Carving 설정 (지연 적용으로 프레임 스파이크 방지)
                 obstacle.carving = true;
-                obstacle.carveOnlyStationary = false; // 즉시 적용을 위해 false
+                obstacle.carveOnlyStationary = true;   // 정지 상태에서만 carving
                 obstacle.carvingMoveThreshold = 0.1f;
-                obstacle.carvingTimeToStationary = 0f;
+                obstacle.carvingTimeToStationary = 0.5f;  // 0.5초 지연
 
                 // 4. Managed Component 추가 (GameObject 직접 참조)
                 ecb.AddComponent(entity, new NavMeshObstacleReference
@@ -81,6 +87,8 @@ namespace Server
 
                 // 6. 주변 유닛 경로 재계산 요청
                 InvalidateNearbyPaths(transform.ValueRO.Position);
+
+                spawnsThisFrame++;
             }
 
             ecb.Playback(EntityManager);
