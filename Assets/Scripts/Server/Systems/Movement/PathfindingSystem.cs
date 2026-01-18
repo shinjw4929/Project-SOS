@@ -1,4 +1,3 @@
-using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
@@ -6,46 +5,67 @@ using Unity.Transforms;
 using UnityEngine;
 using UnityEngine.AI;
 using Shared;
+using System.Diagnostics; // Stopwatch 사용
 
 namespace Server
 {
-    /// <summary>
-    /// NavMesh 경로 계산 시스템 (Server Only)
-    /// - MovementGoal.IsPathDirty == true일 때 경로를 계산하고 버퍼에 담음
-    /// - 계산 직후 첫 번째 웨이포인트를 MovementWaypoints에 주입하여 즉시 이동 시작
-    /// </summary>
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     [UpdateAfter(typeof(NavMeshObstacleSpawnSystem))]
     [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
     public partial class PathfindingSystem : SystemBase
     {
-        private const int MaxPathRequestsPerFrame = 15;
+        // 성능 설정
+        private const float MaxProcessingTimeMs = 1.0f; // 프레임당 최대 경로 계산 시간 (밀리초)
         private const int MaxPathLength = 64;
 
-        // 초기 프레임 스킵: NavMesh 장애물(벽) 업데이트 완료 대기
-        private int _initialSkipFrames; 
-        
+        // 재사용 객체 (GC 방지)
+        private NavMeshPath _sharedNavMeshPath;
+        private Vector3[] _sharedCornerBuffer;
+        private NavMeshQueryFilter _sharedFilter;
+
+        // 캐싱 데이터
+        private NativeHashMap<int, int> _agentIdCache;
+        private int _initialSkipFrames;
+
         protected override void OnCreate()
         {
             RequireForUpdate<MovementGoal>();
-            _initialSkipFrames = 10; // NavMesh carving 완료 대기 (약 0.16초 @ 60fps)
+            
+            // 재사용을 위한 객체 초기화
+            _sharedNavMeshPath = new NavMeshPath();
+            _sharedCornerBuffer = new Vector3[MaxPathLength];
+            _sharedFilter = new NavMeshQueryFilter { areaMask = NavMesh.AllAreas };
+            _agentIdCache = new NativeHashMap<int, int>(4, Allocator.Persistent);
+
+            _initialSkipFrames = 10;
+            
+            // Agent ID 캐싱
+            CacheAgentIDs();
+        }
+
+        protected override void OnDestroy()
+        {
+            if (_agentIdCache.IsCreated)
+                _agentIdCache.Dispose();
         }
 
         protected override void OnUpdate()
         {
-            // NavMesh 장애물 업데이트 완료 대기 (초기 프레임 스킵)
+            // 초기 안정화 대기
             if (_initialSkipFrames > 0)
             {
                 _initialSkipFrames--;
+                if (_initialSkipFrames == 0) CacheAgentIDs(); // 런타임에 세팅이 로드될 경우를 대비해 한 번 더 캐싱
                 return;
             }
 
             if (NavMesh.GetSettingsCount() == 0) return;
 
-            int processedCount = 0;
-            int dirtyCount = 0;
+            // 타임 슬라이싱을 위한 타이머 시작
+            Stopwatch stopwatch = Stopwatch.StartNew();
+            long maxTicks = (long)(Stopwatch.Frequency * (MaxProcessingTimeMs / 1000.0f));
 
-            // [중요] IgnoreComponentEnabledState 추가하여 비활성화 상태의 MovementWaypoints도 쿼리
+            // Entities 순회
             foreach (var (goal, pathBuffer, waypoints, waypointsEnabled, transform, agentConfig) in
                 SystemAPI.Query<
                     RefRW<MovementGoal>,
@@ -57,197 +77,171 @@ namespace Server
                     .WithAny<UnitTag, EnemyTag>()
                     .WithOptions(EntityQueryOptions.IgnoreComponentEnabledState))
             {
+                // 처리 시간 제한 초과 시 다음 프레임으로 미룸
+                if (stopwatch.ElapsedTicks > maxTicks)
+                    break;
+
                 if (!goal.ValueRO.IsPathDirty)
                     continue;
 
-                dirtyCount++;
-                Debug.Log($"[Pathfinding] Processing dirty goal: Destination={goal.ValueRO.Destination}, CurrentPos={transform.ValueRO.Position}");
-
-                if (processedCount >= MaxPathRequestsPerFrame)
-                    break;
-
-                // 1. 경로 계산 (Agent Type별 필터 적용)
                 float3 startPos = transform.ValueRO.Position;
                 float3 endPos = goal.ValueRO.Destination;
 
-                // 인덱스 → 실제 Agent Type ID 변환
-                int agentTypeIndex = agentConfig.ValueRO.AgentTypeIndex;
-                int agentTypeID = GetAgentTypeIDFromIndex(agentTypeIndex);
-
-                bool pathValid = CalculatePath(startPos, endPos, agentTypeID, pathBuffer);
-
-                // 경로 계산 실패 (NavMesh 업데이트 대기 중) - 다음 프레임에 재시도
-                if (!pathValid)
+                // 캐싱된 Agent ID 조회
+                int agentIndex = agentConfig.ValueRO.AgentTypeIndex;
+                if (!_agentIdCache.TryGetValue(agentIndex, out int agentTypeID))
                 {
-                    // IsPathDirty는 true로 유지되어 다음 프레임에 재시도됨
-                    processedCount++;  // 무한 루프 방지를 위해 카운트 증가
-                    continue;
+                    // 캐시에 없으면 폴백 및 재캐싱 시도
+                    agentTypeID = GetAgentTypeIDFromIndex(agentIndex);
                 }
 
-                // 2. 경로 계산 후 처리
-                // NavMesh 경로의 0번은 항상 '현재 위치'이므로, 실제 목표는 1번부터임
-                if (pathBuffer.Length > 1)
+                // 경로 계산 수행
+                // GC를 발생시키지 않는 최적화된 메서드 사용
+                int cornersCount = CalculatePathNonAlloc(startPos, endPos, agentTypeID);
+
+                if (cornersCount > 0)
                 {
-                    float3 currentPos = transform.ValueRO.Position;
-                    float3 goalPos = goal.ValueRO.Destination;
-                    float3 toGoal = goalPos - currentPos;
-                    float distToGoal = math.length(toGoal);
-
-                    int firstTargetIndex = 1;
-
-                    // 이미 지나간 웨이포인트 스킵 (클라이언트 예측 이동으로 인해)
-                    if (distToGoal > 0.1f)
-                    {
-                        float3 goalDir = toGoal / distToGoal;
-
-                        while (firstTargetIndex < pathBuffer.Length - 1) // 마지막은 항상 유지
-                        {
-                            float3 toWaypoint = pathBuffer[firstTargetIndex].Position - currentPos;
-                            float distToWaypoint = math.length(toWaypoint);
-
-                            // 웨이포인트가 너무 가까우면 스킵
-                            if (distToWaypoint < 0.5f)
-                            {
-                                firstTargetIndex++;
-                                continue;
-                            }
-
-                            // 웨이포인트가 목표 방향에 있는지 확인
-                            float3 waypointDir = toWaypoint / distToWaypoint;
-                            float dot = math.dot(goalDir, waypointDir);
-
-                            // 목표 방향과 대략 같은 방향이면 (내적 > 0.2) 유효
-                            if (dot > 0.2f) break;
-
-                            // 뒤쪽에 있으면 스킵
-                            firstTargetIndex++;
-                        }
-                    }
-
-                    // Goal 상태 업데이트
-                    goal.ValueRW.CurrentWaypointIndex = (byte)firstTargetIndex;
-
-                    // 즉시 이동 시작을 위해 MovementWaypoints 초기화
-                    waypoints.ValueRW.Current = pathBuffer[firstTargetIndex].Position;
-
-                    float3 waypointCurrent = pathBuffer[firstTargetIndex].Position;
-                    float distToFirstWaypoint = math.distance(currentPos, waypointCurrent);
-                    Debug.Log($"[Pathfinding] Setting waypoint: firstTargetIndex={firstTargetIndex}, Current={waypointCurrent}, distFromUnit={distToFirstWaypoint:F3}");
-
-                    // 다음 웨이포인트가 있다면 미리 세팅 (코너링용)
-                    if (pathBuffer.Length > firstTargetIndex + 1)
-                    {
-                        waypoints.ValueRW.Next = pathBuffer[firstTargetIndex + 1].Position;
-                        waypoints.ValueRW.HasNext = true;
-                        Debug.Log($"[Pathfinding] HasNext=true, Next={pathBuffer[firstTargetIndex + 1].Position}");
-                    }
-                    else
-                    {
-                        waypoints.ValueRW.HasNext = false;
-                        Debug.Log($"[Pathfinding] HasNext=false (no more waypoints after index {firstTargetIndex})");
-                    }
-
-                    // 컴포넌트 활성화 -> PredictedMovementSystem이 작동 시작
-                    waypointsEnabled.ValueRW = true;
-                }
-                else
-                {
-                    // 경로가 없거나 제자리인 경우
+                    // 경로 버퍼 업데이트
                     pathBuffer.Clear();
-                    waypointsEnabled.ValueRW = false; // 이동 정지
-                }
-
-                goal.ValueRW.IsPathDirty = false;
-                processedCount++;
-            }
-        }
-
-        /// <summary>
-        /// Agent Type 인덱스를 실제 Agent Type ID로 변환
-        /// Unity Navigation은 Agent Type ID를 해시 기반으로 할당하므로 인덱스로 조회 필요
-        /// </summary>
-        private int GetAgentTypeIDFromIndex(int index)
-        {
-            int settingsCount = NavMesh.GetSettingsCount();
-            if (index >= 0 && index < settingsCount)
-            {
-                return NavMesh.GetSettingsByIndex(index).agentTypeID;
-            }
-            // 폴백: 기본 Agent Type (Humanoid)
-            return settingsCount > 0 ? NavMesh.GetSettingsByIndex(0).agentTypeID : 0;
-        }
-
-        /// <summary>
-        /// NavMesh 경로 계산 (Agent Type별 필터 적용)
-        /// </summary>
-        /// <param name="agentTypeID">Unity Navigation에서 정의한 Agent Type ID</param>
-        /// <returns>true: 완전한 경로 계산 성공, false: 재시도 필요 (NavMesh 업데이트 대기)</returns>
-        private bool CalculatePath(float3 start, float3 end, int agentTypeID, DynamicBuffer<PathWaypoint> pathBuffer)
-        {
-            pathBuffer.Clear();
-
-            if (!math.isfinite(start.x) || !math.isfinite(end.x))
-            {
-                Debug.LogWarning($"[Pathfinding] Invalid position: start={start}, end={end}");
-                return false;
-            }
-
-            // Agent Type별 필터 생성
-            NavMeshQueryFilter filter = new NavMeshQueryFilter
-            {
-                agentTypeID = agentTypeID,
-                areaMask = NavMesh.AllAreas
-            };
-
-            // NavMesh 샘플링 (Agent Type별 필터 적용)
-            NavMeshHit hit;
-            if (!NavMesh.SamplePosition(start, out hit, 5.0f, filter))
-            {
-                Debug.LogWarning($"[Pathfinding] SamplePosition FAILED for START: {start} (agentTypeID={agentTypeID})");
-                return false;
-            }
-            Vector3 startPoint = hit.position;
-            Debug.Log($"[Pathfinding] NavMesh sampled START: requested={start}, sampled={startPoint}");
-
-            if (!NavMesh.SamplePosition(end, out hit, 5.0f, filter))
-            {
-                Debug.LogWarning($"[Pathfinding] SamplePosition FAILED for END: {end} (agentTypeID={agentTypeID})");
-                return false;
-            }
-            Vector3 endPoint = hit.position;
-            float samplingError = Vector3.Distance((Vector3)end, endPoint);
-            Debug.Log($"[Pathfinding] NavMesh sampled END: requested={end}, sampled={endPoint}, error={samplingError:F2}");
-
-            NavMeshPath path = new NavMeshPath();
-            if (NavMesh.CalculatePath(startPoint, endPoint, filter, path))
-            {
-                // PathComplete 또는 PathPartial 모두 허용
-                // PathPartial: 목적지까지 완전한 경로는 없지만, 갈 수 있는 만큼 이동
-                if (path.status == NavMeshPathStatus.PathComplete ||
-                    path.status == NavMeshPathStatus.PathPartial)
-                {
-                    var corners = path.corners;
-                    int count = math.min(corners.Length, MaxPathLength);
-                    Debug.Log($"[Pathfinding] Path calculated: status={path.status}, corners={corners.Length}");
-                    for (int i = 0; i < count; i++)
+                    for (int i = 0; i < cornersCount; i++)
                     {
-                        pathBuffer.Add(new PathWaypoint { Position = corners[i] });
-                        Debug.Log($"[Pathfinding]   corner[{i}] = {corners[i]}");
+                        pathBuffer.Add(new PathWaypoint { Position = _sharedCornerBuffer[i] });
                     }
-                    return true;
+
+                    // 웨이포인트 후처리 (Next Waypoint 선택 로직)
+                    ProcessFirstWaypoint(startPos, endPos, pathBuffer, waypoints, waypointsEnabled, goal);
                 }
                 else
                 {
-                    Debug.LogWarning($"[Pathfinding] Path status: {path.status}, start={startPoint}, end={endPoint}");
+                    // 경로 계산 실패 또는 유효하지 않음 (IsPathDirty 유지 또는 리셋 정책 결정 필요)
+                    // 여기서는 실패 시 일단 정지 처리하고 Dirty를 끔 (무한 재계산 방지)
+                    pathBuffer.Clear();
+                    waypointsEnabled.ValueRW = false;
                 }
+
+                // 처리 완료 플래그
+                goal.ValueRW.IsPathDirty = false;
+            }
+        }
+
+        /// <summary>
+        /// NonAlloc 버전의 경로 계산 함수
+        /// </summary>
+        private int CalculatePathNonAlloc(float3 start, float3 end, int agentTypeID)
+        {
+            if (!math.isfinite(start.x) || !math.isfinite(end.x)) return 0;
+
+            _sharedNavMeshPath.ClearCorners();
+            _sharedFilter.agentTypeID = agentTypeID;
+
+            // 1. Sample Position (Start)
+            if (!NavMesh.SamplePosition(start, out NavMeshHit startHit, 5.0f, _sharedFilter))
+                return 0;
+
+            // 2. Sample Position (End)
+            if (!NavMesh.SamplePosition(end, out NavMeshHit endHit, 5.0f, _sharedFilter))
+                return 0;
+
+            // 3. Calculate Path
+            if (NavMesh.CalculatePath(startHit.position, endHit.position, _sharedFilter, _sharedNavMeshPath))
+            {
+                if (_sharedNavMeshPath.status == NavMeshPathStatus.PathComplete ||
+                    _sharedNavMeshPath.status == NavMeshPathStatus.PathPartial)
+                {
+                    // [최적화] GetCornersNonAlloc을 사용하여 GC 할당 제거
+                    int count = _sharedNavMeshPath.GetCornersNonAlloc(_sharedCornerBuffer);
+                    return math.min(count, MaxPathLength);
+                }
+            }
+
+            return 0;
+        }
+
+        private void ProcessFirstWaypoint(
+            float3 currentPos, 
+            float3 goalPos,
+            DynamicBuffer<PathWaypoint> pathBuffer,
+            RefRW<MovementWaypoints> waypoints,
+            EnabledRefRW<MovementWaypoints> waypointsEnabled,
+            RefRW<MovementGoal> goal)
+        {
+            if (pathBuffer.Length > 1)
+            {
+                int firstTargetIndex = 1;
+                float3 toGoal = goalPos - currentPos;
+                float distToGoalSq = math.lengthsq(toGoal);
+
+                // 목표가 충분히 멀리 있고 예측 이동이 필요한 경우
+                if (distToGoalSq > 0.01f) // 0.1f * 0.1f
+                {
+                    float3 goalDir = toGoal * math.rsqrt(distToGoalSq); // Normalize
+
+                    // "Look-ahead" 로직: 지나친 웨이포인트 스킵
+                    // 루프 내에서 불필요한 length 호출을 줄이기 위해 lengthsq 사용 권장
+                    while (firstTargetIndex < pathBuffer.Length - 1)
+                    {
+                        float3 targetPos = pathBuffer[firstTargetIndex].Position;
+                        float3 toWaypoint = targetPos - currentPos;
+                        float distToWaypointSq = math.lengthsq(toWaypoint);
+
+                        // 너무 가까우면 스킵 (0.5m^2 = 0.25)
+                        if (distToWaypointSq < 0.25f)
+                        {
+                            firstTargetIndex++;
+                            continue;
+                        }
+
+                        // 방향 검사 (Dot Product)
+                        float3 waypointDir = toWaypoint * math.rsqrt(distToWaypointSq);
+                        if (math.dot(goalDir, waypointDir) > 0.2f) 
+                            break;
+
+                        firstTargetIndex++;
+                    }
+                }
+
+                // Goal Index 업데이트
+                goal.ValueRW.CurrentWaypointIndex = (byte)firstTargetIndex;
+
+                // 이동 컴포넌트 데이터 주입
+                waypoints.ValueRW.Current = pathBuffer[firstTargetIndex].Position;
+
+                if (pathBuffer.Length > firstTargetIndex + 1)
+                {
+                    waypoints.ValueRW.Next = pathBuffer[firstTargetIndex + 1].Position;
+                    waypoints.ValueRW.HasNext = true;
+                }
+                else
+                {
+                    waypoints.ValueRW.HasNext = false;
+                }
+
+                waypointsEnabled.ValueRW = true;
             }
             else
             {
-                Debug.LogWarning($"[Pathfinding] CalculatePath returned false, start={startPoint}, end={endPoint}");
+                waypointsEnabled.ValueRW = false;
             }
+        }
 
-            // PathInvalid 또는 CalculatePath 실패 - 재시도
-            return false;
+        private void CacheAgentIDs()
+        {
+            _agentIdCache.Clear();
+            int count = NavMesh.GetSettingsCount();
+            for (int i = 0; i < count; i++)
+            {
+                var settings = NavMesh.GetSettingsByIndex(i);
+                _agentIdCache.TryAdd(i, settings.agentTypeID);
+            }
+        }
+
+        private int GetAgentTypeIDFromIndex(int index)
+        {
+            // 폴백 메서드 (캐시에 없을 때만 호출됨)
+            int count = NavMesh.GetSettingsCount();
+            if (index >= 0 && index < count)
+                return NavMesh.GetSettingsByIndex(index).agentTypeID;
+            return count > 0 ? NavMesh.GetSettingsByIndex(0).agentTypeID : 0;
         }
     }
 }

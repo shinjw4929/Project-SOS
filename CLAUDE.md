@@ -239,8 +239,6 @@ Shared/
 │   ├── Grid/
 │   │   ├── GridOccupancyEventSystem.cs
 │   │   └── ObstacleGridInitSystem.cs        # 장애물 그리드 초기화 시스템
-│   ├── Movement/
-│   │   └── YPositionLockSystem.cs           # Y축 위치 고정 시스템
 │   └── Utils/
 │       └── GhostIdLookupSystem.cs           # Ghost ID 조회 시스템
 └── Utilities/
@@ -394,10 +392,11 @@ ConstructionMenuInputSystem (독립)
 #### 4. FixedStepSimulationSystemGroup (Server 전투)
 
 ```
-PhysicsSimulationGroup
-    ↓ UpdateAfter
-CombatDamageSystem (투사체 충돌 → DamageEvent, VisualOnlyTag 제외)
-    ↓ UpdateAfter
+PhysicsSystemGroup
+├── PhysicsSimulationGroup
+│       ↓ UpdateAfter
+└── CombatDamageSystem (투사체 충돌 → DamageEvent, VisualOnlyTag 제외)
+        ↓ UpdateAfter: PhysicsSystemGroup
 MeleeAttackSystem (근접 거리 판정 → DamageEvent, RangedUnitTag/RangedEnemyTag 제외)
     ↓ UpdateAfter
 RangedAttackSystem (원거리 필중 → DamageEvent + 시각 투사체 생성, RangedUnitTag/RangedEnemyTag 대상)
@@ -414,7 +413,7 @@ DamageApplySystem (UpdateAfter: MeleeAttackSystem, DamageEvent → Health 적용
 | HandleAttackRequestSystem | - |
 | HandleBuildRequestSystem | - |
 | HandleBuildMoveRequestSystem | - |
-| PredictedMovementSystem | - |
+| PredictedMovementSystem | UpdateAfter: PathfindingSystem |
 | MovementArrivalSystem | UpdateAfter: PredictedMovementSystem |
 | BuildArrivalSystem | UpdateAfter: MovementArrivalSystem |
 | NavMeshObstacleSpawnSystem | - |
@@ -445,11 +444,11 @@ DamageApplySystem (UpdateAfter: MeleeAttackSystem, DamageEvent → Health 적용
 
 #### 6. LateSimulationSystemGroup
 
-| 시스템 | 위치 | 역할 |
-|--------|------|------|
-| GridOccupancyEventSystem | Shared | 그리드 점유 갱신 |
-| WorkerGatheringSystem | Server | 일꾼 채집 사이클 |
-| ProductionProgressSystem | Server | 건물 생산 진행 |
+| 시스템 | 위치 | 역할 | 의존성 |
+|--------|------|------|--------|
+| GridOccupancyEventSystem | Shared | 그리드 점유 갱신 | - |
+| WorkerGatheringSystem | Server | 일꾼 채집 사이클 | UpdateAfter: HandleBuildRequestSystem |
+| ProductionProgressSystem | Server | 건물 생산 진행 | - |
 
 #### 7. TransformSystemGroup (Client/Server 공유)
 
@@ -464,6 +463,8 @@ DamageApplySystem (UpdateAfter: MeleeAttackSystem, DamageEvent → Health 적용
 |--------|------|
 | StructurePreviewUpdateSystem | 건설 프리뷰 |
 | HeroHpTextPresentationSystem | 영웅 HP 텍스트 |
+| EnemyHpTextPresentationSystem | 적 HP 텍스트 |
+| CameraSystem | 카메라 이동 |
 
 #### 핵심 의존성 흐름 요약
 
@@ -484,7 +485,7 @@ DamageApplySystem (UpdateAfter: MeleeAttackSystem, DamageEvent → Health 적용
     → HandleGatherRequestSystem, HandleReturnResourceRequestSystem
 
 [이동] SimulationSystemGroup (Server)
-    → PredictedMovementSystem → MovementArrivalSystem → BuildArrivalSystem (도착 시 건설)
+    → PathfindingSystem → PredictedMovementSystem → MovementArrivalSystem → BuildArrivalSystem (도착 시 건설)
 
 [전투] FixedStepSimulationSystemGroup (Server)
     → CombatDamageSystem → MeleeAttackSystem → RangedAttackSystem, DamageApplySystem
@@ -502,7 +503,7 @@ DamageApplySystem (UpdateAfter: MeleeAttackSystem, DamageEvent → Health 적용
     → CarriedResourceFollowSystem, SelectionVisualizationSystem
 
 [렌더링] PresentationSystemGroup (Client)
-    → StructurePreviewUpdateSystem, HeroHpTextPresentationSystem
+    → StructurePreviewUpdateSystem, HeroHpTextPresentationSystem, EnemyHpTextPresentationSystem, CameraSystem
 ```
 
 ---
@@ -709,29 +710,35 @@ structureCommandPanel
 
 ```
 Assets/Prefabs/
+├── Economies/
+│   ├── Cheese.prefab                # 운반 자원 (Worker가 들고 다니는 자원)
+│   └── UserEconomy.prefab           # 유저 경제 Ghost 프리팹
 ├── Enemy/
 │   ├── EnemySmall.prefab            # 작은 적 (빠름, 근접)
 │   ├── EnemyBig.prefab              # 큰 적 (강력함, 근접)
 │   └── EnemyFlying.prefab           # 비행 적 (벽 무시, 원거리 공격, isRanged=true)
 ├── Ground.prefab                    # 지면 프리팹
-├── Resources/
+├── ResourceNodes/
 │   └── OreVein.prefab               # 광석 자원 프리팹
 ├── Shoot/
 │   └── Projectile.prefab            # 투사체 프리팹
 ├── Structures/
 │   ├── Barracks.prefab              # 병영 건물
 │   ├── ResourceCenter.prefab        # 자원 센터
-│   └── Wall.prefab                  # 벽 건물
+│   ├── Wall.prefab                  # 벽 건물
+│   └── Wall2.prefab                 # 벽 건물 (2번 버전)
 ├── UI/
-│   └── EnemyHPText3D.prefab         # 적 HP 3D 텍스트 UI
-├── Units/
-│   ├── Hero.prefab                  # 영웅 유닛
-│   ├── Sniper.prefab                # 저격수 유닛 (장거리)
-│   ├── Swordsman.prefab             # 검사 유닛 (근접)
-│   ├── Trooper.prefab               # 보병 유닛 (중거리)
-│   └── Worker.prefab                # 일꾼 유닛 (건설 가능)
-└── UserResources/
-    └── UserResources.prefab         # 유저 자원 Ghost 프리팹
+│   ├── CommandButton.prefab         # 커맨드 버튼 프리팹
+│   ├── EnemyHPText3D.prefab         # 적 HP 3D 텍스트 UI
+│   ├── SelectionRingAlly.prefab     # 아군 선택 링
+│   ├── SelectionRingEnemy.prefab    # 적 선택 링
+│   └── SelectionRingNeutral.prefab  # 중립 선택 링
+└── Units/
+    ├── Hero.prefab                  # 영웅 유닛
+    ├── Sniper.prefab                # 저격수 유닛 (장거리)
+    ├── Swordsman.prefab             # 검사 유닛 (근접)
+    ├── Trooper.prefab               # 보병 유닛 (중거리)
+    └── Worker.prefab                # 일꾼 유닛 (건설 가능)
 ```
 
 ## Scenes
