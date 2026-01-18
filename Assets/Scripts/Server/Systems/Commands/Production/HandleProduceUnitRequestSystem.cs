@@ -27,6 +27,7 @@ namespace Server
             state.RequireForUpdate<NetworkStreamInGame>();
             state.RequireForUpdate<UnitCatalog>();
             state.RequireForUpdate<EndSimulationEntityCommandBufferSystem.Singleton>();
+            state.RequireForUpdate<GhostIdMap>();
 
             // Lookup 초기화 (ReadOnly 여부 주의)
             _productionCostLookup = state.GetComponentLookup<ProductionCost>(true);
@@ -57,13 +58,8 @@ namespace Server
             var catalogEntity = SystemAPI.GetSingletonEntity<UnitCatalog>();
             var prefabBuffer = SystemAPI.GetBuffer<UnitCatalogElement>(catalogEntity);
 
-            // 3. GhostMap 생성 (Allocator.Temp 사용 - 매우 빠름)
-            // Persistent Map을 Clear하는 것보다 Temp 할당이 선형 메모리라 더 효율적일 수 있음
-            var ghostMap = new NativeParallelHashMap<int, Entity>(1024, Allocator.Temp);
-            foreach (var (ghost, entity) in SystemAPI.Query<RefRO<GhostInstance>>().WithEntityAccess())
-            {
-                ghostMap.TryAdd(ghost.ValueRO.ghostId, entity);
-            }
+            // 3. GhostIdMap 싱글톤 재사용 (GhostIdLookupSystem이 매 프레임 갱신)
+            var ghostMap = SystemAPI.GetSingleton<GhostIdMap>().Map;
 
             // 4. Currency Map 생성 (Allocator.Temp)
             var networkIdToCurrencyEntity = new NativeParallelHashMap<int, Entity>(16, Allocator.Temp);

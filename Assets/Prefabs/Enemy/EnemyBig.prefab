@@ -35,7 +35,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 1.2, z: 0}
-  m_LocalScale: {x: 2, y: 2.4, z: 4}
+  m_LocalScale: {x: 2, y: 2.4, z: 2}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
@@ -141,10 +141,10 @@ MonoBehaviour:
   maxHealth: 50
   defense: 0
   visionRange: 10
-  radius: 2.5
+  radius: 1.3
   attackPower: 5
   attackSpeed: 3
-  attackRange: 2
+  attackRange: 1.5
   aggroRange: 15
   isRanged: 0
 --- !u!114 &-167978000647739316
@@ -197,14 +197,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fa5b9120047d80f4ab8813c7304de74b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  MaxSpeed: 10
-  Acceleration: 180
-  Deceleration: 240
+  MaxSpeed: 5
+  Acceleration: 20
+  Deceleration: 20
   RotationSpeed: 12
   ArrivalRadius: 0.5
-  AgentTypeIndex: 2
-  LockYPosition: 1
-  PhysicsRadiusOverride: 0
+  AgentTypeIndex: 1
 --- !u!54 &7837240674632787096
 Rigidbody:
   m_ObjectHideFlags: 0
