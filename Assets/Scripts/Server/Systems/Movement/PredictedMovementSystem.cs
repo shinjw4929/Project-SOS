@@ -67,6 +67,7 @@ namespace Server
             // 중요: 배열 복사(ToComponentDataArray)를 제거하고 Lookup을 준비합니다.
             // Lookup은 내부적으로 청크 포인터를 사용하므로 복사 비용이 없습니다.
             var enemyTagLookup = SystemAPI.GetComponentLookup<EnemyTag>(true);
+            var enemyStateLookup = SystemAPI.GetComponentLookup<EnemyState>(true);
             var intentLookup = SystemAPI.GetComponentLookup<UnitIntentState>(true);
             var transformLookup = SystemAPI.GetComponentLookup<LocalTransform>(true);
             var radiusLookup = SystemAPI.GetComponentLookup<ObstacleRadius>(true);
@@ -101,8 +102,9 @@ namespace Server
                 TransformLookup = transformLookup,
                 RadiusLookup = radiusLookup,
                 EnemyTagLookup = enemyTagLookup,
+                EnemyStateLookup = enemyStateLookup,
                 IntentLookup = intentLookup,
-                
+
                 CellSize = CellSize,
                 SeparationStrength = 4.0f,
                 CollisionWorld = physicsWorld.CollisionWorld,
@@ -185,6 +187,7 @@ namespace Server
 
         [ReadOnly] public ComponentLookup<ObstacleRadius> RadiusLookup;
         [ReadOnly] public ComponentLookup<EnemyTag> EnemyTagLookup;
+        [ReadOnly] public ComponentLookup<EnemyState> EnemyStateLookup;
         [ReadOnly] public ComponentLookup<UnitIntentState> IntentLookup;
 
         public float CellSize;
@@ -201,6 +204,15 @@ namespace Server
             in MovementDynamics dynamics,
             in ObstacleRadius obstacleRadius)
         {
+            // 적이 공격 중이면 이동 스킵 (ECB 지연 우회)
+            if (EnemyTagLookup.HasComponent(entity) &&
+                EnemyStateLookup.TryGetComponent(entity, out EnemyState enemyState) &&
+                enemyState.CurrentState == EnemyContext.Attacking)
+            {
+                velocity.Linear = float3.zero;
+                return;
+            }
+
             float3 currentPos = transform.Position;
             float3 targetPos = waypoints.Current;
             targetPos.y = currentPos.y; 
