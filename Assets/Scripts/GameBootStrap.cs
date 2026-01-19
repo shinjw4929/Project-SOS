@@ -10,9 +10,8 @@ public class GameBootStrap : ClientServerBootstrap {
         // 포트 설정
         AutoConnectPort = 7979;
         
-        // vSync 끄기, 프레임 제한
+        // vSync 끄기
         QualitySettings.vSyncCount = 0;
-        Application.targetFrameRate = 60;
         
         return base.Initialize(defaultWorldName);
     }

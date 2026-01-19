@@ -35,7 +35,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0.6, z: 0}
-  m_LocalScale: {x: 1, y: 1.2, z: 2}
+  m_LocalScale: {x: 1, y: 1.2, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
@@ -141,11 +141,11 @@ MonoBehaviour:
   maxHealth: 50
   defense: 0
   visionRange: 10
-  radius: 1.5
+  radius: 0.5
   attackPower: 1
   attackSpeed: 1
-  attackRange: 2
-  aggroRange: 15
+  attackRange: 1.2
+  aggroRange: 30
   isRanged: 0
 --- !u!114 &-167978000647739316
 MonoBehaviour:

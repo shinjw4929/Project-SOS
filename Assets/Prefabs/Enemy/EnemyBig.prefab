@@ -145,7 +145,7 @@ MonoBehaviour:
   attackPower: 5
   attackSpeed: 3
   attackRange: 1.5
-  aggroRange: 15
+  aggroRange: 50
   isRanged: 0
 --- !u!114 &-167978000647739316
 MonoBehaviour:
