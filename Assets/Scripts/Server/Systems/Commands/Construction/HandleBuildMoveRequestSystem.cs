@@ -16,7 +16,7 @@ namespace Server
     /// - MovementWaypoints 활성화
     /// </summary>
     [UpdateInGroup(typeof(SimulationSystemGroup))]
-    [UpdateAfter(typeof(EnemyTargetSystem))] // MovementGoal Job 의존성 해결
+    [UpdateAfter(typeof(UnifiedTargetingSystem))] // MovementGoal Job 의존성 해결
     [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
     [BurstCompile]
     public partial struct HandleBuildMoveRequestSystem : ISystem
