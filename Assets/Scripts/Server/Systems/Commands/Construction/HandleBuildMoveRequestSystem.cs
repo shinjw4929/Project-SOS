@@ -16,6 +16,7 @@ namespace Server
     /// - MovementWaypoints 활성화
     /// </summary>
     [UpdateInGroup(typeof(SimulationSystemGroup))]
+    [UpdateAfter(typeof(EnemyTargetSystem))] // MovementGoal Job 의존성 해결
     [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
     [BurstCompile]
     public partial struct HandleBuildMoveRequestSystem : ISystem
@@ -48,6 +49,9 @@ namespace Server
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
+            // EnemyTargetSystem의 MovementGoal Job이 완료될 때까지 대기
+            state.CompleteDependency();
+
             _ghostOwnerLookup.Update(ref state);
             _networkIdLookup.Update(ref state);
             _builderTagLookup.Update(ref state);

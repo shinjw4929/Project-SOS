@@ -132,6 +132,8 @@ Shared/
 │   ├── GridCell.cs                          # 그리드 셀 버퍼
 │   ├── PathWaypoint.cs                      # 경로 웨이포인트 버퍼
 │   └── StructurePrefabStore.cs              # 건물 프리팹 저장소
+├── SystemGroups/
+│   └── SpatialPartitioningGroup.cs          # 공간 분할 시스템 전용 그룹
 ├── Components/
 │   ├── ContactDamage.cs                     # 접촉 데미지 컴포넌트
 │   ├── HeroHealth.cs                        # 영웅 체력 컴포넌트
@@ -153,7 +155,6 @@ Shared/
 │   ├── Inputs/
 │   │   └── UnitCommand.cs                   # 유닛 명령 입력
 │   ├── Movement/
-│   │   ├── LockedYPosition.cs               # Y축 고정 위치
 │   │   ├── MovementDynamics.cs              # 이동 역학 (속도, 가속도)
 │   │   ├── MovementGoal.cs                  # 이동 목표
 │   │   ├── MovementWaypoints.cs             # 이동 웨이포인트
@@ -220,6 +221,7 @@ Shared/
 │   ├── GameSettings.cs                      # 게임 설정 싱글톤 (Wave 전환 조건 포함)
 │   ├── GhostIdMap.cs                        # Ghost ID 맵 싱글톤
 │   ├── GridSettings.cs
+│   ├── SpatialMaps.cs                       # 공간 분할 맵 싱글톤 (TargetingMap, MovementMap)
 │   └── Ref/
 │       ├── CarriedResourcePrefabRef.cs      # 운반 자원 프리팹 참조
 │       ├── EnemyPrefabCatalog.cs            # 적 프리팹 카탈로그 (명시적 필드: Small/Big/Flying)
@@ -232,10 +234,8 @@ Shared/
 │   ├── CarriedResourceFollowSystem.cs       # 운반 자원 위치/가시성 (Scale 토글)
 │   ├── Combats/
 │   │   └── ProjectileMoveSystem.cs          # 투사체 이동 시스템
-│   ├── Commands/
-│   │   └── CommandProcessingSystem.cs       # [빈 시스템] 모든 명령이 RPC 시스템으로 이전됨
 │   ├── Enemy/
-│   │   └── EnemyTargetSystem.cs             # 적 타겟 시스템
+│   │   └── EnemyTargetSystem.cs             # [Deprecated] 적 타겟 시스템 → UnifiedTargetingSystem으로 통합
 │   ├── Grid/
 │   │   ├── GridOccupancyEventSystem.cs
 │   │   └── ObstacleGridInitSystem.cs        # 장애물 그리드 초기화 시스템
@@ -244,7 +244,8 @@ Shared/
 └── Utilities/
     ├── DamageUtility.cs                     # 데미지 계산 유틸리티
     ├── GridUtility.cs                       # 그리드 유틸리티
-    └── MovementMath.cs                      # 이동 계산 유틸리티 (가속/감속)
+    ├── MovementMath.cs                      # 이동 계산 유틸리티 (가속/감속)
+    └── SpatialHashUtility.cs                # 공간 분할 해시 유틸리티 (셀 크기, 해시 계산, AABB)
 
 Server/
 ├── Data/
@@ -257,7 +258,9 @@ Server/
     │   ├── DamageApplySystem.cs             # 데미지 적용 시스템 (버퍼 → Health)
     │   ├── MeleeAttackSystem.cs             # 근접 공격 시스템 (거리 기반, RangedUnitTag 제외)
     │   ├── RangedAttackSystem.cs            # 원거리 공격 시스템 (필중, 시각 투사체 생성)
-    │   └── ServerDeathSystem.cs             # 서버 사망 처리
+    │   ├── ServerDeathSystem.cs             # 서버 사망 처리
+    │   ├── UnitAutoTargetSystem.cs          # [Deprecated] 유닛 자동 타겟팅 → UnifiedTargetingSystem으로 통합
+    │   └── UnifiedTargetingSystem.cs        # 통합 타겟팅 시스템 (적→아군, 유닛→적)
     ├── Commands/
     │   ├── Combat/
     │   │   └── HandleAttackRequestSystem.cs        # 공격 명령 RPC 처리
@@ -291,7 +294,10 @@ Server/
     │   ├── NavMeshObstacleSpawnSystem.cs    # NavMesh 장애물 생성
     │   ├── PathfindingSystem.cs             # Pathfinding 시스템
     │   ├── PathFollowSystem.cs              # 경로 추적 시스템
-    │   └── PredictedMovementSystem.cs       # 유닛 이동 시스템 (서버 전용)
+    │   └── PredictedMovementSystem.cs       # 유닛 이동 시스템 (SpatialMaps.MovementMap 사용)
+    ├── Spatial/
+    │   ├── SpatialMapBuildSystem.cs         # 공간 분할 맵 빌드 (TargetingMap + MovementMap)
+    │   └── SpatialMapDisposeSystem.cs       # 공간 분할 맵 해제 (LateSimulation)
     ├── TechStateRecalculateSystem.cs        # 기술 상태 재계산 시스템
     └── Wave/
         ├── EnemyDeathCountSystem.cs         # 적 처치 수 카운팅 (ServerDeathSystem 전)
@@ -387,7 +393,6 @@ ConstructionMenuInputSystem (독립)
 | 시스템 | 위치 | 의존성 |
 |--------|------|--------|
 | GhostIdLookupSystem | Shared | OrderFirst=true |
-| CommandProcessingSystem | Shared | [빈 시스템] |
 
 #### 4. FixedStepSimulationSystemGroup (Server 전투)
 
@@ -405,7 +410,15 @@ DamageApplySystem (UpdateAfter: MeleeAttackSystem, DamageEvent → Health 적용
 
 #### 5. SimulationSystemGroup
 
-**Server:**
+**Server - SpatialPartitioningGroup (별도 그룹):**
+```
+SpatialMapBuildSystem (OrderFirst=true)
+    → TargetingMap (10.0f) 빌드
+    → MovementMap (3.0f) 빌드
+    → SpatialMaps 싱글톤에 저장
+```
+
+**Server - SimulationSystemGroup:**
 
 | 시스템 | 의존성 |
 |--------|--------|
@@ -413,7 +426,8 @@ DamageApplySystem (UpdateAfter: MeleeAttackSystem, DamageEvent → Health 적용
 | HandleAttackRequestSystem | - |
 | HandleBuildRequestSystem | - |
 | HandleBuildMoveRequestSystem | - |
-| PredictedMovementSystem | UpdateAfter: PathfindingSystem |
+| **UnifiedTargetingSystem** | UpdateAfter: SpatialPartitioningGroup, HandleAttackRequestSystem |
+| PredictedMovementSystem | UpdateAfter: PathfindingSystem (SpatialMaps.MovementMap 사용) |
 | MovementArrivalSystem | UpdateAfter: PredictedMovementSystem |
 | BuildArrivalSystem | UpdateAfter: MovementArrivalSystem |
 | NavMeshObstacleSpawnSystem | - |
@@ -433,11 +447,14 @@ DamageApplySystem (UpdateAfter: MeleeAttackSystem, DamageEvent → Health 적용
 | WaveManagerSystem | - |
 | EnemyDeathCountSystem | UpdateBefore: ServerDeathSystem |
 | EnemySpawnerSystem | UpdateAfter: WaveManagerSystem |
+| WorkerGatheringSystem | UpdateAfter: HandleBuildRequestSystem |
+| ProductionProgressSystem | - |
 | FireProjectileServerSystem | OrderLast=true |
 | ResourceNodeCleanupSystem | OrderLast=true |
 
 **Shared:**
-- EnemyTargetSystem, ProjectileMoveSystem
+- ProjectileMoveServerSystem
+- EnemyTargetSystem [Deprecated → UnifiedTargetingSystem으로 통합]
 
 **Client:**
 - SelectionRingSpawnSystem, NotificationReceiveSystem, ClientDeathSystem, ProjectileVisualSystem
@@ -447,8 +464,7 @@ DamageApplySystem (UpdateAfter: MeleeAttackSystem, DamageEvent → Health 적용
 | 시스템 | 위치 | 역할 | 의존성 |
 |--------|------|------|--------|
 | GridOccupancyEventSystem | Shared | 그리드 점유 갱신 | - |
-| WorkerGatheringSystem | Server | 일꾼 채집 사이클 | UpdateAfter: HandleBuildRequestSystem |
-| ProductionProgressSystem | Server | 건물 생산 진행 | - |
+| **SpatialMapDisposeSystem** | Server | 공간 분할 맵 해제 | CompleteDependency |
 
 #### 7. TransformSystemGroup (Client/Server 공유)
 
@@ -477,6 +493,9 @@ DamageApplySystem (UpdateAfter: MeleeAttackSystem, DamageEvent → Health 적용
         │  StructurePlacementInputSystem → RPC 전송 (BuildRequestRpc/BuildMoveRequestRpc)
         └─ StructureCommandInputSystem
 
+[공간 분할] SpatialPartitioningGroup (Server)
+    → SpatialMapBuildSystem → TargetingMap + MovementMap 빌드 → SpatialMaps 싱글톤
+
 [명령 처리] SimulationSystemGroup (Server)
     → HandleMoveRequestSystem → MovementGoal, Intent.Move 설정
     → HandleAttackRequestSystem → AggroTarget, Intent.Attack 설정
@@ -484,8 +503,14 @@ DamageApplySystem (UpdateAfter: MeleeAttackSystem, DamageEvent → Health 적용
     → HandleBuildMoveRequestSystem → 이동 시작 + PendingBuildServerData 추가
     → HandleGatherRequestSystem, HandleReturnResourceRequestSystem
 
+[타겟팅] SimulationSystemGroup (Server)
+    → UnifiedTargetingSystem (SpatialMaps.TargetingMap 사용)
+        ├─ EnemyTargetJob → 적→아군 타겟팅 (배회 포함)
+        └─ UnitAutoTargetJob → 유닛→적 자동 감지
+
 [이동] SimulationSystemGroup (Server)
-    → PathfindingSystem → PredictedMovementSystem → MovementArrivalSystem → BuildArrivalSystem (도착 시 건설)
+    → PathfindingSystem → PredictedMovementSystem (SpatialMaps.MovementMap 사용)
+    → MovementArrivalSystem → BuildArrivalSystem (도착 시 건설)
 
 [전투] FixedStepSimulationSystemGroup (Server)
     → CombatDamageSystem → MeleeAttackSystem → RangedAttackSystem, DamageApplySystem
@@ -497,7 +522,8 @@ DamageApplySystem (UpdateAfter: MeleeAttackSystem, DamageEvent → Health 적용
     → ServerDeathSystem → NavMeshObstacleCleanupSystem, TechStateRecalculateSystem
 
 [후처리] LateSimulationSystemGroup
-    → GridOccupancyEventSystem, WorkerGatheringSystem, ProductionProgressSystem
+    → GridOccupancyEventSystem
+    → SpatialMapDisposeSystem → 공간 분할 맵 해제
 
 [Transform] TransformSystemGroup
     → CarriedResourceFollowSystem, SelectionVisualizationSystem
@@ -519,7 +545,7 @@ DamageApplySystem (UpdateAfter: MeleeAttackSystem, DamageEvent → Health 적용
 | 건물 (Wall, Barracks 등) | StructureAuthoring | 건물 스탯/생산 |
 
 각 Authoring이 베이킹하는 컴포넌트:
-- **MovementAuthoring**: MovementDynamics, MovementGoal, MovementWaypoints, PathWaypoint, NavMeshAgentConfig, LockedYPosition
+- **MovementAuthoring**: MovementDynamics, MovementGoal, MovementWaypoints, PathWaypoint, NavMeshAgentConfig
 - **UnitMovementAuthoring**: UnitIntentState, UnitActionState, UnitCommand (RequireComponent: MovementAuthoring)
 - **UnitAuthoring**: UnitTag, Team, Health, ObstacleRadius, CombatStats 등 (유닛 정체성/스탯)
 - **EnemyAuthoring**: EnemyTag, Team, Health, ObstacleRadius, EnemyState 등 (적 정체성/스탯), isRanged=true 시 RangedEnemyTag 추가
@@ -625,6 +651,34 @@ Entity prefab = catalog.GetPrefab(EnemyType.Flying);     // 또는 enum으로 �
 ```
 - **버퍼 패턴**: 동적 개수, UI 인덱스 접근 시 적합 (UnitCatalog, StructureCatalog)
 - **명시적 필드 패턴**: 고정 타입, 코드에서 직접 참조 시 적합 (EnemyPrefabCatalog)
+
+**Spatial Partitioning 패턴** (공간 분할 통합):
+```
+[SpatialPartitioningGroup - OrderFirst]
+SpatialMapBuildSystem
+    → TargetingMap (셀 크기: 10.0f) 빌드
+    → MovementMap (셀 크기: 3.0f) 빌드 (대형 유닛 AABB 등록)
+    → SpatialMaps 싱글톤에 저장
+
+[SimulationSystemGroup]
+UnifiedTargetingSystem
+    → [ReadOnly] SpatialMaps.TargetingMap 사용
+    → EnemyTargetJob + UnitAutoTargetJob 병렬 실행
+
+PredictedMovementSystem
+    → [ReadOnly] SpatialMaps.MovementMap 사용
+    → KinematicMovementJob 실행
+
+[LateSimulationSystemGroup]
+SpatialMapDisposeSystem
+    → CompleteDependency() 후 맵 Dispose
+```
+
+최적화 기법:
+- **타겟 고착화 (Hysteresis)**: LoseTargetDistance = DetectionRange × 1.3배
+- **시간 분할 (Time Slicing)**: entity.Index % 4 == frameCount % 4인 유닛만 탐색
+- **대형 유닛 AABB**: radius > CellSize × 0.5f인 경우 여러 셀에 등록
+- **해시 충돌 방지**: capacity = entityCount × 1.5f
 
 **Network RPCs** (in `Shared/RPCs/`):
 - `GoInGameRequestRpc` - Client join request

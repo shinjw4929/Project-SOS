@@ -115,11 +115,11 @@ namespace Server
                 Debug.LogWarning($"[HandleMoveRequest] No MovementGoal component!");
             }
 
-            // 4. UnitIntentState 설정 (Move)
+            // 4. UnitIntentState 설정 (Move 또는 AttackMove)
             if (_unitIntentStateLookup.HasComponent(unitEntity))
             {
                 RefRW<UnitIntentState> intentRW = _unitIntentStateLookup.GetRefRW(unitEntity);
-                intentRW.ValueRW.State = Intent.Move;
+                intentRW.ValueRW.State = rpc.IsAttackMove ? Intent.AttackMove : Intent.Move;
                 intentRW.ValueRW.TargetEntity = Entity.Null;
             }
 

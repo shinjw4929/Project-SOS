@@ -50,11 +50,18 @@ namespace Client
         protected override void OnUpdate()
         {
             var userState = SystemAPI.GetSingleton<UserState>();
-            if (userState.CurrentState == UserContext.Dead || userState.CurrentState == UserContext.Construction) 
+            if (userState.CurrentState == UserContext.Dead || userState.CurrentState == UserContext.Construction)
                 return;
 
             var mouse = Mouse.current;
-            if (mouse == null || !mouse.rightButton.wasPressedThisFrame) 
+            var keyboard = Keyboard.current;
+            if (mouse == null) return;
+
+            // A+좌클릭 = AttackMove, 우클릭 = 일반 명령
+            bool isRightClick = mouse.rightButton.wasPressedThisFrame;
+            bool isAttackMoveClick = keyboard != null && keyboard.aKey.isPressed && mouse.leftButton.wasPressedThisFrame;
+
+            if (!isRightClick && !isAttackMoveClick)
                 return;
 
             // 카메라 캐싱 로직
@@ -72,10 +79,10 @@ namespace Client
             _workerStateLookup.Update(this);
             _enemyTagLookup.Update(this);
 
-            ProcessMouseInput(mouse);
+            ProcessMouseInput(mouse, isAttackMoveClick);
         }
 
-        private void ProcessMouseInput(Mouse mouse)
+        private void ProcessMouseInput(Mouse mouse, bool isAttackMove)
         {
             float2 mousePos = mouse.position.ReadValue();
             UnityEngine.Ray unityRay = _cachedCamera.ScreenPointToRay(new Vector3(mousePos.x, mousePos.y, 0));
@@ -104,16 +111,17 @@ namespace Client
                 bool isResourceCenter = _resourceCenterTagLookup.HasComponent(hitEntity);
                 bool isEnemy = _enemyTagLookup.HasComponent(hitEntity);
 
-                SendCommandToSelectedUnits(hit.Position, targetGhostId, isResourceNode, isResourceCenter, isEnemy);
+                SendCommandToSelectedUnits(hit.Position, targetGhostId, isResourceNode, isResourceCenter, isEnemy, isAttackMove);
             }
         }
 
         private void SendCommandToSelectedUnits(
-            float3 goalPos, 
-            int targetGhostId, 
-            bool isResourceNode, 
-            bool isResourceCenter, 
-            bool isEnemy)
+            float3 goalPos,
+            int targetGhostId,
+            bool isResourceNode,
+            bool isResourceCenter,
+            bool isEnemy,
+            bool isAttackMove)
         {
             // SystemBase에서는 World.Unmanaged 접근 방식이 다름 (this.World.Unmanaged 아님)
             // SystemAPI를 통해 ECB Singleton 접근
@@ -130,41 +138,46 @@ namespace Client
                 int unitGhostId = unitGhost.ghostId;
                 bool isWorker = _workerTagLookup.HasComponent(entity);
 
-                if (isResourceNode && isWorker)
+                // AttackMove가 아닌 경우에만 Worker 특수 명령 처리
+                if (!isAttackMove)
                 {
-                    var rpcEntity = ecb.CreateEntity();
-                    ecb.AddComponent(rpcEntity, new GatherRequestRpc
-                    {
-                        WorkerGhostId = unitGhostId,
-                        ResourceNodeGhostId = targetGhostId,
-                        ReturnPointGhostId = 0 
-                    });
-                    ecb.AddComponent<SendRpcCommandRequest>(rpcEntity);
-                }
-                else if (isResourceCenter && isWorker)
-                {
-                    bool hasResource = false;
-                    if (_workerStateLookup.TryGetComponent(entity, out var workerState))
-                    {
-                        hasResource = workerState.CarriedAmount > 0;
-                    }
-
-                    if (hasResource)
+                    if (isResourceNode && isWorker)
                     {
                         var rpcEntity = ecb.CreateEntity();
-                        ecb.AddComponent(rpcEntity, new ReturnResourceRequestRpc
+                        ecb.AddComponent(rpcEntity, new GatherRequestRpc
                         {
                             WorkerGhostId = unitGhostId,
-                            ResourceCenterGhostId = targetGhostId
+                            ResourceNodeGhostId = targetGhostId,
+                            ReturnPointGhostId = 0
                         });
                         ecb.AddComponent<SendRpcCommandRequest>(rpcEntity);
+                        continue;
                     }
-                    else
+
+                    if (isResourceCenter && isWorker)
                     {
-                        CreateMoveRpc(ecb, unitGhostId, goalPos);
+                        bool hasResource = false;
+                        if (_workerStateLookup.TryGetComponent(entity, out var workerState))
+                        {
+                            hasResource = workerState.CarriedAmount > 0;
+                        }
+
+                        if (hasResource)
+                        {
+                            var rpcEntity = ecb.CreateEntity();
+                            ecb.AddComponent(rpcEntity, new ReturnResourceRequestRpc
+                            {
+                                WorkerGhostId = unitGhostId,
+                                ResourceCenterGhostId = targetGhostId
+                            });
+                            ecb.AddComponent<SendRpcCommandRequest>(rpcEntity);
+                            continue;
+                        }
                     }
                 }
-                else if (isEnemy && targetGhostId != 0)
+
+                // 적 클릭 시 공격 명령 (AttackMove 또는 우클릭 모두)
+                if (isEnemy && targetGhostId != 0)
                 {
                     var rpcEntity = ecb.CreateEntity();
                     ecb.AddComponent(rpcEntity, new AttackRequestRpc
@@ -177,18 +190,20 @@ namespace Client
                 }
                 else
                 {
-                    CreateMoveRpc(ecb, unitGhostId, goalPos);
+                    // 땅 클릭: 이동 (AttackMove 여부에 따라 Intent 결정)
+                    CreateMoveRpc(ecb, unitGhostId, goalPos, isAttackMove);
                 }
             }
         }
 
-        private void CreateMoveRpc(EntityCommandBuffer ecb, int unitGhostId, float3 position)
+        private void CreateMoveRpc(EntityCommandBuffer ecb, int unitGhostId, float3 position, bool isAttackMove)
         {
             var rpcEntity = ecb.CreateEntity();
             ecb.AddComponent(rpcEntity, new MoveRequestRpc
             {
                 UnitGhostId = unitGhostId,
-                TargetPosition = position
+                TargetPosition = position,
+                IsAttackMove = isAttackMove
             });
             ecb.AddComponent<SendRpcCommandRequest>(rpcEntity);
         }
