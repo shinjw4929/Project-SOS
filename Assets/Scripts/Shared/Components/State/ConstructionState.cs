@@ -3,6 +3,7 @@ using Unity.NetCode;
 
 namespace Shared
 {
+    //TODO 적용중인 로직 없음
     // 1. 건설 중 태그 (이게 붙어있으면 기능 정지 + 체력 서서히 참)
     // * 건설이 완료되면 이 컴포넌트를 제거(Remove) 합니다.
     [GhostComponent]
