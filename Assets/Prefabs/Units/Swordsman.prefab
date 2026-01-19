@@ -245,11 +245,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fa5b9120047d80f4ab8813c7304de74b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  MaxSpeed: 10
-  Acceleration: 180
-  Deceleration: 240
+  MaxSpeed: 6
+  Acceleration: 30
+  Deceleration: 30
   RotationSpeed: 12
   ArrivalRadius: 0.5
   AgentTypeIndex: 0
-  LockYPosition: 1
-  PhysicsRadiusOverride: 0

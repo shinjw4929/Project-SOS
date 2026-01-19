@@ -33,6 +33,7 @@ namespace Server
         {
             state.RequireForUpdate<NetworkStreamInGame>();
             state.RequireForUpdate<EndSimulationEntityCommandBufferSystem.Singleton>();
+            state.RequireForUpdate<GhostIdMap>();
 
             _ghostOwnerLookup = state.GetComponentLookup<GhostOwner>(true);
             _networkIdLookup = state.GetComponentLookup<NetworkId>(true);
@@ -58,12 +59,8 @@ namespace Server
             var ecb = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>()
                 .CreateCommandBuffer(state.WorldUnmanaged);
 
-            // GhostMap 생성
-            var ghostMap = new NativeParallelHashMap<int, Entity>(1024, Allocator.Temp);
-            foreach (var (ghost, entity) in SystemAPI.Query<RefRO<GhostInstance>>().WithEntityAccess())
-            {
-                ghostMap.TryAdd(ghost.ValueRO.ghostId, entity);
-            }
+            // GhostIdMap 싱글톤 재사용 (GhostIdLookupSystem이 매 프레임 갱신)
+            var ghostMap = SystemAPI.GetSingleton<GhostIdMap>().Map;
 
             // RPC 처리
             foreach (var (rpcReceive, rpc, rpcEntity) in

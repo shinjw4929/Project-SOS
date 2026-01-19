@@ -176,10 +176,10 @@ namespace Authoring
                 // 데미지 이벤트 버퍼 (지연 데미지 적용용)
                 AddBuffer<DamageEvent>(entity);
                 
-                // 사거리
+                // 작업 사거리
                 AddComponent(entity, new WorkRange
                 {
-                    Value = authoring.workRange + authoring.radius,
+                    Value = authoring.workRange,
                 });
                 
                 // 채집, 추격, 공격 대상
@@ -218,7 +218,7 @@ namespace Authoring
                     {
                         AttackPower = authoring.attackPower,
                         AttackSpeed = authoring.attackSpeed,
-                        AttackRange = authoring.attackRange + authoring.radius
+                        AttackRange = authoring.attackRange
                     });
 
                     // 공격 쿨다운 (초기값 0 = 즉시 공격 가능)

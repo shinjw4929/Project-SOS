@@ -12,10 +12,9 @@ namespace Server
     /// <summary>
     /// 근접 공격 시스템
     /// - 유닛과 적 모두 AggroTarget 기반으로 동일하게 처리
-    /// - 거리 기반 히트 판정 (RTS 스타일)
+    /// - 거리 기반 히트 판정 (RTS 스타일): 직선거리 - 타겟 반지름(ObstacleRadius)
     /// - IJobEntity + Burst로 최적화
     /// - ECB.ParallelWriter를 통한 스레드 안전 데미지 이벤트 추가
-    /// - distancesq로 sqrt 연산 제거
     /// </summary>
     [BurstCompile]
     [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
@@ -41,6 +40,7 @@ namespace Server
             var transformLookup = SystemAPI.GetComponentLookup<LocalTransform>(true);
             var healthLookup = SystemAPI.GetComponentLookup<Health>(true);
             var defenseLookup = SystemAPI.GetComponentLookup<Defense>(true);
+            var obstacleRadiusLookup = SystemAPI.GetComponentLookup<ObstacleRadius>(true);
 
             // =====================================================================
             // 1. 적 유닛 근접 공격 Job
@@ -51,7 +51,8 @@ namespace Server
                 ECB = ecb,
                 TransformLookup = transformLookup,
                 HealthLookup = healthLookup,
-                DefenseLookup = defenseLookup
+                DefenseLookup = defenseLookup,
+                ObstacleRadiusLookup = obstacleRadiusLookup
             };
             state.Dependency = enemyJob.ScheduleParallel(state.Dependency);
 
@@ -66,7 +67,8 @@ namespace Server
                 ECB = ecb,
                 TransformLookup = transformLookup,
                 HealthLookup = healthLookup,
-                DefenseLookup = defenseLookup
+                DefenseLookup = defenseLookup,
+                ObstacleRadiusLookup = obstacleRadiusLookup
             };
             state.Dependency = unitJob.ScheduleParallel(state.Dependency);
         }
@@ -88,6 +90,7 @@ namespace Server
         public ComponentLookup<LocalTransform> TransformLookup;
         [ReadOnly] public ComponentLookup<Health> HealthLookup;
         [ReadOnly] public ComponentLookup<Defense> DefenseLookup;
+        [ReadOnly] public ComponentLookup<ObstacleRadius> ObstacleRadiusLookup;
 
         private void Execute(
             Entity entity,
@@ -112,13 +115,16 @@ namespace Server
 
             if (targetHealth.CurrentValue <= 0) return;
 
-            // [최적화] 거리 제곱 사용 (sqrt 제거)
+            // 거리 계산: 직선거리 - 타겟 반지름
             float3 targetPos = targetTransform.Position;
             float3 myPos = transform.Position;
-            float distSq = math.distancesq(myPos, targetPos);
-            float rangeSq = combatStats.AttackRange * combatStats.AttackRange;
+            float rawDist = math.distance(myPos, targetPos);
+            float targetRadius = ObstacleRadiusLookup.TryGetComponent(targetEntity, out ObstacleRadius obstacleRadius)
+                ? obstacleRadius.Radius
+                : 0f;
+            float effectiveDist = math.max(0f, rawDist - targetRadius);
 
-            bool isInRange = distSq <= rangeSq;
+            bool isInRange = effectiveDist <= combatStats.AttackRange;
 
             if (isInRange)
             {
@@ -190,6 +196,7 @@ namespace Server
         public ComponentLookup<LocalTransform> TransformLookup;
         [ReadOnly] public ComponentLookup<Health> HealthLookup;
         [ReadOnly] public ComponentLookup<Defense> DefenseLookup;
+        [ReadOnly] public ComponentLookup<ObstacleRadius> ObstacleRadiusLookup;
 
         private void Execute(
             [ChunkIndexInQuery] int sortKey,
@@ -253,13 +260,16 @@ namespace Server
                 return;
             }
 
-            // [최적화] 거리 제곱 사용 (sqrt 제거)
+            // 거리 계산: 직선거리 - 타겟 반지름
             float3 targetPos = targetTransform.Position;
             float3 myPos = transform.Position;
-            float distSq = math.distancesq(myPos, targetPos);
-            float rangeSq = combatStats.AttackRange * combatStats.AttackRange;
+            float rawDist = math.distance(myPos, targetPos);
+            float targetRadius = ObstacleRadiusLookup.TryGetComponent(targetEntity, out ObstacleRadius obstacleRadius)
+                ? obstacleRadius.Radius
+                : 0f;
+            float effectiveDist = math.max(0f, rawDist - targetRadius);
 
-            bool isInRange = distSq <= rangeSq;
+            bool isInRange = effectiveDist <= combatStats.AttackRange;
 
             if (isInRange)
             {

@@ -122,6 +122,9 @@ namespace Server
             const float gridSpacing = 2.5f; // 적 간 최소 거리
             int gridSize = (int)math.ceil(math.sqrt(toSpawn)); // 그리드 한 변 크기
 
+            // 프리팹의 y 오프셋 미리 캐싱 (루프 내 반복 조회 방지)
+            float prefabYOffset = state.EntityManager.GetComponentData<LocalTransform>(prefabBig).Position.y;
+
             for (int i = 0; i < toSpawn; i++)
             {
                 // 랜덤 스폰 포인트 선택
@@ -138,9 +141,8 @@ namespace Server
                 );
                 float3 spawnPos = basePos + gridOffset;
 
-                // 프리팹의 y 오프셋 적용 (BoxCollider 반 높이, Ground 충돌 방지)
-                var prefabTransform = state.EntityManager.GetComponentData<LocalTransform>(prefabBig);
-                spawnPos.y += prefabTransform.Position.y;
+                // 캐싱된 y 오프셋 적용 (BoxCollider 반 높이, Ground 충돌 방지)
+                spawnPos.y += prefabYOffset;
 
                 Entity enemy = ecb.Instantiate(prefabBig);
                 ecb.SetComponent(enemy, LocalTransform.FromPosition(spawnPos));
@@ -176,6 +178,15 @@ namespace Server
             // 주기적 스폰도 간격 보장
             const float spacing = 3f; // 적 간 최소 거리
 
+            // 3종류 프리팹 y 오프셋 미리 캐싱 (루프 내 반복 조회 방지)
+            float smallYOffset = prefabSmall != Entity.Null
+                ? state.EntityManager.GetComponentData<LocalTransform>(prefabSmall).Position.y
+                : 0f;
+            float bigYOffset = state.EntityManager.GetComponentData<LocalTransform>(prefabBig).Position.y;
+            float flyingYOffset = prefabFlying != Entity.Null
+                ? state.EntityManager.GetComponentData<LocalTransform>(prefabFlying).Position.y
+                : 0f;
+
             for (int i = 0; i < spawnCount; i++)
             {
                 // 랜덤 스폰 포인트 선택
@@ -196,10 +207,12 @@ namespace Server
                 Entity prefab = SelectEnemyPrefab(ref random, prefabSmall, prefabBig, prefabFlying);
                 if (prefab == Entity.Null) continue;
 
-                // 프리팹의 y 오프셋 적용 (BoxCollider 반 높이, Ground 충돌 방지)
-                var prefabTransform = state.EntityManager.GetComponentData<LocalTransform>(prefab);
+                // 캐싱된 y 오프셋 적용 (BoxCollider 반 높이, Ground 충돌 방지)
+                float yOffset = prefab == prefabSmall ? smallYOffset
+                              : prefab == prefabBig ? bigYOffset
+                              : flyingYOffset;
                 float3 finalSpawnPos = spawnPos;
-                finalSpawnPos.y += prefabTransform.Position.y;
+                finalSpawnPos.y += yOffset;
 
                 Entity enemy = ecb.Instantiate(prefab);
                 ecb.SetComponent(enemy, LocalTransform.FromPosition(finalSpawnPos));

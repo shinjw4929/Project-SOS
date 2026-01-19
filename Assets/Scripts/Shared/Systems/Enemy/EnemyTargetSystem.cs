@@ -3,15 +3,24 @@ using Unity.Mathematics;
 using Unity.Transforms;
 using Unity.Collections;
 using Unity.Burst;
-using Shared; // UnitTag, StructureTag, Team, EnemyTarget, EnemyFollowConfig
+using Shared;
 
+/// <summary>
+/// 적(Enemy) 타겟팅 시스템
+/// <para>공간 분할(Spatial Partitioning)을 활용하여 O(N×M) → O(N×K)로 최적화</para>
+/// <para>- ToEntityArray/ToComponentDataArray 제거로 메모리 할당 최소화</para>
+/// <para>- 인접 9개 셀만 탐색하여 거리 계산 횟수 대폭 감소</para>
+/// </summary>
 [UpdateInGroup(typeof(SimulationSystemGroup))]
-[WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)] // 서버 전용
+[WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
 [BurstCompile]
 public partial struct EnemyTargetSystem : ISystem
 {
     private ComponentLookup<LocalTransform> _transformLookup;
     private EntityQuery _potentialTargetQuery;
+
+    // 공간 분할 셀 크기 (LoseTargetDistance의 절반 정도가 적절)
+    private const float CellSize = 10.0f;
 
     public void OnCreate(ref SystemState state)
     {
@@ -31,13 +40,13 @@ public partial struct EnemyTargetSystem : ISystem
             },
             Any = new ComponentType[]
             {
-                ComponentType.ReadOnly<UnitTag>(),     // 유닛
-                ComponentType.ReadOnly<StructureTag>() // 건물
+                ComponentType.ReadOnly<UnitTag>(),
+                ComponentType.ReadOnly<StructureTag>()
             },
             None = new ComponentType[]
             {
-                ComponentType.ReadOnly<EnemyTag>(),    // Enemy는 타겟 후보에서 제외
-                ComponentType.ReadOnly<WallTag>()      // Wall은 무적 (타겟 후보에서 제외)
+                ComponentType.ReadOnly<EnemyTag>(),
+                ComponentType.ReadOnly<WallTag>()
             }
         };
         _potentialTargetQuery = state.EntityManager.CreateEntityQuery(queryDesc);
@@ -48,50 +57,118 @@ public partial struct EnemyTargetSystem : ISystem
     {
         _transformLookup.Update(ref state);
 
-        // 1. 타겟 후보군(아군 유닛/건물) 데이터 스냅샷
-        // Job이 완료되면 자동으로 메모리 해제되도록 TempJob 사용
-        var potentialTargets = _potentialTargetQuery.ToEntityArray(Allocator.TempJob);
-        var targetTransforms = _potentialTargetQuery.ToComponentDataArray<LocalTransform>(Allocator.TempJob);
-        var targetTeams = _potentialTargetQuery.ToComponentDataArray<Team>(Allocator.TempJob);
-
         // GridSettings 조회 (배회용)
         var gridSettings = SystemAPI.GetSingleton<GridSettings>();
         float elapsedTime = (float)SystemAPI.Time.ElapsedTime;
 
-        // 2. Job 예약
-        var job = new EnemyTargetJob
+        // --- 공간 분할 맵 생성 ---
+        int targetCount = _potentialTargetQuery.CalculateEntityCount();
+        if (targetCount == 0)
         {
-            PotentialTargets = potentialTargets,
-            TargetTransforms = targetTransforms,
-            TargetTeams = targetTeams,
+            // 타겟이 없으면 모든 적을 배회 상태로 전환
+            var wanderOnlyJob = new EnemyWanderOnlyJob
+            {
+                GridSettings = gridSettings,
+                ElapsedTime = elapsedTime
+            };
+            state.Dependency = wanderOnlyJob.ScheduleParallel(state.Dependency);
+            return;
+        }
+
+        var targetSpatialMap = new NativeParallelMultiHashMap<int, TargetInfo>(targetCount, Allocator.TempJob);
+
+        // 1. 타겟 후보를 공간 분할 맵에 등록 (Job 속성으로 쿼리 필터 적용)
+        var buildMapJob = new BuildTargetSpatialMapJob
+        {
+            SpatialMap = targetSpatialMap.AsParallelWriter(),
+            CellSize = CellSize
+        };
+        var buildHandle = buildMapJob.ScheduleParallel(state.Dependency);
+
+        // 2. 적 타겟팅 Job 실행
+        var targetJob = new EnemyTargetWithSpatialJob
+        {
+            SpatialMap = targetSpatialMap,
             TransformLookup = _transformLookup,
             GridSettings = gridSettings,
-            ElapsedTime = elapsedTime
+            ElapsedTime = elapsedTime,
+            CellSize = CellSize
         };
+        state.Dependency = targetJob.ScheduleParallel(buildHandle);
 
-        state.Dependency = job.ScheduleParallel(state.Dependency);
+        // 3. 메모리 해제 예약
+        targetSpatialMap.Dispose(state.Dependency);
     }
+
+    // =========================================================================
+    // Helper Structs
+    // =========================================================================
+
+    /// <summary>
+    /// 타겟 정보 (공간 분할 맵 엔트리)
+    /// </summary>
+    public struct TargetInfo
+    {
+        public Entity Entity;
+        public float3 Position;
+        public int TeamId;
+    }
+
+    /// <summary>
+    /// 셀 해시 계산 (PredictedMovementSystem과 동일한 방식)
+    /// </summary>
+    public static int GetCellHash(float3 pos, float cellSize)
+    {
+        return (int)math.hash(new int2((int)(pos.x / cellSize), (int)(pos.z / cellSize)));
+    }
+
+    public static int GetCellHash(float3 pos, int xOff, int zOff, float cellSize)
+    {
+        return (int)math.hash(new int2((int)(pos.x / cellSize) + xOff, (int)(pos.z / cellSize) + zOff));
+    }
+
+    // =========================================================================
+    // Job 1: 타겟 후보를 공간 분할 맵에 등록
+    // =========================================================================
+
+    [BurstCompile]
+    [WithAll(typeof(LocalTransform), typeof(Team))]
+    [WithAny(typeof(UnitTag), typeof(StructureTag))]
+    [WithNone(typeof(EnemyTag), typeof(WallTag))]
+    public partial struct BuildTargetSpatialMapJob : IJobEntity
+    {
+        public NativeParallelMultiHashMap<int, TargetInfo>.ParallelWriter SpatialMap;
+        public float CellSize;
+
+        public void Execute(Entity entity, in LocalTransform transform, in Team team)
+        {
+            int hash = GetCellHash(transform.Position, CellSize);
+            SpatialMap.Add(hash, new TargetInfo
+            {
+                Entity = entity,
+                Position = transform.Position,
+                TeamId = team.teamId
+            });
+        }
+    }
+
+    // =========================================================================
+    // Job 2: 적 타겟팅 (공간 분할 기반)
+    // =========================================================================
 
     [BurstCompile]
     [WithOptions(EntityQueryOptions.IgnoreComponentEnabledState)]
-    public partial struct EnemyTargetJob : IJobEntity
+    public partial struct EnemyTargetWithSpatialJob : IJobEntity
     {
-        // [DeallocateOnJobCompletion]: Job이 끝나면 이 배열들을 자동으로 Dispose 함 (메모리 누수 방지)
-        [ReadOnly] [DeallocateOnJobCompletion] public NativeArray<Entity> PotentialTargets;
-        [ReadOnly] [DeallocateOnJobCompletion] public NativeArray<LocalTransform> TargetTransforms;
-        [ReadOnly] [DeallocateOnJobCompletion] public NativeArray<Team> TargetTeams;
-
+        [ReadOnly] public NativeParallelMultiHashMap<int, TargetInfo> SpatialMap;
         [ReadOnly] public ComponentLookup<LocalTransform> TransformLookup;
-
-        // 배회용 필드
         [ReadOnly] public GridSettings GridSettings;
         public float ElapsedTime;
+        public float CellSize;
 
         // 목적지 변경 역치 (1m 이상 차이나야 경로 재계산)
         private const float DestinationThresholdSq = 1.0f;
 
-        // 적군(Enemy)을 찾아서 실행
-        // 필터: EnemyTag가 있는 엔티티만 처리
         public void Execute(
             Entity entity,
             RefRO<LocalTransform> myTransform,
@@ -99,8 +176,8 @@ public partial struct EnemyTargetSystem : ISystem
             RefRW<EnemyState> enemyState,
             RefRO<EnemyChaseDistance> chaseDistance,
             RefRO<Team> myTeam,
-            RefRW<MovementGoal> goal,  // NavMesh 경로 탐색용
-            EnabledRefRW<MovementWaypoints> waypointsEnabled,  // 배회용 (도착 여부 판단)
+            RefRW<MovementGoal> goal,
+            EnabledRefRW<MovementWaypoints> waypointsEnabled,
             in EnemyTag enemyTag)
         {
             float3 myPos = myTransform.ValueRO.Position;
@@ -108,7 +185,7 @@ public partial struct EnemyTargetSystem : ISystem
             float loseDistSq = chaseDistance.ValueRO.LoseTargetDistance * chaseDistance.ValueRO.LoseTargetDistance;
 
             // ---------------------------------------------------------
-            // 1. 현재 타겟 유효성 검사 (TargetEntity != Entity.Null로 판단)
+            // 1. 현재 타겟 유효성 검사
             // ---------------------------------------------------------
             Entity currentTarget = target.ValueRO.TargetEntity;
             if (currentTarget == Entity.Null)
@@ -117,10 +194,8 @@ public partial struct EnemyTargetSystem : ISystem
             }
             else
             {
-                // TryGetComponent 패턴 적용 - 중복 조회 방지
                 if (!TransformLookup.TryGetComponent(currentTarget, out LocalTransform targetTransform))
                 {
-                    // 타겟이 파괴됨
                     needNewTarget = true;
                 }
                 else
@@ -128,17 +203,14 @@ public partial struct EnemyTargetSystem : ISystem
                     float3 targetPos = targetTransform.Position;
                     float distSq = math.distancesq(myPos, targetPos);
 
-                    // 추적 포기 거리보다 멀어지면 타겟 해제
                     if (distSq > loseDistSq)
                     {
                         needNewTarget = true;
                     }
                     else
                     {
-                        // 타겟이 유효하면 마지막 위치 갱신 (이동 시스템에서 사용)
                         target.ValueRW.LastTargetPosition = targetPos;
 
-                        // [NavMesh] 목적지 갱신 (역치 기반 - 불필요한 경로 재계산 방지)
                         float3 currentDest = goal.ValueRO.Destination;
                         if (math.distancesq(currentDest, targetPos) > DestinationThresholdSq)
                         {
@@ -152,33 +224,42 @@ public partial struct EnemyTargetSystem : ISystem
             if (!needNewTarget) return;
 
             // ---------------------------------------------------------
-            // 2. 새로운 타겟 탐색
+            // 2. 새로운 타겟 탐색 (공간 분할 기반 - 인접 9개 셀만 순회)
             // ---------------------------------------------------------
             Entity bestTarget = Entity.Null;
             float bestDistSq = float.MaxValue;
-
-            // 참고: Config에 'AggroRange'(인식 범위)가 없으므로
-            // 일단 'LoseTargetDistance'를 인식 범위로도 사용합니다.
+            float3 bestTargetPos = float3.zero;
             float searchRadiusSq = loseDistSq;
 
-            for (int i = 0; i < PotentialTargets.Length; i++)
+            // 인접 9개 셀만 순회 (중심 + 8방향)
+            for (int x = -1; x <= 1; x++)
             {
-                Entity candidate = PotentialTargets[i];
-
-                // 자기 자신 제외
-                if (candidate == entity) continue;
-
-                // 같은 팀이면 공격 안 함
-                if (TargetTeams[i].teamId == myTeam.ValueRO.teamId) continue;
-
-                float3 targetPos = TargetTransforms[i].Position;
-                float distSq = math.distancesq(myPos, targetPos);
-
-                // 인식 범위 내에 있고, 가장 가까운 적 선택
-                if (distSq < searchRadiusSq && distSq < bestDistSq)
+                for (int z = -1; z <= 1; z++)
                 {
-                    bestDistSq = distSq;
-                    bestTarget = candidate;
+                    int hash = GetCellHash(myPos, x, z, CellSize);
+
+                    if (SpatialMap.TryGetFirstValue(hash, out TargetInfo candidate, out var it))
+                    {
+                        do
+                        {
+                            // 자기 자신 제외
+                            if (candidate.Entity == entity) continue;
+
+                            // 같은 팀이면 공격 안 함
+                            if (candidate.TeamId == myTeam.ValueRO.teamId) continue;
+
+                            float distSq = math.distancesq(myPos, candidate.Position);
+
+                            // 인식 범위 내에 있고, 가장 가까운 적 선택
+                            if (distSq < searchRadiusSq && distSq < bestDistSq)
+                            {
+                                bestDistSq = distSq;
+                                bestTarget = candidate.Entity;
+                                bestTargetPos = candidate.Position;
+                            }
+
+                        } while (SpatialMap.TryGetNextValue(out candidate, ref it));
+                    }
                 }
             }
 
@@ -190,22 +271,16 @@ public partial struct EnemyTargetSystem : ISystem
             if (bestTarget != Entity.Null)
             {
                 target.ValueRW.TargetEntity = bestTarget;
+                target.ValueRW.LastTargetPosition = bestTargetPos;
 
-                // TryGetComponent로 위치 조회
-                if (TransformLookup.TryGetComponent(bestTarget, out LocalTransform bestTargetTransform))
+                // [NavMesh] 타겟이 변경되었거나 거리 역치 초과 시 경로 재계산
+                bool targetChanged = previousTarget != bestTarget;
+                float3 currentDest = goal.ValueRO.Destination;
+
+                if (targetChanged || math.distancesq(currentDest, bestTargetPos) > DestinationThresholdSq)
                 {
-                    float3 targetPos = bestTargetTransform.Position;
-                    target.ValueRW.LastTargetPosition = targetPos;
-
-                    // [NavMesh] 타겟이 변경되었거나 거리 역치 초과 시 경로 재계산
-                    bool targetChanged = previousTarget != bestTarget;
-                    float3 currentDest = goal.ValueRO.Destination;
-
-                    if (targetChanged || math.distancesq(currentDest, targetPos) > DestinationThresholdSq)
-                    {
-                        goal.ValueRW.Destination = targetPos;
-                        goal.ValueRW.IsPathDirty = true;
-                    }
+                    goal.ValueRW.Destination = bestTargetPos;
+                    goal.ValueRW.IsPathDirty = true;
                 }
 
                 // EnemyState를 Chasing으로 변경
@@ -218,15 +293,11 @@ public partial struct EnemyTargetSystem : ISystem
                 // ---------------------------------------------------------
                 // 배회 로직: 타겟 없으면 맵 전역을 랜덤하게 배회
                 // ---------------------------------------------------------
-                // 배회 목적지 생성 조건:
-                // 1. 현재 Wandering 상태가 아님 (처음 배회 시작)
-                // 2. 또는 MovementWaypoints가 비활성화됨 (목적지 도착)
                 bool needNewWanderTarget = enemyState.ValueRO.CurrentState != EnemyContext.Wandering
                                            || !waypointsEnabled.ValueRO;
 
                 if (needNewWanderTarget)
                 {
-                    // 랜덤 목적지 생성 (entity.Index + ElapsedTime 기반 시드)
                     var random = Random.CreateFromIndex((uint)(entity.Index + ElapsedTime * 1000));
 
                     float2 mapMin = GridSettings.GridOrigin;
@@ -235,23 +306,70 @@ public partial struct EnemyTargetSystem : ISystem
                         GridSettings.GridSize.y * GridSettings.CellSize
                     );
 
-                    // 맵 경계에서 5m 여유 마진
                     float3 wanderDest = new float3(
                         random.NextFloat(mapMin.x + 5f, mapMax.x - 5f),
-                        myPos.y,  // 현재 높이 유지 (비행 적 대응)
+                        myPos.y,
                         random.NextFloat(mapMin.y + 5f, mapMax.y - 5f)
                     );
 
                     goal.ValueRW.Destination = wanderDest;
                     goal.ValueRW.IsPathDirty = true;
-
-                    // MovementWaypoints 활성화 (PathfindingSystem이 경로 계산)
                     waypointsEnabled.ValueRW = true;
                 }
 
-                // EnemyState를 Wandering으로 변경
                 enemyState.ValueRW.CurrentState = EnemyContext.Wandering;
             }
+        }
+    }
+
+    // =========================================================================
+    // Job 3: 타겟 없을 때 배회 전용 Job
+    // =========================================================================
+
+    [BurstCompile]
+    [WithOptions(EntityQueryOptions.IgnoreComponentEnabledState)]
+    public partial struct EnemyWanderOnlyJob : IJobEntity
+    {
+        [ReadOnly] public GridSettings GridSettings;
+        public float ElapsedTime;
+
+        public void Execute(
+            Entity entity,
+            RefRO<LocalTransform> myTransform,
+            RefRW<AggroTarget> target,
+            RefRW<EnemyState> enemyState,
+            RefRW<MovementGoal> goal,
+            EnabledRefRW<MovementWaypoints> waypointsEnabled,
+            in EnemyTag enemyTag)
+        {
+            target.ValueRW.TargetEntity = Entity.Null;
+
+            bool needNewWanderTarget = enemyState.ValueRO.CurrentState != EnemyContext.Wandering
+                                       || !waypointsEnabled.ValueRO;
+
+            if (needNewWanderTarget)
+            {
+                var random = Random.CreateFromIndex((uint)(entity.Index + ElapsedTime * 1000));
+                float3 myPos = myTransform.ValueRO.Position;
+
+                float2 mapMin = GridSettings.GridOrigin;
+                float2 mapMax = mapMin + new float2(
+                    GridSettings.GridSize.x * GridSettings.CellSize,
+                    GridSettings.GridSize.y * GridSettings.CellSize
+                );
+
+                float3 wanderDest = new float3(
+                    random.NextFloat(mapMin.x + 5f, mapMax.x - 5f),
+                    myPos.y,
+                    random.NextFloat(mapMin.y + 5f, mapMax.y - 5f)
+                );
+
+                goal.ValueRW.Destination = wanderDest;
+                goal.ValueRW.IsPathDirty = true;
+                waypointsEnabled.ValueRW = true;
+            }
+
+            enemyState.ValueRW.CurrentState = EnemyContext.Wandering;
         }
     }
 }
