@@ -194,7 +194,7 @@ namespace Server
             }
 
             // Wall Collision
-            finalVelocity = ResolveWallCollision(currentPos, finalVelocity, obstacleRadius.Radius, DeltaTime);
+            finalVelocity = ResolveWallCollision(currentPos, finalVelocity, obstacleRadius.Radius, DeltaTime, iAmEnemy);
 
             // Apply
             transform.Position += finalVelocity * DeltaTime;
@@ -261,7 +261,7 @@ namespace Server
             return separation;
         }
 
-        private float3 ResolveWallCollision(float3 currentPos, float3 velocity, float radius, float dt)
+        private float3 ResolveWallCollision(float3 currentPos, float3 velocity, float radius, float dt, bool isEnemy)
         {
             float moveSpeed = math.length(velocity);
             if (moveSpeed < 0.001f) return velocity;
@@ -293,7 +293,22 @@ namespace Server
                         float dot = math.dot(velocity, normal);
                         if (dot < 0)
                         {
-                            velocity = velocity - (normal * dot);
+                            if (!isEnemy)
+                            {
+                                // 유닛: 속도 절대값 유지
+                                float originalSpeed = math.length(velocity);
+                                velocity = velocity - (normal * dot);
+                                float newSpeed = math.length(velocity);
+                                if (newSpeed > 0.001f)
+                                {
+                                    velocity = (velocity / newSpeed) * originalSpeed;
+                                }
+                            }
+                            else
+                            {
+                                // 적: 기존 로직
+                                velocity = velocity - (normal * dot);
+                            }
                         }
                     }
                 }
@@ -322,7 +337,22 @@ namespace Server
                         float dotToWall = math.dot(velocity, wallNormal);
                         if (dotToWall < 0)
                         {
-                            velocity -= wallNormal * dotToWall;
+                            if (!isEnemy)
+                            {
+                                // 유닛: 속도 절대값 유지
+                                float originalSpeed = math.length(velocity);
+                                velocity -= wallNormal * dotToWall;
+                                float newSpeed = math.length(velocity);
+                                if (newSpeed > 0.001f)
+                                {
+                                    velocity = (velocity / newSpeed) * originalSpeed;
+                                }
+                            }
+                            else
+                            {
+                                // 적: 기존 로직
+                                velocity -= wallNormal * dotToWall;
+                            }
                         }
 
                         float pushSpeed = math.min(overlap * 10f, 5f);
