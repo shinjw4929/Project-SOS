@@ -9,20 +9,23 @@ using Material = UnityEngine.Material;
 
 public class StructurePreviewController : MonoBehaviour
 {
-    [SerializeField] private Material validMaterial;      // 초록색: 사거리 내 건설 가능
-    [SerializeField] private Material invalidMaterial;    // 빨간색: 건설 불가
-    [SerializeField] private Material outOfRangeMaterial; // 노란색: 사거리 밖 (이동 후 건설)
+    [SerializeField] private Material carpetValidMaterial;      // 파란색: 사거리 내 건설 가능
+    [SerializeField] private Material carpetInvalidMaterial;    // 빨간색: 건설 불가
+    [SerializeField] private Material carpetOutOfRangeMaterial; // 노란색: 사거리 밖 (이동 후 건설)
 
     // 캐싱된 컴포넌트들
     private GameObject _currentPreview;
     private Transform _previewTransform; // 매 프레임 .transform 접근 방지
-    private Renderer _previewRenderer;
     private World _clientWorld;
+
+    // 양탄자 오브젝트 (별도 관리)
+    private GameObject _carpetObject;
+    private Transform _carpetTransform;
+    private MeshRenderer _carpetRenderer;
 
     // 데이터 캐싱 (최적화 핵심)
     private int _cachedPrefabIndex = -1;
     private StructureFootprint _cachedFootprint;
-    private Vector3 _cachedScale; // 매 프레임 new Vector3 방지
 
     // 쿼리 필드
     private EntityQuery _userStateQuery;
@@ -101,13 +104,12 @@ public class StructurePreviewController : MonoBehaviour
 
             // 1. 기존 프리뷰 제거 및 생성
             if (_currentPreview) Destroy(_currentPreview);
-            
+
             _currentPreview = Instantiate(targetPrefab);
             _currentPreview.name = targetPrefab.name + "(Preview)"; // 스트링 할당은 여기서 딱 한 번만
             _currentPreview.hideFlags = HideFlags.DontSave; // 에디터 저장 시 제외 (Assertion 에러 방지)
-            
+
             // 2. 컴포넌트 캐싱 (매 프레임 GetComponent 방지)
-            _previewRenderer = _currentPreview.GetComponentInChildren<Renderer>();
             _previewTransform = _currentPreview.transform;
 
             // 3. ECS 데이터 조회 (여기서만 수행!)
@@ -123,17 +125,11 @@ public class StructurePreviewController : MonoBehaviour
                 return; 
             }
 
-            // 4. GridSettings는 여기서 필요 (스케일 계산용)
+            // 4. GridSettings 조회 (양탄자 크기 계산용)
             if (!_gridSettingsQuery.TryGetSingleton<GridSettings>(out var tempGridSettings)) return;
 
-            // 5. 스케일 미리 계산 (Scale은 변하지 않음)
-            _cachedScale = new Vector3(
-                _cachedFootprint.Width * tempGridSettings.CellSize,
-                _cachedFootprint.Height,
-                _cachedFootprint.Length * tempGridSettings.CellSize
-            );
-            
-            _previewTransform.localScale = _cachedScale;
+            // 5. 양탄자 생성 (프리뷰의 자식으로)
+            CreateCarpet(_cachedFootprint.Width, _cachedFootprint.Length, tempGridSettings.CellSize);
 
             // 6. 인덱스 업데이트
             _cachedPrefabIndex = newIndex;
@@ -159,37 +155,61 @@ public class StructurePreviewController : MonoBehaviour
         // 높이값 적용
         pos.y += _cachedFootprint.Height * 0.5f + 0.05f;
 
-        // C. 위치 및 머티리얼 적용
+        // C. 위치 적용
         _previewTransform.position = pos; // 캐시된 Transform 사용
 
-        // 3단계 색상 로직: PlacementStatus 기반
-        Material targetMat;
-        switch (previewState.Status)
+        // 양탄자 위치 (지면 + 약간 위)
+        if (_carpetTransform)
         {
-            case PlacementStatus.ValidInRange:
-                targetMat = validMaterial;      // 초록색
-                break;
-            case PlacementStatus.ValidOutOfRange:
-                targetMat = outOfRangeMaterial; // 노란색
-                break;
-            default: // PlacementStatus.Invalid
-                targetMat = invalidMaterial;    // 빨간색
-                break;
+            _carpetTransform.position = new Vector3(pos.x, 0.05f, pos.z);
         }
 
-        // 머티리얼 교체 체크 (SharedMaterial 비교가 빠름)
-        if (_previewRenderer && _previewRenderer.sharedMaterial != targetMat)
+        // 양탄자 색상 로직: PlacementStatus 기반
+        Material targetMat = previewState.Status switch
         {
-            _previewRenderer.material = targetMat;
+            PlacementStatus.ValidInRange => carpetValidMaterial,      // 파란색
+            PlacementStatus.ValidOutOfRange => carpetOutOfRangeMaterial, // 노란색
+            _ => carpetInvalidMaterial                                   // 빨간색
+        };
+
+        // 양탄자 머티리얼 교체 체크 (SharedMaterial 비교가 빠름)
+        if (_carpetRenderer && _carpetRenderer.sharedMaterial != targetMat)
+        {
+            _carpetRenderer.material = targetMat;
         }
     }
 
     private void DestroyPreview()
     {
         if (_currentPreview) Destroy(_currentPreview);
+        if (_carpetObject) Destroy(_carpetObject);
         _currentPreview = null;
-        _previewRenderer = null;
         _previewTransform = null;
+        _carpetObject = null;
+        _carpetTransform = null;
+        _carpetRenderer = null;
         _cachedPrefabIndex = -1; // 인덱스 초기화하여 다음에 다시 생성되게 함
+    }
+
+    private void CreateCarpet(int width, int length, float cellSize)
+    {
+        _carpetObject = GameObject.CreatePrimitive(PrimitiveType.Quad);
+        _carpetObject.name = "GridCarpet";
+        _carpetObject.hideFlags = HideFlags.DontSave;
+
+        _carpetTransform = _carpetObject.transform;
+
+        // Collider 제거
+        Destroy(_carpetObject.GetComponent<UnityEngine.Collider>());
+
+        // Quad를 바닥에 눕히기 (XY평면 → XZ평면)
+        _carpetTransform.rotation = Quaternion.Euler(90f, 0f, 0f);
+
+        // 그리드 크기에 맞게 스케일 조정
+        float totalWidth = width * cellSize;
+        float totalLength = length * cellSize;
+        _carpetTransform.localScale = new Vector3(totalWidth, totalLength, 1f);
+
+        _carpetRenderer = _carpetObject.GetComponent<MeshRenderer>();
     }
 }
