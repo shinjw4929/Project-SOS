@@ -46,39 +46,39 @@ SpatialMapDisposeSystem → MovementMap 해제
 역할: 공간 분할 맵 빌드
 - MovementMap (셀 크기: 3.0f): 이동 충돌 회피용 (대형 유닛 AABB 등록)
 - 결과를 SpatialMaps 싱글톤에 저장
-────────────────────────────────────────
+---
 파일: SpatialMapDisposeSystem.cs
 그룹: LateSimulationSystemGroup
 역할: 공간 분할 맵 해제. CompleteDependency() 후 맵 Dispose
 
-────────────────────────────────────────
+---
 
 ### 이동 시스템 (Server/Systems/Movement/)
 
 파일: HandleMoveRequestSystem.cs
 그룹: SimulationSystemGroup
 역할: MoveRequestRpc 수신 → MovementGoal.Destination 설정, IsPathDirty=true, UnitIntentState=Move, MovementWaypoints 활성화
-────────────────────────────────────────
+---
 파일: NavMeshObstacleSpawnSystem.cs
 그룹: SimulationSystemGroup
 역할: 건물 생성 시 NavMeshObstacle GameObject 동적 생성, 15m 반경 내 유닛 경로 무효화
-────────────────────────────────────────
+---
 파일: NavMeshObstacleCleanupSystem.cs
 그룹: SimulationSystemGroup (UpdateAfter: ServerDeathSystem)
 역할: 건물 파괴 시 NavMeshObstacle GameObject 제거
-────────────────────────────────────────
+---
 파일: PathfindingSystem.cs
 그룹: SimulationSystemGroup (UpdateAfter: NavMeshObstacleSpawnSystem)
 역할: IsPathDirty=true인 유닛 감지 → NavMesh.CalculatePath() → PathWaypoint 버퍼 채우기 → MovementWaypoints.Current/Next 초기화. 프레임당 최대 15개 제한
-────────────────────────────────────────
+---
 파일: PathFollowSystem.cs
 그룹: SimulationSystemGroup (UpdateAfter: PathfindingSystem)
 역할: PathWaypoint 버퍼에서 다음 웨이포인트 꺼내서 MovementWaypoints.Next 갱신
-────────────────────────────────────────
+---
 파일: PredictedMovementSystem.cs
 그룹: SimulationSystemGroup (UpdateAfter: PathfindingSystem)
 역할: 핵심 이동 시스템. Kinematic 방식으로 LocalTransform.Position 직접 수정. 가속/감속 적용, SpatialMaps.MovementMap을 사용한 Entity 기반 Separation 충돌 회피, 벽 충돌 미끄러짐 처리
-────────────────────────────────────────
+---
 파일: MovementArrivalSystem.cs
 그룹: SimulationSystemGroup (UpdateAfter: PredictedMovementSystem)
 역할: 도착 판정 (거리 + !HasNext + 속도<0.05) → MovementWaypoints 비활성화, 속도 0
