@@ -10,11 +10,15 @@ namespace Authoring
         [Header("Grid Size (그리드 칸 수)")]
         [Min(1)] public int width = 1;
         [Min(1)] public int length = 1;
-        [Min(0.1f)] public float height = 1f;
+        public float height = 1f;
 
         [Header("World Size (실제 크기, NavMeshObstacle용)")]
         [Min(0.1f)] public float worldWidth = 1f;
         [Min(0.1f)] public float worldLength = 1f;
+
+        [Header("Shape (NavMeshObstacle 형태)")]
+        [Tooltip("원형 콜라이더(Capsule/Sphere)를 사용하는 경우 체크")]
+        public bool isCircular = true;
 
         [Header("Gathering Settings")]
         public ResourceType resourceType = ResourceType.Cheese;
@@ -54,7 +58,9 @@ namespace Authoring
                     Length = authoring.length,
                     Height = authoring.height,
                     WorldWidth = authoring.worldWidth,
-                    WorldLength = authoring.worldLength
+                    WorldLength = authoring.worldLength,
+                    IsCircular = authoring.isCircular,
+                    WorldRadius = authoring.radius  // 원형일 때 NavMeshObstacle 반지름
                 });
 
                 // 그리드 위치

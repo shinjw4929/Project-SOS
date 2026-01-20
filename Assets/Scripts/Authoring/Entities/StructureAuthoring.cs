@@ -33,7 +33,11 @@ namespace Authoring
         [Header("World Size (실제 크기, NavMeshObstacle용)")]
         [Min(0.1f)] public float worldWidth = 1f;
         [Min(0.1f)] public float worldLength = 1f;
-        
+
+        [Header("Shape (NavMeshObstacle 형태)")]
+        [Tooltip("원형 콜라이더(Capsule/Sphere)를 사용하는 경우 체크")]
+        public bool isCircular = false;
+
         [Header("Build Info (Cost & Time)")]
         public int cost = 100;
         public float buildTime = 10.0f;
@@ -181,7 +185,9 @@ namespace Authoring
                     Length = authoring.length,
                     Height = authoring.height,
                     WorldWidth = authoring.worldWidth,
-                    WorldLength = authoring.worldLength
+                    WorldLength = authoring.worldLength,
+                    IsCircular = authoring.isCircular,
+                    WorldRadius = authoring.radius  // 원형일 때 NavMeshObstacle 반지름
                 });
                 
                 AddComponent(entity, new ObstacleRadius

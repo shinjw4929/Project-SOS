@@ -13,5 +13,9 @@ namespace Shared
         // 실제 월드 크기 (NavMeshObstacle용, 프리팹 Collider에서 추출)
         public float WorldWidth;  // 실제 가로 크기
         public float WorldLength; // 실제 세로 크기
+
+        // 원형 장애물 지원 (NavMeshObstacle Capsule 형태)
+        public bool IsCircular;   // 원형 여부 (true면 Capsule, false면 Box)
+        public float WorldRadius; // 원형일 때 반지름
     }
 }

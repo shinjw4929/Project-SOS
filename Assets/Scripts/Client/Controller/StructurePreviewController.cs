@@ -128,7 +128,7 @@ public class StructurePreviewController : MonoBehaviour
             // 4. GridSettings 조회 (양탄자 크기 계산용)
             if (!_gridSettingsQuery.TryGetSingleton<GridSettings>(out var tempGridSettings)) return;
 
-            // 5. 양탄자 생성 (프리뷰의 자식으로)
+            // 5. 양탄자 생성 (별도 오브젝트로 관리)
             CreateCarpet(_cachedFootprint.Width, _cachedFootprint.Length, tempGridSettings.CellSize);
 
             // 6. 인덱스 업데이트

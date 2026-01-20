@@ -142,8 +142,8 @@ MonoBehaviour:
   defense: 0
   visionRange: 10
   radius: 0.5
-  attackPower: 1
-  attackSpeed: 1
+  attackPower: 3
+  attackSpeed: 3.4
   attackRange: 1.2
   aggroRange: 30
   isRanged: 0
@@ -197,8 +197,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fa5b9120047d80f4ab8813c7304de74b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  MaxSpeed: 12
-  Acceleration: 40
+  MaxSpeed: 8
+  Acceleration: 30
   Deceleration: 40
   RotationSpeed: 12
   ArrivalRadius: 0.5

@@ -112,6 +112,9 @@ Thumbs.db
 
 # --- 사용자 정의 추가 영역 ---
 
+# Downloaded Assets (외부 에셋 스토어)
+/[Aa]ssets/[Dd]ownload/
+
 # IDEs and Editors
 .idea/
 .vscode/

@@ -52,23 +52,35 @@ namespace Server
 
                 // 2. NavMeshObstacle 컴포넌트 추가 및 설정
                 NavMeshObstacle obstacle = obstacleObj.AddComponent<NavMeshObstacle>();
-                obstacle.shape = NavMeshObstacleShape.Box;
 
-                // 3. 크기 및 중심점 계산
+                // 3. 형태에 따른 크기 및 중심점 설정
+                if (footprint.ValueRO.IsCircular)
+                {
+                    // 원형 장애물 (Capsule)
+                    obstacle.shape = NavMeshObstacleShape.Capsule;
+                    obstacle.center = new Vector3(0, footprint.ValueRO.Height * 0.5f, 0);
+                    obstacle.radius = math.max(0.1f, footprint.ValueRO.WorldRadius - ObstaclePadding);
+                    obstacle.height = footprint.ValueRO.Height;
+                }
+                else
+                {
+                    // 박스형 장애물 (Box)
+                    obstacle.shape = NavMeshObstacleShape.Box;
 
-                // 중심점: 높이의 절반만큼 올려야 바닥에 묻히지 않음
-                obstacle.center = new Vector3(0, footprint.ValueRO.Height * 0.5f, 0);
+                    // 중심점: 높이의 절반만큼 올려야 바닥에 묻히지 않음
+                    obstacle.center = new Vector3(0, footprint.ValueRO.Height * 0.5f, 0);
 
-                // [핵심] Padding 적용: 실제 크기에서 Padding만큼 빼서 장애물을 축소
-                // math.max(0.1f, ...)는 크기가 음수가 되는 것을 방지
-                float sizeX = math.max(0.1f, footprint.ValueRO.WorldWidth - ObstaclePadding);
-                float sizeZ = math.max(0.1f, footprint.ValueRO.WorldLength - ObstaclePadding);
+                    // [핵심] Padding 적용: 실제 크기에서 Padding만큼 빼서 장애물을 축소
+                    // math.max(0.1f, ...)는 크기가 음수가 되는 것을 방지
+                    float sizeX = math.max(0.1f, footprint.ValueRO.WorldWidth - ObstaclePadding);
+                    float sizeZ = math.max(0.1f, footprint.ValueRO.WorldLength - ObstaclePadding);
 
-                obstacle.size = new Vector3(
-                    sizeX,
-                    footprint.ValueRO.Height,
-                    sizeZ
-                );
+                    obstacle.size = new Vector3(
+                        sizeX,
+                        footprint.ValueRO.Height,
+                        sizeZ
+                    );
+                }
 
                 // Carving 설정 (지연 적용으로 프레임 스파이크 방지)
                 obstacle.carving = true;
