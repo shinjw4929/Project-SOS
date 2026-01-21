@@ -1,0 +1,179 @@
+[1mdiff --git a/Assets/Scenes/InGame.unity b/Assets/Scenes/InGame.unity[m
+[1mindex f6ec735..0243603 100644[m
+[1m--- a/Assets/Scenes/InGame.unity[m
+[1m+++ b/Assets/Scenes/InGame.unity[m
+[36m@@ -798,6 +798,139 @@[m [mRectTransform:[m
+   m_AnchoredPosition: {x: 0, y: 0}[m
+   m_SizeDelta: {x: -20, y: 0}[m
+   m_Pivot: {x: 0.5, y: 0.5}[m
+[32m+[m[32m--- !u!1 &337825898[m
+[32m+[m[32mGameObject:[m
+[32m+[m[32m  m_ObjectHideFlags: 0[m
+[32m+[m[32m  m_CorrespondingSourceObject: {fileID: 0}[m
+[32m+[m[32m  m_PrefabInstance: {fileID: 0}[m
+[32m+[m[32m  m_PrefabAsset: {fileID: 0}[m
+[32m+[m[32m  serializedVersion: 6[m
+[32m+[m[32m  m_Component:[m
+[32m+[m[32m  - component: {fileID: 337825899}[m
+[32m+[m[32m  - component: {fileID: 337825902}[m
+[32m+[m[32m  - component: {fileID: 337825901}[m
+[32m+[m[32m  - component: {fileID: 337825900}[m
+[32m+[m[32m  m_Layer: 5[m
+[32m+[m[32m  m_Name: ButtonStart[m
+[32m+[m[32m  m_TagString: Untagged[m
+[32m+[m[32m  m_Icon: {fileID: 0}[m
+[32m+[m[32m  m_NavMeshLayer: 0[m
+[32m+[m[32m  m_StaticEditorFlags: 0[m
+[32m+[m[32m  m_IsActive: 1[m
+[32m+[m[32m--- !u!224 &337825899[m
+[32m+[m[32mRectTransform:[m
+[32m+[m[32m  m_ObjectHideFlags: 0[m
+[32m+[m[32m  m_CorrespondingSourceObject: {fileID: 0}[m
+[32m+[m[32m  m_PrefabInstance: {fileID: 0}[m
+[32m+[m[32m  m_PrefabAsset: {fileID: 0}[m
+[32m+[m[32m  m_GameObject: {fileID: 337825898}[m
+[32m+[m[32m  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}[m
+[32m+[m[32m  m_LocalPosition: {x: 0, y: 0, z: 0}[m
+[32m+[m[32m  m_LocalScale: {x: 1, y: 1, z: 1}[m
+[32m+[m[32m  m_ConstrainProportionsScale: 0[m
+[32m+[m[32m  m_Children:[m
+[32m+[m[32m  - {fileID: 876167740}[m
+[32m+[m[32m  m_Father: {fileID: 1788526931}[m
+[32m+[m[32m  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}[m
+[32m+[m[32m  m_AnchorMin: {x: 0.5, y: 0.5}[m
+[32m+[m[32m  m_AnchorMax: {x: 0.5, y: 0.5}[m
+[32m+[m[32m  m_AnchoredPosition: {x: 0, y: 0}[m
+[32m+[m[32m  m_SizeDelta: {x: 250, y: 60}[m
+[32m+[m[32m  m_Pivot: {x: 0.5, y: 0.5}[m
+[32m+[m[32m--- !u!114 &337825900[m
+[32m+[m[32mMonoBehaviour:[m
+[32m+[m[32m  m_ObjectHideFlags: 0[m
+[32m+[m[32m  m_CorrespondingSourceObject: {fileID: 0}[m
+[32m+[m[32m  m_PrefabInstance: {fileID: 0}[m
+[32m+[m[32m  m_PrefabAsset: {fileID: 0}[m
+[32m+[m[32m  m_GameObject: {fileID: 337825898}[m
+[32m+[m[32m  m_Enabled: 1[m
+[32m+[m[32m  m_EditorHideFlags: 0[m
+[32m+[m[32m  m_Script: {fileID: 11500000, guid: 4e29b1a8efbd4b44bb3f3716e73f07ff, type: 3}[m
+[32m+[m[32m  m_Name:[m[41m [m
+[32m+[m[32m  m_EditorClassIdentifier:[m[41m [m
+[32m+[m[32m  m_Navigation:[m
+[32m+[m[32m    m_Mode: 3[m
+[32m+[m[32m    m_WrapAround: 0[m
+[32m+[m[32m    m_SelectOnUp: {fileID: 0}[m
+[32m+[m[32m    m_SelectOnDown: {fileID: 0}[m
+[32m+[m[32m    m_SelectOnLeft: {fileID: 0}[m
+[32m+[m[32m    m_SelectOnRight: {fileID: 0}[m
+[32m+[m[32m  m_Transition: 1[m
+[32m+[m[32m  m_Colors:[m
+[32m+[m[32m    m_NormalColor: {r: 1, g: 1, b: 1, a: 1}[m
+[32m+[m[32m    m_HighlightedColor: {r: 0.9607843, g: 0.9607843, b: 0.9607843, a: 1}[m
+[32m+[m[32m    m_PressedColor: {r: 0.78431374, g: 0.78431374, b: 0.78431374, a: 1}[m
+[32m+[m[32m    m_SelectedColor: {r: 0.9607843, g: 0.9607843, b: 0.9607843, a: 1}[m
+[32m+[m[32m    m_DisabledColor: {r: 0.78431374, g: 0.78431374, b: 0.78431374, a: 0.5019608}[m
+[32m+[m[32m    m_ColorMultiplier: 1[m
+[32m+[m[32m    m_FadeDuration: 0.1[m
+[32m+[m[32m  m_SpriteState:[m
+[32m+[m[32m    m_HighlightedSprite: {fileID: 0}[m
+[32m+[m[32m    m_PressedSprite: {fileID: 0}[m
+[32m+[m[32m    m_SelectedSprite: {fileID: 0}[m
+[32m+[m[32m    m_DisabledSprite: {fileID: 0}[m
+[32m+[m[32m  m_AnimationTriggers:[m
+[32m+[m[32m    m_NormalTrigger: Normal[m
+[32m+[m[32m    m_HighlightedTrigger: Highlighted[m
+[32m+[m[32m    m_PressedTrigger: Pressed[m
+[32m+[m[32m    m_SelectedTrigger: Selected[m
+[32m+[m[32m    m_DisabledTrigger: Disabled[m
+[32m+[m[32m  m_Interactable: 1[m
+[32m+[m[32m  m_TargetGraphic: {fileID: 337825901}[m
+[32m+[m[32m  m_OnClick:[m
+[32m+[m[32m    m_PersistentCalls:[m
+[32m+[m[32m      m_Calls:[m
+[32m+[m[32m      - m_Target: {fileID: 1128002266}[m
+[32m+[m[32m        m_TargetAssemblyTypeName: GameStartController, Assembly-CSharp[m
+[32m+[m[32m        m_MethodName: OnClickStart[m
+[32m+[m[32m        m_Mode: 1[m
+[32m+[m[32m        m_Arguments:[m
+[32m+[m[32m          m_ObjectArgument: {fileID: 0}[m
+[32m+[m[32m          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine[m
+[32m+[m[32m          m_IntArgument: 0[m
+[32m+[m[32m          m_FloatArgument: 0[m
+[32m+[m[32m          m_StringArgument:[m[41m [m
+[32m+[m[32m          m_BoolArgument: 0[m
+[32m+[m[32m        m_CallState: 2[m
+[32m+[m[32m--- !u!114 &337825901[m
+[32m+[m[32mMonoBehaviour:[m
+[32m+[m[32m  m_ObjectHideFlags: 0[m
+[32m+[m[32m  m_CorrespondingSourceObject: {fileID: 0}[m
+[32m+[m[32m  m_PrefabInstance: {fileID: 0}[m
+[32m+[m[32m  m_PrefabAsset: {fileID: 0}[m
+[32m+[m[32m  m_GameObject: {fileID: 337825898}[m
+[32m+[m[32m  m_Enabled: 1[m
+[32m+[m[32m  m_EditorHideFlags: 0[m
+[32m+[m[32m  m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}[m
+[32m+[m[32m  m_Name:[m[41m [m
+[32m+[m[32m  m_EditorClassIdentifier:[m[41m [m
+[32m+[m[32m  m_Material: {fileID: 0}[m
+[32m+[m[32m  m_Color: {r: 1, g: 1, b: 1, a: 1}[m
+[32m+[m[32m  m_RaycastTarget: 1[m
+[32m+[m[32m  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}[m
+[32m+[m[32m  m_Maskable: 1[m
+[32m+[m[32m  m_OnCullStateChanged:[m
+[32m+[m[32m    m_PersistentCalls:[m
+[32m+[m[32m      m_Calls: [][m
+[32m+[m[32m  m_Sprite: {fileID: 21300000, guid: 4e75355f0aa718a498d932c89b2b994c, type: 3}[m
+[32m+[m[32m  m_Type: 0[m
+[32m+[m[32m  m_PreserveAspect: 0[m
+[32m+[m[32m  m_FillCenter: 1[m
+[32m+[m[32m  m_FillMethod: 4[m
+[32m+[m[32m  m_FillAmount: 1[m
+[32m+[m[32m  m_FillClockwise: 1[m
+[32m+[m[32m  m_FillOrigin: 0[m
+[32m+[m[32m  m_UseSpriteMesh: 0[m
+[32m+[m[32m  m_PixelsPerUnitMultiplier: 1[m
+[32m+[m[32m--- !u!222 &337825902[m
+[32m+[m[32mCanvasRenderer:[m
+[32m+[m[32m  m_ObjectHideFlags: 0[m
+[32m+[m[32m  m_CorrespondingSourceObject: {fileID: 0}[m
+[32m+[m[32m  m_PrefabInstance: {fileID: 0}[m
+[32m+[m[32m  m_PrefabAsset: {fileID: 0}[m
+[32m+[m[32m  m_GameObject: {fileID: 337825898}[m
+[32m+[m[32m  m_CullTransparentMesh: 1[m
+ --- !u!1 &410050588[m
+ GameObject:[m
+   m_ObjectHideFlags: 0[m
+[36m@@ -1085,6 +1218,81 @@[m [mCanvasRenderer:[m
+   m_PrefabAsset: {fileID: 0}[m
+   m_GameObject: {fileID: 462204877}[m
+   m_CullTransparentMesh: 1[m
+[32m+[m[32m--- !u!1 &482482048[m
+[32m+[m[32mGameObject:[m
+[32m+[m[32m  m_ObjectHideFlags: 0[m
+[32m+[m[32m  m_CorrespondingSourceObject: {fileID: 0}[m
+[32m+[m[32m  m_PrefabInstance: {fileID: 0}[m
+[32m+[m[32m  m_PrefabAsset: {fileID: 0}[m
+[32m+[m[32m  serializedVersion: 6[m
+[32m+[m[32m  m_Component:[m
+[32m+[m[32m  - component: {fileID: 482482049}[m
+[32m+[m[32m  - component: {fileID: 482482051}[m
+[32m+[m[32m  - component: {fileID: 482482050}[m
+[32m+[m[32m  m_Layer: 5[m
+[32m+[m[32m  m_Name: Image[m
+[32m+[m[32m  m_TagString: Untagged[m
+[32m+[m[32m  m_Icon: {fileID: 0}[m
+[32m+[m[32m  m_NavMeshLayer: 0[m
+[32m+[m[32m  m_StaticEditorFlags: 0[m
+[32m+[m[32m  m_IsActive: 1[m
+[32m+[m[32m--- !u!224 &482482049[m
+[32m+[m[32mRectTransform:[m
+[32m+[m[32m  m_ObjectHideFlags: 0[m
+[32m+[m[32m  m_CorrespondingSourceObject: {fileID: 0}[m
+[32m+[m[32m  m_PrefabInstance: {fileID: 0}[m
+[32m+[m[32m  m_PrefabAsset: {fileID: 0}[m
+[32m+[m[32m  m_GameObject: {fileID: 482482048}[m
+[32m+[m[32m  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}[m
+[32m+[m[32m  m_LocalPosition: {x: 0, y: 0, z: 0}[m
+[32m+[m[32m  m_LocalScale: {x: 1, y: 1, z: 1}[m
+[32m+[m[32m  m_ConstrainProportionsScale: 0[m
+[32m+[m[32m  m_Children: [][m
+[32m+[m
