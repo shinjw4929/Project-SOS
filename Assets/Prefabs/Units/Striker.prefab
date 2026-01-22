@@ -18,7 +18,7 @@ GameObject:
   - component: {fileID: 2973800692130917052}
   - component: {fileID: 7882204444784903943}
   m_Layer: 11
-  m_Name: Swordsman
+  m_Name: Striker
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

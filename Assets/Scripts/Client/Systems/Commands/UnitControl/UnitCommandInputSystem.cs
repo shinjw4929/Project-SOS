@@ -94,7 +94,12 @@ namespace Client
             {
                 Start = unityRay.origin,
                 End = unityRay.origin + unityRay.direction * 1000f,
-                Filter = CollisionFilter.Default
+                Filter = new CollisionFilter
+                {
+                    BelongsTo = ~0u,
+                    CollidesWith = ~0u,
+                    GroupIndex = 0
+                }
             };
 
             if (collisionWorld.CastRay(rayInput, out Unity.Physics.RaycastHit hit))

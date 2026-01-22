@@ -2,6 +2,7 @@ using Unity.Entities;
 using Unity.NetCode;
 using Unity.Mathematics;
 using Unity.Transforms;
+using Unity.Physics;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using Shared;
@@ -14,7 +15,6 @@ namespace Client
     public partial class StructurePlacementInputSystem : SystemBase
     {
         private Camera _mainCamera;
-        private int _groundMask;
 
         protected override void OnCreate()
         {
@@ -22,7 +22,7 @@ namespace Client
             RequireForUpdate<UserState>();
             RequireForUpdate<GridSettings>();
             RequireForUpdate<SelectedEntityInfoState>();
-            _groundMask = 1 << 3; // 3: Ground
+            RequireForUpdate<PhysicsWorldSingleton>();
         }
 
         protected override void OnUpdate()
@@ -42,11 +42,19 @@ namespace Client
 
             var gridSettings = SystemAPI.GetSingleton<GridSettings>();
             float2 mousePos = mouse.position.ReadValue();
-            Ray ray = _mainCamera.ScreenPointToRay(new Vector3(mousePos.x, mousePos.y, 0));
+            UnityEngine.Ray unityRay = _mainCamera.ScreenPointToRay(new Vector3(mousePos.x, mousePos.y, 0));
 
-            if (UnityEngine.Physics.Raycast(ray, out RaycastHit hit, 1000f, _groundMask))
+            var physicsWorld = SystemAPI.GetSingleton<PhysicsWorldSingleton>();
+            var rayInput = new RaycastInput
             {
-                int2 gridPos = GridUtility.WorldToGrid(hit.point, gridSettings);
+                Start = unityRay.origin,
+                End = unityRay.origin + unityRay.direction * 1000f,
+                Filter = CollisionFilter.Default
+            };
+
+            if (physicsWorld.CastRay(rayInput, out Unity.Physics.RaycastHit hit))
+            {
+                int2 gridPos = GridUtility.WorldToGrid(hit.Position, gridSettings);
 
                 // RefRW로 접근하여 값 수정
                 ref var previewState = ref SystemAPI.GetSingletonRW<StructurePreviewState>().ValueRW;

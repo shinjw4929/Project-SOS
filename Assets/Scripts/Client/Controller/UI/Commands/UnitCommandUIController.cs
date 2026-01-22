@@ -240,9 +240,9 @@ namespace Client
         {
             if (_em.HasComponent<HeroTag>(entity)) return "Hero";
             if (_em.HasComponent<WorkerTag>(entity)) return "Worker";
-            if (_em.HasComponent<SwordsmanTag>(entity)) return "Swordsman";
-            if (_em.HasComponent<TrooperTag>(entity)) return "Trooper";
-            if (_em.HasComponent<SniperTag>(entity)) return "Sniper";
+            if (_em.HasComponent<StrikerTag>(entity)) return "Striker";
+            if (_em.HasComponent<ArcherTag>(entity)) return "Archer";
+            if (_em.HasComponent<TankTag>(entity)) return "Tank";
             if (_em.HasComponent<SoldierTag>(entity)) return "Soldier";
             return "Unit";
         }

@@ -10,9 +10,9 @@ namespace Shared
     public struct BuilderTag : IComponentData { }
 
     // 병사 세부 유형 태그
-    public struct SwordsmanTag : IComponentData { }  // 근접 병사
-    public struct TrooperTag : IComponentData { }    // 중거리 병사
-    public struct SniperTag : IComponentData { }     // 장거리 병사
+    public struct StrikerTag : IComponentData { }  // 근접 병사
+    public struct ArcherTag : IComponentData { }    // 중거리 병사
+    public struct TankTag : IComponentData { }     // 장거리 병사
 
     // 필요하다면 속성 태그도 가능
     // [GhostComponent] public struct BiologicalTag : IComponentData { } // 생체 유닛 (메딕 치료 대상)

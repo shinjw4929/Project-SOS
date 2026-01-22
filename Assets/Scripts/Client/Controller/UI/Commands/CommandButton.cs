@@ -20,7 +20,7 @@ namespace Client
         [SerializeField] private Image disabledOverlay;
 
         [Header("Colors")]
-        [SerializeField] private Color normalColor = Color.white;
+        [SerializeField] private Color normalColor = Color.black;
         [SerializeField] private Color disabledColor = new Color(0.3f, 0.3f, 0.3f, 0.8f);
 
         private Action _onClick;
@@ -40,9 +40,9 @@ namespace Client
             _onClick = onClick;
             _isUnlocked = isUnlocked;
 
-            // 텍스트 설정
+            // 텍스트 설정 (카멜케이스 분리)
             if (nameText != null)
-                nameText.text = displayName;
+                nameText.text = SplitCamelCase(displayName);
 
             if (shortcutText != null)
                 shortcutText.text = shortcut;
@@ -103,7 +103,7 @@ namespace Client
 
             // 이름 텍스트 색상 변경
             if (nameText != null)
-                nameText.color = disabledColor;  //unlocked ? normalColor : disabledColor;
+                nameText.color = unlocked ? normalColor : disabledColor;
         }
 
         private void OnButtonClicked()
@@ -120,6 +120,26 @@ namespace Client
         public void SetActive(bool active)
         {
             gameObject.SetActive(active);
+        }
+
+        /// <summary>
+        /// 카멜케이스 문자열에 Zero-Width Space 삽입 (자동 줄바꿈 가능하게)
+        /// </summary>
+        private static string SplitCamelCase(string input)
+        {
+            if (string.IsNullOrEmpty(input))
+                return input;
+
+            var sb = new System.Text.StringBuilder(input.Length * 2);
+            for (int i = 0; i < input.Length; i++)
+            {
+                char c = input[i];
+                // 대문자이고 첫 글자가 아니면 앞에 Zero-Width Space 삽입
+                if (i > 0 && char.IsUpper(c))
+                    sb.Append('\u200B');  // Zero-Width Space
+                sb.Append(c);
+            }
+            return sb.ToString();
         }
     }
 }

@@ -76,9 +76,9 @@ namespace Client
             if (em.HasComponent<WorkerTag>(prefab)) return "Worker";
 
             // 병사 유닛 (세부 태그 우선 체크)
-            if (em.HasComponent<SwordsmanTag>(prefab)) return "Swordsman";
-            if (em.HasComponent<TrooperTag>(prefab)) return "Trooper";
-            if (em.HasComponent<SniperTag>(prefab)) return "Sniper";
+            if (em.HasComponent<StrikerTag>(prefab)) return "Striker";
+            if (em.HasComponent<ArcherTag>(prefab)) return "Archer";
+            if (em.HasComponent<TankTag>(prefab)) return "Tank";
 
             // 일반 병사 (폴백)
             if (em.HasComponent<SoldierTag>(prefab)) return "Soldier";

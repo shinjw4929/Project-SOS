@@ -214,9 +214,9 @@ namespace Client
             // Unit types
             if (_entityManager.HasComponent<HeroTag>(entity)) return "Hero";
             if (_entityManager.HasComponent<WorkerTag>(entity)) return "Worker";
-            if (_entityManager.HasComponent<SwordsmanTag>(entity)) return "Swordsman";
-            if (_entityManager.HasComponent<TrooperTag>(entity)) return "Trooper";
-            if (_entityManager.HasComponent<SniperTag>(entity)) return "Sniper";
+            if (_entityManager.HasComponent<StrikerTag>(entity)) return "Striker";
+            if (_entityManager.HasComponent<ArcherTag>(entity)) return "Archer";
+            if (_entityManager.HasComponent<TankTag>(entity)) return "Tank";
 
             // Structure types - 구체적인 태그 먼저 체크 (ResourceCenter는 ProductionFacilityTag도 가짐)
             if (_entityManager.HasComponent<ResourceCenterTag>(entity)) return "Resource Center";

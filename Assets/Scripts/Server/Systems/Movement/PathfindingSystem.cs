@@ -148,7 +148,6 @@ namespace Server
                 if (_sharedNavMeshPath.status == NavMeshPathStatus.PathComplete ||
                     _sharedNavMeshPath.status == NavMeshPathStatus.PathPartial)
                 {
-                    // [최적화] GetCornersNonAlloc을 사용하여 GC 할당 제거
                     int count = _sharedNavMeshPath.GetCornersNonAlloc(_sharedCornerBuffer);
                     return math.min(count, MaxPathLength);
                 }

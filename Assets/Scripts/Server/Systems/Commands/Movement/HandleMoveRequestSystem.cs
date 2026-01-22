@@ -2,7 +2,6 @@ using Unity.Entities;
 using Unity.NetCode;
 using Unity.Collections;
 using Unity.Burst;
-using UnityEngine;
 using Shared;
 
 namespace Server
@@ -88,19 +87,13 @@ namespace Server
             if (!_unitTagLookup.HasComponent(unitEntity) ||
                 !_ghostOwnerLookup.HasComponent(unitEntity) ||
                 !_networkIdLookup.HasComponent(sourceConnection))
-            {
-                Debug.LogWarning($"[HandleMoveRequest] Validation FAILED: UnitTag={_unitTagLookup.HasComponent(unitEntity)}, GhostOwner={_ghostOwnerLookup.HasComponent(unitEntity)}, NetworkId={_networkIdLookup.HasComponent(sourceConnection)}");
                 return;
-            }
 
             // 2. 소유권 검증
             int ownerId = _ghostOwnerLookup[unitEntity].NetworkId;
             int requesterId = _networkIdLookup[sourceConnection].Value;
             if (ownerId != requesterId)
-            {
-                Debug.LogWarning($"[HandleMoveRequest] Owner mismatch: ownerId={ownerId}, requesterId={requesterId}");
                 return;
-            }
 
             // 3. MovementGoal 설정
             if (_movementGoalLookup.HasComponent(unitEntity))
@@ -109,10 +102,6 @@ namespace Server
                 goalRW.ValueRW.Destination = rpc.TargetPosition;
                 goalRW.ValueRW.IsPathDirty = true;
                 goalRW.ValueRW.CurrentWaypointIndex = 0;
-            }
-            else
-            {
-                Debug.LogWarning($"[HandleMoveRequest] No MovementGoal component!");
             }
 
             // 4. UnitIntentState 설정 (Move 또는 AttackMove)
