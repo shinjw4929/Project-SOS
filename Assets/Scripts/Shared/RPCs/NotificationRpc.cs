@@ -11,6 +11,7 @@ namespace Shared
         InsufficientFunds = 1,      // 자원 부족
         InvalidPlacement = 2,        // 건설 위치 불가
         ProductionQueueFull = 3,     // 생산 대기열 가득 참
+        PopulationLimitReached = 4,  // 인구수 초과
     }
 
     /// <summary>
