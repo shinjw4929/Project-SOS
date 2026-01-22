@@ -130,3 +130,6 @@ tmpclaude-*-cwd
 
 # Others
 /nul
+
+# Unity DOTS SubScene baking cache
+/[Aa]ssets/SceneDependencyCache/
