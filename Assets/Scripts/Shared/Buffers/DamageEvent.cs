@@ -12,5 +12,6 @@ namespace Shared
     public struct DamageEvent : IBufferElementData
     {
         public float Damage;
+        public Entity Attacker;  // 공격자 엔티티 (어그로 전환용)
     }
 }

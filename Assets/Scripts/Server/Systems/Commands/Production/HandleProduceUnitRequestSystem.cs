@@ -20,6 +20,7 @@ namespace Server
         
         // 쓰기 권한이 필요한 Lookup (ReadOnly 제거)
         private ComponentLookup<UserCurrency> _userCurrencyLookup;
+        private ComponentLookup<UserSupply> _userSupplyLookup;
         private ComponentLookup<ProductionQueue> _productionQueueLookup;
 
         public void OnCreate(ref SystemState state)
@@ -37,6 +38,7 @@ namespace Server
             _facilityTagLookup = state.GetComponentLookup<ProductionFacilityTag>(true);
             
             _userCurrencyLookup = state.GetComponentLookup<UserCurrency>(false); // Write
+            _userSupplyLookup = state.GetComponentLookup<UserSupply>(false); // Write
             _productionQueueLookup = state.GetComponentLookup<ProductionQueue>(false); // Write
         }
 
@@ -50,6 +52,7 @@ namespace Server
             _networkIdLookup.Update(ref state);
             _facilityTagLookup.Update(ref state);
             _userCurrencyLookup.Update(ref state);
+            _userSupplyLookup.Update(ref state);
             _productionQueueLookup.Update(ref state);
 
             var ecb = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>()
@@ -123,14 +126,17 @@ namespace Server
             Entity unitPrefab = prefabBuffer[rpc.UnitIndex].PrefabEntity;
             if (unitPrefab == Entity.Null) return;
 
-            // 4. 자원 확인
+            // 4. 자원 및 인구수 비용 확인
             if (!_productionCostLookup.HasComponent(unitPrefab)) return;
-            int constructionCost = _productionCostLookup[unitPrefab].Cost;
+            var productionCost = _productionCostLookup[unitPrefab];
+            int constructionCost = productionCost.Cost;
+            int populationCost = productionCost.PopulationCost;
 
             if (networkIdToCurrencyMap.TryGetValue(ownerId, out Entity userCurrencyEntity))
             {
                 RefRW<UserCurrency> currencyRW = _userCurrencyLookup.GetRefRW(userCurrencyEntity);
 
+                // 4-1. 자원 부족 검사
                 if (currencyRW.ValueRO.Amount < constructionCost)
                 {
                     // 자원 부족 알림 RPC 전송
@@ -143,8 +149,32 @@ namespace Server
                     return;
                 }
 
-                // 5. [최종 승인] 자원 차감
-                currencyRW.ValueRW.Amount -= constructionCost;
+                // 4-2. 인구수 검사 및 예약
+                if (_userSupplyLookup.HasComponent(userCurrencyEntity))
+                {
+                    RefRW<UserSupply> supplyRW = _userSupplyLookup.GetRefRW(userCurrencyEntity);
+
+                    if (!supplyRW.ValueRO.CanProduce(populationCost))
+                    {
+                        // 인구수 초과 알림 RPC 전송
+                        if (sourceConnection != Entity.Null)
+                        {
+                            var notifyEntity = ecb.CreateEntity();
+                            ecb.AddComponent(notifyEntity, new NotificationRpc { Type = NotificationType.PopulationLimitReached });
+                            ecb.AddComponent(notifyEntity, new SendRpcCommandRequest { TargetConnection = sourceConnection });
+                        }
+                        return;
+                    }
+
+                    // 5. [최종 승인] 자원 차감 + 인구수 즉시 증가 (예약)
+                    currencyRW.ValueRW.Amount -= constructionCost;
+                    supplyRW.ValueRW.Currentvalue += populationCost;
+                }
+                else
+                {
+                    // UserSupply 없으면 자원만 차감
+                    currencyRW.ValueRW.Amount -= constructionCost;
+                }
             }
             else
             {

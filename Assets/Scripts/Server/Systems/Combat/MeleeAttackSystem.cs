@@ -152,7 +152,7 @@ namespace Server
                         : 0f;
 
                     float finalDamage = DamageUtility.CalculateDamage(combatStats.AttackPower, defenseValue);
-                    ECB.AppendToBuffer(sortKey, targetEntity, new DamageEvent { Damage = finalDamage });
+                    ECB.AppendToBuffer(sortKey, targetEntity, new DamageEvent { Damage = finalDamage, Attacker = entity });
 
                     // 쿨다운 리셋
                     cooldown.RemainingTime = combatStats.AttackSpeed > 0
@@ -199,6 +199,7 @@ namespace Server
         [ReadOnly] public ComponentLookup<ObstacleRadius> ObstacleRadiusLookup;
 
         private void Execute(
+            Entity entity,
             [ChunkIndexInQuery] int sortKey,
             ref LocalTransform transform,
             ref AggroTarget aggroTarget,
@@ -292,7 +293,7 @@ namespace Server
                         : 0f;
 
                     float finalDamage = DamageUtility.CalculateDamage(combatStats.AttackPower, defenseValue);
-                    ECB.AppendToBuffer(sortKey, targetEntity, new DamageEvent { Damage = finalDamage });
+                    ECB.AppendToBuffer(sortKey, targetEntity, new DamageEvent { Damage = finalDamage, Attacker = entity });
 
                     // 쿨다운 리셋
                     cooldown.RemainingTime = combatStats.AttackSpeed > 0

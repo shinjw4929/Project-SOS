@@ -133,6 +133,7 @@ namespace Client
                 NotificationType.InsufficientFunds => "Not enough resources!",
                 NotificationType.InvalidPlacement => "Invalid placement!",
                 NotificationType.ProductionQueueFull => "Production queue full!",
+                NotificationType.PopulationLimitReached => "Population limit reached!",
                 _ => "Unknown error"
             };
         }

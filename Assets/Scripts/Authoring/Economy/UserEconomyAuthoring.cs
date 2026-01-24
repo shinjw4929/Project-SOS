@@ -38,6 +38,9 @@ namespace Authoring
                     MaxValue = authoring.initialMaxPopulation,
                 });
 
+                // 인구수 변경 이벤트 버퍼 (사망 시 감소 처리용)
+                AddBuffer<PopulationEvent>(entity);
+
                 // 테크 해금 상태 (초기: 모두 미해금)
                 AddComponent(entity, new UserTechState
                 {

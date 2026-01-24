@@ -188,7 +188,15 @@ namespace Authoring
                     TargetEntity = Entity.Null,
                     LastTargetPosition = float3.zero,
                 });
-                
+
+                // 어그로 고정 (피격 시 N초간 타겟 고정)
+                AddComponent(entity, new AggroLock
+                {
+                    LockedTarget = Entity.Null,
+                    RemainingLockTime = 0f,
+                    LockDuration = 3.0f
+                });
+
                 // 방어력
                 AddComponent(entity, new Defense
                 {
