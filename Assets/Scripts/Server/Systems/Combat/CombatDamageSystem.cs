@@ -124,7 +124,8 @@ namespace Server
                 float finalDamage = DamageUtility.CalculateDamage(baseDamage, defenseValue);
 
                 // 7. DamageEvent 버퍼에 데미지 추가 (ECB 사용)
-                CommandBuffer.AppendToBuffer(victimEntity, new DamageEvent { Damage = finalDamage });
+                // NOTE: 투사체는 파괴되므로 Attacker 추적 불가 - AggroReactionSystem에서 유효성 체크 필요
+                CommandBuffer.AppendToBuffer(victimEntity, new DamageEvent { Damage = finalDamage, Attacker = projectileEntity });
 
                 // 8. 투사체 엔티티 제거
                 CommandBuffer.DestroyEntity(projectileEntity);

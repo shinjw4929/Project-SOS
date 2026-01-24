@@ -266,7 +266,7 @@ namespace Server
             // DamageEvent 버퍼에 데미지 추가 (즉시 적용 = 필중)
             if (_damageEventLookup.TryGetBuffer(targetEntity, out var damageBuffer))
             {
-                damageBuffer.Add(new DamageEvent { Damage = finalDamage });
+                damageBuffer.Add(new DamageEvent { Damage = finalDamage, Attacker = unitEntity });
             }
 
             // 시각 효과 투사체 생성 (서버에서 생성, Ghost로 클라이언트에 복제됨)
@@ -393,7 +393,7 @@ namespace Server
             // DamageEvent 버퍼에 데미지 추가 (즉시 적용 = 필중)
             if (_damageEventLookup.TryGetBuffer(targetEntity, out var damageBuffer))
             {
-                damageBuffer.Add(new DamageEvent { Damage = finalDamage });
+                damageBuffer.Add(new DamageEvent { Damage = finalDamage, Attacker = enemyEntity });
             }
 
             // 시각 효과 투사체 생성

@@ -2161,7 +2161,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   text3dPrefab: {fileID: 4477705279423593694, guid: 6f8bafa029afe224bbf18c30f0345c22, type: 3}
-  heightOffset: 2
+  heightOffset: 5
   uniformScale: 1
 --- !u!1 &986330064
 GameObject:

@@ -118,6 +118,7 @@ namespace Server
             Entity entity,
             RefRO<LocalTransform> myTransform,
             RefRW<AggroTarget> target,
+            RefRO<AggroLock> aggroLock,
             RefRW<EnemyState> enemyState,
             RefRO<EnemyChaseDistance> chaseDistance,
             RefRO<Team> myTeam,
@@ -130,6 +131,41 @@ namespace Server
             float loseDistSq = chaseDistance.ValueRO.LoseTargetDistance * chaseDistance.ValueRO.LoseTargetDistance;
             // 타겟 고착화: 더 멀어져야 타겟 놓침
             float hysteresisDistSq = loseDistSq * (HysteresisMultiplier * HysteresisMultiplier);
+
+            // ---------------------------------------------------------
+            // 0. 어그로 고정 체크 - 고정 중이면 타겟 변경 불가
+            // ---------------------------------------------------------
+            if (aggroLock.ValueRO.RemainingLockTime > 0f && aggroLock.ValueRO.LockedTarget != Entity.Null)
+            {
+                Entity lockedTarget = aggroLock.ValueRO.LockedTarget;
+
+                // 고정된 타겟 유효성 체크
+                if (TransformLookup.TryGetComponent(lockedTarget, out LocalTransform lockedTransform) &&
+                    HealthLookup.TryGetComponent(lockedTarget, out Health lockedHealth) &&
+                    lockedHealth.CurrentValue > 0)
+                {
+                    float3 lockedPos = lockedTransform.Position;
+                    float distSqToLocked = math.distancesq(myPos, lockedPos);
+
+                    // 어그로 범위 내면 고정 타겟 유지
+                    if (distSqToLocked <= hysteresisDistSq)
+                    {
+                        target.ValueRW.TargetEntity = lockedTarget;
+                        target.ValueRW.LastTargetPosition = lockedPos;
+
+                        float3 currentDest = goal.ValueRO.Destination;
+                        if (math.distancesq(currentDest, lockedPos) > DestinationThresholdSq)
+                        {
+                            goal.ValueRW.Destination = lockedPos;
+                            goal.ValueRW.IsPathDirty = true;
+                        }
+
+                        enemyState.ValueRW.CurrentState = EnemyContext.Chasing;
+                        return;  // 고정 타겟 유지, 탐색 스킵
+                    }
+                }
+                // 고정 타겟이 무효하거나 범위 벗어남 → 정상 타겟팅으로 진행
+            }
 
             // ---------------------------------------------------------
             // 1. 현재 타겟 유효성 검사 (고착화 적용 + 사망 체크)
@@ -300,9 +336,20 @@ namespace Server
             RefRO<VisionRange> visionRange,
             RefRW<UnitIntentState> intent,
             RefRW<AggroTarget> aggroTarget,
+            RefRO<AggroLock> aggroLock,
             RefRW<MovementGoal> goal,
             EnabledRefRW<MovementWaypoints> waypointsEnabled)
         {
+            // ---------------------------------------------------------
+            // 0. 어그로 고정 중이면 자동 타겟팅 스킵
+            // ---------------------------------------------------------
+            if (aggroLock.ValueRO.RemainingLockTime > 0f && aggroLock.ValueRO.LockedTarget != Entity.Null)
+            {
+                // 어그로 고정 상태 - 자동 타겟팅하지 않음
+                // AggroReactionSystem에서 이미 타겟 설정됨
+                return;
+            }
+
             // ---------------------------------------------------------
             // 1. 자동 타겟팅 활성화 조건 체크
             // ---------------------------------------------------------
