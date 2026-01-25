@@ -2,7 +2,10 @@ using UnityEngine;
 
 namespace Client
 {
-    public class GameStartController : MonoBehaviour
+    /// <summary>
+    /// 게임 시작 패널 컨트롤러
+    /// </summary>
+    public class GameStartPanelController : MonoBehaviour
     {
         [SerializeField] private GameObject menuRoot;
 

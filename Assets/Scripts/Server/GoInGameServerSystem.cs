@@ -69,7 +69,14 @@ partial struct GoInGameServerSystem : ISystem
               Value = heroEntity,
           });
 
-          // 6. 플레이어 자원 엔티티 생성 (Ghost 프리팹 인스턴스화)
+          // 6. 유저 생존 상태 추가 (Connection 엔티티에 부착)
+          entityCommandBuffer.AddComponent(receiveRpcCommandRequest.ValueRO.SourceConnection, new UserAliveState
+          {
+              IsAlive = true,
+              HeroEntity = heroEntity
+          });
+
+          // 7. 플레이어 자원 엔티티 생성 (Ghost 프리팹 인스턴스화)
           Entity economyEntity = entityCommandBuffer.Instantiate(userEconomyPrefab);
           entityCommandBuffer.AddComponent(economyEntity, new GhostOwner
           {

@@ -98,7 +98,7 @@ Assets/Scripts/
     ※ 모든 데미지는 DamageEvent 버퍼를 통해 DamageApplySystem에서 일괄 적용
 
 [7. 정리] SimulationSystemGroup (Server)
-    EnemyDeathCountSystem → ServerDeathSystem → NavMeshObstacleCleanupSystem, TechStateRecalculateSystem
+    EnemyDeathCountSystem → HeroDeathDetectionSystem → ServerDeathSystem → NavMeshObstacleCleanupSystem, TechStateRecalculateSystem
 
 [8. 후처리] LateSimulationSystemGroup
     GridOccupancyEventSystem → SpatialMapDisposeSystem (CompleteDependency 후 맵 Dispose)
@@ -162,7 +162,7 @@ public enum UserContext : byte {
 - **Catalog Patterns**: UnitCatalog/StructureCatalog(버퍼) vs EnemyPrefabCatalog(명시적 필드)
 
 ### 5. Network RPCs
-`MoveRequestRpc`, `AttackRequestRpc`, `BuildRequestRpc`, `BuildMoveRequestRpc`, `GatherRequestRpc`, `ReturnResourceRequestRpc`, `ProduceUnitRequestRpc`, `SelfDestructRequestRpc`, `NotificationRpc`
+`MoveRequestRpc`, `AttackRequestRpc`, `BuildRequestRpc`, `BuildMoveRequestRpc`, `GatherRequestRpc`, `ReturnResourceRequestRpc`, `ProduceUnitRequestRpc`, `SelfDestructRequestRpc`, `NotificationRpc`, `HeroDeathRpc`, `GameOverRpc`
 
 ---
 
@@ -225,3 +225,42 @@ Assets/Scenes/
 2. **CompleteDependency 최소화**: 같은 SystemGroup 내에서는 `UpdateAfter`로 순서 지정
 3. **AggroTarget**: 유닛/적 공통 타겟 추적 컴포넌트
 4. **원거리 공격**: `RangedUnitTag`/`RangedEnemyTag` → 필중 + 시각 투사체(VisualOnlyTag) 생성
+
+---
+
+## Documentation
+
+### Docs 폴더 구조
+```
+Docs/
+├── 코드베이스 구조.md           # 전체 파일/폴더 구조, 어셈블리 목록
+├── 시스템 그룹 및 의존성.md      # SystemGroup 정의, 시스템 간 의존성
+├── 엔티티 선택 시스템.md         # 선택 Phase, SelectionRing, 관련 컴포넌트
+├── 엔티티 이동 시스템(navmesh).md # NavMesh, PathfindingSystem, MovementGoal
+├── 엔티티 전투.md               # 공격 시스템, DamageEvent, AggroTarget
+├── 건설 시스템.md               # 건물 배치, BuildRequestRpc, 그리드 점유
+├── 자원 채집 시스템.md           # 자원 수집, CarriedResource, 반납 로직
+├── 유저 자원, 인구수.md          # UserEconomy, Population 시스템
+└── Project-SOS 상태 시스템 설계.md # UserContext 상태 머신, UI 상태
+```
+
+### 문서 업데이트 규칙 (필수)
+**구현 완료 후 반드시 관련 문서를 업데이트해야 한다.**
+
+| 변경 유형 | 업데이트 대상 문서 |
+|----------|-------------------|
+| 새 시스템 추가 | `시스템 그룹 및 의존성.md`, `코드베이스 구조.md` |
+| 새 컴포넌트 추가 | `코드베이스 구조.md`, 관련 기능 문서 |
+| 선택 로직 변경 | `엔티티 선택 시스템.md` |
+| 이동 로직 변경 | `엔티티 이동 시스템(navmesh).md` |
+| 전투 로직 변경 | `엔티티 전투.md` |
+| 건설 로직 변경 | `건설 시스템.md` |
+| 자원/채집 변경 | `자원 채집 시스템.md`, `유저 자원, 인구수.md` |
+| UI 상태 변경 | `Project-SOS 상태 시스템 설계.md` |
+| 새 RPC 추가 | `코드베이스 구조.md` (RPCs 섹션), 관련 기능 문서 |
+
+**문서 작성 원칙**:
+1. **코드와 동기화**: 문서 내용이 실제 코드와 일치해야 함
+2. **간결함 유지**: 핵심 로직과 데이터 흐름 중심으로 작성
+3. **예제 포함**: 복잡한 패턴은 코드 예제로 설명
+4. **CLAUDE.md 동기화**: 주요 패턴/플로우 변경 시 CLAUDE.md도 함께 업데이트
