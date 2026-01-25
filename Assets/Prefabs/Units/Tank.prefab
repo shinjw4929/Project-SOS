@@ -196,7 +196,7 @@ MonoBehaviour:
   Deceleration: 30
   RotationSpeed: 12
   ArrivalRadius: 0.5
-  AgentTypeIndex: 0
+  AgentTypeIndex: 1
 --- !u!1001 &7990301822364543449
 PrefabInstance:
   m_ObjectHideFlags: 0
