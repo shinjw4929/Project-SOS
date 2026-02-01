@@ -1,3 +1,5 @@
+// [주석처리] HeroDamageOnContactServerSystem - 비활성화됨
+/*
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
@@ -86,3 +88,4 @@ Debug.Log($"[Server] Hero HP {before} -> {after} (damage={totalDamage}, interval
         }
     }
 }
+*/

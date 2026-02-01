@@ -1,3 +1,5 @@
+// [주석처리] HeroHpTextManager - 비활성화됨
+/*
 using TMPro;
 using UnityEngine;
 
@@ -36,3 +38,4 @@ public class HeroHpTextManager : MonoBehaviour
         healthText.text = $"HP:\n{currentHp}/{maxHp}";
     }
 }
+*/

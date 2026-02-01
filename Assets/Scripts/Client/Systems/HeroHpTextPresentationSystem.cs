@@ -1,3 +1,5 @@
+// [주석처리] HeroHpTextPresentationSystem - 비활성화됨
+/*
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
@@ -61,3 +63,4 @@ public partial class HeroHpTextPresentationSystem : SystemBase
         }
     }
 }
+*/

@@ -107,7 +107,7 @@ Assets/Scripts/
     CarriedResourceFollowSystem (Scale 기반 가시성 토글)
 
 [10. 렌더링] PresentationSystemGroup (Client)
-    StructurePreviewUpdateSystem, HeroHpTextPresentationSystem, EnemyHpTextPresentationSystem, CameraSystem
+    StructurePreviewUpdateSystem, EnemyHpTextPresentationSystem, CameraSystem
 ```
 
 **핵심 의존성**:
