@@ -2502,7 +2502,7 @@ MonoBehaviour:
   initialWallDecayTime: 50
   wave0InitialSpawnCount: 5
   wave1TriggerTime: 100
-  wave1TriggerKillCount: 5
+  wave1TriggerKillCount: 3
   wave2TriggerTime: 180
   wave2TriggerKillCount: 10
   maxEnemyCount: 2400

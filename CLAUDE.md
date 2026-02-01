@@ -95,10 +95,10 @@ Assets/Scripts/
 
 [6. 전투] FixedStepSimulationSystemGroup (Server)
     CombatDamageSystem → MeleeAttackSystem → RangedAttackSystem → DamageApplySystem
-    ※ 모든 데미지는 DamageEvent 버퍼를 통해 DamageApplySystem에서 일괄 적용
+    ※ 모든 데미지는 DamageEvent 버퍼를 통해 DamageApplySystem에서 일괄 적용 + 적 킬 카운트
 
 [7. 정리] SimulationSystemGroup (Server)
-    EnemyDeathCountSystem → HeroDeathDetectionSystem → ServerDeathSystem → NavMeshObstacleCleanupSystem, TechStateRecalculateSystem
+    HeroDeathDetectionSystem → ServerDeathSystem → NavMeshObstacleCleanupSystem, TechStateRecalculateSystem
 
 [8. 후처리] LateSimulationSystemGroup
     GridOccupancyEventSystem → SpatialMapDisposeSystem (CompleteDependency 후 맵 Dispose)

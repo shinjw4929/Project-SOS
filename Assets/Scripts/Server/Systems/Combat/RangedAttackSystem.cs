@@ -1,8 +1,9 @@
 using Shared;
 using Unity.Burst;
+using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Mathematics;
-using Unity.NetCode;
 using Unity.Transforms;
 
 namespace Server
@@ -10,11 +11,13 @@ namespace Server
     /// <summary>
     /// 원거리 공격 시스템
     /// - RangedUnitTag를 가진 유닛 처리 (Trooper, Sniper 등)
+    /// - RangedEnemyTag를 가진 적 처리 (EnemyFlying 등)
     /// - AggroTarget 기반 자동 공격
     /// - 사거리 내: 멈추고 공격, 사거리 밖: 이동
     /// - 거리 판정 후 즉시 데미지 적용 (필중)
     /// - 공격 전 타겟 방향 회전
     /// - 서버에서 시각 효과 투사체 생성 (Ghost로 클라이언트에 복제)
+    /// - IJobEntity + Burst + ECB.ParallelWriter로 병렬 처리
     /// </summary>
     [BurstCompile]
     [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
@@ -22,29 +25,11 @@ namespace Server
     [UpdateAfter(typeof(MeleeAttackSystem))]
     public partial struct RangedAttackSystem : ISystem
     {
-        private ComponentLookup<LocalTransform> _transformLookup;
-        private ComponentLookup<Health> _healthLookup;
-        private ComponentLookup<Defense> _defenseLookup;
-        private ComponentLookup<Team> _teamLookup;
-        private ComponentLookup<MovementGoal> _movementGoalLookup;
-        private BufferLookup<DamageEvent> _damageEventLookup;
-
-        private EntityQuery _projectilePrefabQuery;
-
         [BurstCompile]
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<EndSimulationEntityCommandBufferSystem.Singleton>();
             state.RequireForUpdate<ProjectilePrefabRef>();
-
-            _transformLookup = state.GetComponentLookup<LocalTransform>(true);
-            _healthLookup = state.GetComponentLookup<Health>(true);
-            _defenseLookup = state.GetComponentLookup<Defense>(true);
-            _teamLookup = state.GetComponentLookup<Team>(true);
-            _movementGoalLookup = state.GetComponentLookup<MovementGoal>(false);
-            _damageEventLookup = state.GetBufferLookup<DamageEvent>(false);
-
-            _projectilePrefabQuery = state.GetEntityQuery(ComponentType.ReadOnly<ProjectilePrefabRef>());
         }
 
         [BurstCompile]
@@ -52,103 +37,80 @@ namespace Server
         {
             float deltaTime = SystemAPI.Time.DeltaTime;
 
-            // Lookup 업데이트
-            _transformLookup.Update(ref state);
-            _healthLookup.Update(ref state);
-            _defenseLookup.Update(ref state);
-            _teamLookup.Update(ref state);
-            _movementGoalLookup.Update(ref state);
-            _damageEventLookup.Update(ref state);
-
             var ecbSingleton = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>();
-            var ecb = ecbSingleton.CreateCommandBuffer(state.WorldUnmanaged);
+            var ecb = ecbSingleton.CreateCommandBuffer(state.WorldUnmanaged).AsParallelWriter();
 
-            // 투사체 프리팹 가져오기
-            var prefabRef = _projectilePrefabQuery.GetSingleton<ProjectilePrefabRef>();
-            Entity projectilePrefab = prefabRef.Prefab;
+            var projectilePrefab = SystemAPI.GetSingleton<ProjectilePrefabRef>().Prefab;
+
+            // 공통 ReadOnly Lookup
+            var transformLookup = SystemAPI.GetComponentLookup<LocalTransform>(true);
+            var healthLookup = SystemAPI.GetComponentLookup<Health>(true);
+            var defenseLookup = SystemAPI.GetComponentLookup<Defense>(true);
+            var teamLookup = SystemAPI.GetComponentLookup<Team>(true);
 
             // =====================================================================
-            // 원거리 유닛 공격 처리 (RangedUnitTag로 통합 쿼리)
-            // - Trooper, Sniper 등 모든 원거리 유닛을 단일 쿼리로 처리
+            // 1. 원거리 유닛 공격 Job (RangedUnitTag)
             // =====================================================================
-            foreach (var (transform, aggroTarget, combatStats, cooldown, intentState, actionState, myTeam, entity) in
-                     SystemAPI.Query<
-                         RefRW<LocalTransform>,
-                         RefRW<AggroTarget>,
-                         RefRO<CombatStats>,
-                         RefRW<AttackCooldown>,
-                         RefRW<UnitIntentState>,
-                         RefRW<UnitActionState>,
-                         RefRO<Team>>()
-                     .WithAll<UnitTag, RangedUnitTag>()
-                     .WithEntityAccess())
+            var unitJob = new RangedUnitAttackJob
             {
-                ProcessRangedAttack(
-                    entity,
-                    ref transform.ValueRW,
-                    ref aggroTarget.ValueRW,
-                    combatStats.ValueRO,
-                    ref cooldown.ValueRW,
-                    ref intentState.ValueRW,
-                    ref actionState.ValueRW,
-                    myTeam.ValueRO,
-                    deltaTime,
-                    ecb,
-                    projectilePrefab,
-                    ref _movementGoalLookup);
-            }
+                DeltaTime = deltaTime,
+                ECB = ecb,
+                ProjectilePrefab = projectilePrefab,
+                TransformLookup = transformLookup,
+                HealthLookup = healthLookup,
+                DefenseLookup = defenseLookup,
+                TeamLookup = teamLookup
+            };
+            state.Dependency = unitJob.ScheduleParallel(state.Dependency);
 
             // =====================================================================
-            // 원거리 적 공격 처리 (RangedEnemyTag)
-            // - EnemyFlying 등 원거리 공격 적 처리
+            // 2. 원거리 적 공격 Job (RangedEnemyTag)
             // =====================================================================
-            foreach (var (transform, aggroTarget, combatStats, cooldown, enemyState, myTeam, entity) in
-                     SystemAPI.Query<
-                         RefRW<LocalTransform>,
-                         RefRO<AggroTarget>,
-                         RefRO<CombatStats>,
-                         RefRW<AttackCooldown>,
-                         RefRW<EnemyState>,
-                         RefRO<Team>>()
-                     .WithAll<EnemyTag, RangedEnemyTag>()
-                     .WithEntityAccess())
+            var enemyJob = new RangedEnemyAttackJob
             {
-                ProcessEnemyRangedAttack(
-                    entity,
-                    ref transform.ValueRW,
-                    aggroTarget.ValueRO,
-                    combatStats.ValueRO,
-                    ref cooldown.ValueRW,
-                    ref enemyState.ValueRW,
-                    myTeam.ValueRO,
-                    deltaTime,
-                    ecb,
-                    projectilePrefab,
-                    ref _movementGoalLookup);
-            }
+                DeltaTime = deltaTime,
+                ECB = ecb,
+                ProjectilePrefab = projectilePrefab,
+                TransformLookup = transformLookup,
+                HealthLookup = healthLookup,
+                DefenseLookup = defenseLookup,
+                TeamLookup = teamLookup
+            };
+            state.Dependency = enemyJob.ScheduleParallel(state.Dependency);
         }
+    }
 
-        /// <summary>
-        /// 원거리 공격 처리 (공통 로직)
-        /// - 사거리 밖: 이동 활성화
-        /// - 사거리 내: 이동 비활성화, 멈추고 공격
-        /// </summary>
-        private void ProcessRangedAttack(
-            Entity unitEntity,
-            ref LocalTransform myTransform,
+    /// <summary>
+    /// 원거리 유닛 공격 Job (Trooper, Sniper 등)
+    /// </summary>
+    [BurstCompile]
+    [WithAll(typeof(UnitTag), typeof(RangedUnitTag))]
+    public partial struct RangedUnitAttackJob : IJobEntity
+    {
+        public float DeltaTime;
+        public EntityCommandBuffer.ParallelWriter ECB;
+        public Entity ProjectilePrefab;
+
+        [ReadOnly, NativeDisableContainerSafetyRestriction]
+        public ComponentLookup<LocalTransform> TransformLookup;
+        [ReadOnly] public ComponentLookup<Health> HealthLookup;
+        [ReadOnly] public ComponentLookup<Defense> DefenseLookup;
+        [ReadOnly] public ComponentLookup<Team> TeamLookup;
+
+        private void Execute(
+            Entity entity,
+            [ChunkIndexInQuery] int sortKey,
+            ref LocalTransform transform,
             ref AggroTarget aggroTarget,
-            CombatStats stats,
+            in CombatStats combatStats,
             ref AttackCooldown cooldown,
             ref UnitIntentState intentState,
             ref UnitActionState actionState,
-            Team myTeam,
-            float deltaTime,
-            EntityCommandBuffer ecb,
-            Entity projectilePrefab,
-            ref ComponentLookup<MovementGoal> movementGoalLookup)
+            in Team myTeam,
+            ref MovementGoal movementGoal)
         {
             // 쿨다운 감소
-            cooldown.RemainingTime = math.max(0, cooldown.RemainingTime - deltaTime);
+            cooldown.RemainingTime = math.max(0, cooldown.RemainingTime - DeltaTime);
 
             // Intent.Attack 상태일 때만 공격 처리
             if (intentState.State != Intent.Attack)
@@ -165,13 +127,13 @@ namespace Server
             if (aggroTarget.TargetEntity != targetEntity)
             {
                 aggroTarget.TargetEntity = targetEntity;
-                if (_transformLookup.TryGetComponent(targetEntity, out var syncTransform))
+                if (TransformLookup.TryGetComponent(targetEntity, out var syncTransform))
                 {
                     aggroTarget.LastTargetPosition = syncTransform.Position;
                 }
             }
 
-            // 타겟 유효성 검사 (TryGetComponent로 중복 룩업 제거)
+            // 타겟 유효성 검사
             if (targetEntity == Entity.Null)
             {
                 intentState.State = Intent.Idle;
@@ -179,8 +141,8 @@ namespace Server
                 return;
             }
 
-            if (!_transformLookup.TryGetComponent(targetEntity, out var targetTransform) ||
-                !_healthLookup.TryGetComponent(targetEntity, out var targetHealth))
+            if (!TransformLookup.TryGetComponent(targetEntity, out var targetTransform) ||
+                !HealthLookup.TryGetComponent(targetEntity, out var targetHealth))
             {
                 intentState.State = Intent.Idle;
                 intentState.TargetEntity = Entity.Null;
@@ -190,7 +152,7 @@ namespace Server
             }
 
             // 아군 히트 방지
-            if (_teamLookup.TryGetComponent(targetEntity, out var targetTeam))
+            if (TeamLookup.TryGetComponent(targetEntity, out var targetTeam))
             {
                 if (targetTeam.teamId == myTeam.teamId)
                 {
@@ -212,43 +174,36 @@ namespace Server
                 return;
             }
 
-            // 거리 계산 (위에서 TryGetComponent로 이미 조회한 targetTransform 사용)
+            // 거리 계산
             float3 targetPos = targetTransform.Position;
-            float3 myPos = myTransform.Position;
+            float3 myPos = transform.Position;
             float distance = math.distance(myPos, targetPos);
 
             // 공격 사거리 체크
-            if (distance > stats.AttackRange)
+            if (distance > combatStats.AttackRange)
             {
-                // 사거리 밖 → 타겟 위치로 이동 요청
+                // 사거리 밖 -> 타겟 위치로 이동 요청
                 actionState.State = Action.Moving;
 
-                // MovementGoal 업데이트 (타겟 위치로 새 경로 계산 트리거)
-                // PathfindingSystem이 경로를 찾으면 MovementWaypoints를 활성화함
-                if (movementGoalLookup.HasComponent(unitEntity))
+                // MovementGoal 업데이트 (목적지가 변경되었을 때만)
+                if (math.distancesq(movementGoal.Destination, targetPos) > 1.0f)
                 {
-                    var goal = movementGoalLookup[unitEntity];
-                    // 목적지가 변경되었을 때만 새 경로 계산 (떨림 방지)
-                    if (math.distancesq(goal.Destination, targetPos) > 1.0f)
-                    {
-                        goal.Destination = targetPos;
-                        goal.IsPathDirty = true;
-                        goal.CurrentWaypointIndex = 0;
-                        movementGoalLookup[unitEntity] = goal;
-                    }
+                    movementGoal.Destination = targetPos;
+                    movementGoal.IsPathDirty = true;
+                    movementGoal.CurrentWaypointIndex = 0;
                 }
                 return;
             }
 
-            // 사거리 내 → 이동 비활성화 (멈춤)
-            ecb.SetComponentEnabled<MovementWaypoints>(unitEntity, false);
+            // 사거리 내 -> 이동 비활성화 (멈춤)
+            ECB.SetComponentEnabled<MovementWaypoints>(sortKey, entity, false);
 
             // 타겟 방향 회전
             float3 direction = math.normalize(targetPos - myPos);
-            direction.y = 0; // Y축 회전만 (수평 회전)
+            direction.y = 0;
             if (math.lengthsq(direction) > 0.001f)
             {
-                myTransform.Rotation = quaternion.LookRotationSafe(direction, math.up());
+                transform.Rotation = quaternion.LookRotationSafe(direction, math.up());
             }
 
             actionState.State = Action.Attacking;
@@ -256,83 +211,92 @@ namespace Server
             // 쿨다운 체크
             if (cooldown.RemainingTime > 0) return;
 
-            // 데미지 계산 (TryGetComponent로 중복 룩업 제거)
-            float defenseValue = _defenseLookup.TryGetComponent(targetEntity, out var defense)
+            // 데미지 계산
+            float defenseValue = DefenseLookup.TryGetComponent(targetEntity, out var defense)
                 ? defense.Value
                 : 0f;
 
-            float finalDamage = DamageUtility.CalculateDamage(stats.AttackPower, defenseValue);
+            float finalDamage = DamageUtility.CalculateDamage(combatStats.AttackPower, defenseValue);
 
-            // DamageEvent 버퍼에 데미지 추가 (즉시 적용 = 필중)
-            if (_damageEventLookup.TryGetBuffer(targetEntity, out var damageBuffer))
-            {
-                damageBuffer.Add(new DamageEvent { Damage = finalDamage, Attacker = unitEntity });
-            }
+            // DamageEvent 버퍼에 데미지 추가 (ECB.AppendToBuffer로 스레드 안전)
+            ECB.AppendToBuffer(sortKey, targetEntity, new DamageEvent { Damage = finalDamage, Attacker = entity });
 
-            // 시각 효과 투사체 생성 (서버에서 생성, Ghost로 클라이언트에 복제됨)
+            // 시각 효과 투사체 생성
+            SpawnProjectile(sortKey, myPos, targetPos);
+
+            // 쿨다운 리셋
+            cooldown.RemainingTime = combatStats.AttackSpeed > 0
+                ? 1.0f / combatStats.AttackSpeed
+                : 1.0f;
+        }
+
+        private void SpawnProjectile(int sortKey, float3 myPos, float3 targetPos)
+        {
             float3 startPos = myPos + new float3(0, 1f, 0);
             float3 endPos = targetPos + new float3(0, 1f, 0);
             float3 projectileDir = math.normalize(endPos - startPos);
             float projectileDistance = math.distance(startPos, endPos);
 
-            Entity projectile = ecb.Instantiate(projectilePrefab);
+            Entity projectile = ECB.Instantiate(sortKey, ProjectilePrefab);
 
-            // 위치 및 회전 설정
             quaternion rotation = quaternion.LookRotationSafe(projectileDir, math.up());
-            ecb.SetComponent(projectile, LocalTransform.FromPositionRotationScale(startPos, rotation, 1f));
+            ECB.SetComponent(sortKey, projectile, LocalTransform.FromPositionRotationScale(startPos, rotation, 1f));
 
-            // 이동 데이터 설정
-            ecb.SetComponent(projectile, new ProjectileMove
+            ECB.SetComponent(sortKey, projectile, new ProjectileMove
             {
                 Direction = projectileDir,
                 Speed = 30f,
                 RemainingDistance = projectileDistance
             });
 
-            // 시각 전용 태그 추가 (CombatDamageSystem에서 무시하도록)
-            ecb.AddComponent(projectile, new VisualOnlyTag());
-
-            // 쿨다운 리셋
-            cooldown.RemainingTime = stats.AttackSpeed > 0
-                ? 1.0f / stats.AttackSpeed
-                : 1.0f;
+            ECB.AddComponent(sortKey, projectile, new VisualOnlyTag());
         }
+    }
 
-        /// <summary>
-        /// 적 원거리 공격 처리
-        /// - AggroTarget 기반 자동 공격
-        /// - 사거리 내: 멈추고 공격, 사거리 밖: 추적
-        /// </summary>
-        private void ProcessEnemyRangedAttack(
-            Entity enemyEntity,
-            ref LocalTransform myTransform,
-            AggroTarget aggroTarget,
-            CombatStats stats,
+    /// <summary>
+    /// 원거리 적 공격 Job (EnemyFlying 등)
+    /// </summary>
+    [BurstCompile]
+    [WithAll(typeof(EnemyTag), typeof(RangedEnemyTag))]
+    public partial struct RangedEnemyAttackJob : IJobEntity
+    {
+        public float DeltaTime;
+        public EntityCommandBuffer.ParallelWriter ECB;
+        public Entity ProjectilePrefab;
+
+        [ReadOnly, NativeDisableContainerSafetyRestriction]
+        public ComponentLookup<LocalTransform> TransformLookup;
+        [ReadOnly] public ComponentLookup<Health> HealthLookup;
+        [ReadOnly] public ComponentLookup<Defense> DefenseLookup;
+        [ReadOnly] public ComponentLookup<Team> TeamLookup;
+
+        private void Execute(
+            Entity entity,
+            [ChunkIndexInQuery] int sortKey,
+            ref LocalTransform transform,
+            in AggroTarget aggroTarget,
+            in CombatStats combatStats,
             ref AttackCooldown cooldown,
             ref EnemyState enemyState,
-            Team myTeam,
-            float deltaTime,
-            EntityCommandBuffer ecb,
-            Entity projectilePrefab,
-            ref ComponentLookup<MovementGoal> movementGoalLookup)
+            in Team myTeam)
         {
             // 쿨다운 감소
-            cooldown.RemainingTime = math.max(0, cooldown.RemainingTime - deltaTime);
+            cooldown.RemainingTime = math.max(0, cooldown.RemainingTime - DeltaTime);
 
             Entity targetEntity = aggroTarget.TargetEntity;
 
             // 타겟 없음
             if (targetEntity == Entity.Null) return;
 
-            // 타겟 유효성 검사 (TryGetComponent로 중복 룩업 제거)
-            if (!_transformLookup.TryGetComponent(targetEntity, out var targetTransform) ||
-                !_healthLookup.TryGetComponent(targetEntity, out var targetHealth))
+            // 타겟 유효성 검사
+            if (!TransformLookup.TryGetComponent(targetEntity, out var targetTransform) ||
+                !HealthLookup.TryGetComponent(targetEntity, out var targetHealth))
             {
                 return;
             }
 
             // 아군 히트 방지
-            if (_teamLookup.TryGetComponent(targetEntity, out var targetTeam))
+            if (TeamLookup.TryGetComponent(targetEntity, out var targetTeam))
             {
                 if (targetTeam.teamId == myTeam.teamId)
                     return;
@@ -341,35 +305,36 @@ namespace Server
             // 타겟이 이미 사망했으면 무시
             if (targetHealth.CurrentValue <= 0) return;
 
-            // 거리 계산 (위에서 TryGetComponent로 이미 조회한 targetTransform 사용)
+            // 거리 계산
             float3 targetPos = targetTransform.Position;
-            float3 myPos = myTransform.Position;
+            float3 myPos = transform.Position;
             float distance = math.distance(myPos, targetPos);
 
             // 공격 사거리 체크
-            if (distance > stats.AttackRange)
+            if (distance > combatStats.AttackRange)
             {
-                // 사거리 밖 → 추적
+                // 사거리 밖 -> 추적
                 if (enemyState.CurrentState == EnemyContext.Attacking)
                 {
                     enemyState.CurrentState = EnemyContext.Chasing;
-                    ecb.SetComponentEnabled<MovementWaypoints>(enemyEntity, true);
+                    ECB.SetComponentEnabled<MovementWaypoints>(sortKey, entity, true);
 
                     // 경로 재계산 트리거
-                    if (movementGoalLookup.TryGetComponent(enemyEntity, out var goal))
+                    ECB.SetComponent(sortKey, entity, new MovementGoal
                     {
-                        goal.IsPathDirty = true;
-                        movementGoalLookup[enemyEntity] = goal;
-                    }
+                        Destination = targetPos,
+                        IsPathDirty = true,
+                        CurrentWaypointIndex = 0
+                    });
                 }
                 return;
             }
 
-            // 사거리 내 → 멈추고 공격
+            // 사거리 내 -> 멈추고 공격
             if (enemyState.CurrentState != EnemyContext.Attacking)
             {
                 enemyState.CurrentState = EnemyContext.Attacking;
-                ecb.SetComponentEnabled<MovementWaypoints>(enemyEntity, false);
+                ECB.SetComponentEnabled<MovementWaypoints>(sortKey, entity, false);
             }
 
             // 타겟 방향 회전
@@ -377,49 +342,51 @@ namespace Server
             direction.y = 0;
             if (math.lengthsq(direction) > 0.001f)
             {
-                myTransform.Rotation = quaternion.LookRotationSafe(direction, math.up());
+                transform.Rotation = quaternion.LookRotationSafe(direction, math.up());
             }
 
             // 쿨다운 체크
             if (cooldown.RemainingTime > 0) return;
 
-            // 데미지 계산 (TryGetComponent로 중복 룩업 제거)
-            float defenseValue = _defenseLookup.TryGetComponent(targetEntity, out var defense)
+            // 데미지 계산
+            float defenseValue = DefenseLookup.TryGetComponent(targetEntity, out var defense)
                 ? defense.Value
                 : 0f;
 
-            float finalDamage = DamageUtility.CalculateDamage(stats.AttackPower, defenseValue);
+            float finalDamage = DamageUtility.CalculateDamage(combatStats.AttackPower, defenseValue);
 
-            // DamageEvent 버퍼에 데미지 추가 (즉시 적용 = 필중)
-            if (_damageEventLookup.TryGetBuffer(targetEntity, out var damageBuffer))
-            {
-                damageBuffer.Add(new DamageEvent { Damage = finalDamage, Attacker = enemyEntity });
-            }
+            // DamageEvent 버퍼에 데미지 추가 (ECB.AppendToBuffer로 스레드 안전)
+            ECB.AppendToBuffer(sortKey, targetEntity, new DamageEvent { Damage = finalDamage, Attacker = entity });
 
             // 시각 효과 투사체 생성
+            SpawnProjectile(sortKey, myPos, targetPos);
+
+            // 쿨다운 리셋
+            cooldown.RemainingTime = combatStats.AttackSpeed > 0
+                ? 1.0f / combatStats.AttackSpeed
+                : 1.0f;
+        }
+
+        private void SpawnProjectile(int sortKey, float3 myPos, float3 targetPos)
+        {
             float3 startPos = myPos + new float3(0, 1f, 0);
             float3 endPos = targetPos + new float3(0, 1f, 0);
             float3 projectileDir = math.normalize(endPos - startPos);
             float projectileDistance = math.distance(startPos, endPos);
 
-            Entity projectile = ecb.Instantiate(projectilePrefab);
+            Entity projectile = ECB.Instantiate(sortKey, ProjectilePrefab);
 
             quaternion rotation = quaternion.LookRotationSafe(projectileDir, math.up());
-            ecb.SetComponent(projectile, LocalTransform.FromPositionRotationScale(startPos, rotation, 1f));
+            ECB.SetComponent(sortKey, projectile, LocalTransform.FromPositionRotationScale(startPos, rotation, 1f));
 
-            ecb.SetComponent(projectile, new ProjectileMove
+            ECB.SetComponent(sortKey, projectile, new ProjectileMove
             {
                 Direction = projectileDir,
                 Speed = 30f,
                 RemainingDistance = projectileDistance
             });
 
-            ecb.AddComponent(projectile, new VisualOnlyTag());
-
-            // 쿨다운 리셋
-            cooldown.RemainingTime = stats.AttackSpeed > 0
-                ? 1.0f / stats.AttackSpeed
-                : 1.0f;
+            ECB.AddComponent(sortKey, projectile, new VisualOnlyTag());
         }
     }
 }
