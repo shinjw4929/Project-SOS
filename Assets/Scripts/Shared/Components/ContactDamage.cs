@@ -1,3 +1,5 @@
+// [주석처리] ContactDamage - 비활성화됨
+/*
 using Unity.Entities;
 
 // Enemy가 Hero에 닿았을 때 줄 데미지 설정
@@ -10,3 +12,4 @@ public struct ContactDamage : IComponentData
     public float Interval;
     public float Range;
 }
+*/
