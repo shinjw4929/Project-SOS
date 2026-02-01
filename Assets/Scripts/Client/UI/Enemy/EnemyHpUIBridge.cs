@@ -5,14 +5,16 @@ public class EnemyHpUIBridge : MonoBehaviour
 {
     public static EnemyHpUIBridge Instance { get; private set; }
 
-    [Header("TextMeshPro 3D Prefab")]
+    [Header("Prefab")]
     public TextMeshPro text3dPrefab;
 
-    [Header("머리 위 높이")]
+    [Header("Ground Enemy")]
     public float heightOffset = 2.0f;
-
-    [Header("크기")]
     public float uniformScale = 1.0f;
+
+    [Header("Flying Enemy")]
+    public float flyingHeightOffset = 1.0f;
+    public float flyingScale = 0.5f;
 
     private void OnEnable()
     {

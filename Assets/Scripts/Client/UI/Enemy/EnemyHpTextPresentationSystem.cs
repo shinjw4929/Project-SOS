@@ -59,18 +59,18 @@ public partial class EnemyHpTextPresentationSystem : SystemBase
             // 2. 데이터 가져오기
             LocalToWorld ltw = em.GetComponentData<LocalToWorld>(e);
             Health hp = em.GetComponentData<Health>(e);
+            bool isFlying = em.HasComponent<FlyingTag>(e);
 
-            // 3. 위치 설정 (머리 위 오프셋 적용)
-            Vector3 pos = (Vector3)ltw.Position + Vector3.up * bridge.heightOffset;
-            tmp.transform.position = pos;
+            // 3. Flying/Ground 별 높이, 스케일
+            float height = isFlying ? bridge.flyingHeightOffset : bridge.heightOffset;
+            float scale = isFlying ? bridge.flyingScale : bridge.uniformScale;
 
-            // 4. 회전 설정 (카메라와 동일하게 -> 빌보드 효과)
+            // 4. Transform 적용
+            tmp.transform.position = (Vector3)ltw.Position + Vector3.up * height;
             tmp.transform.rotation = cam.transform.rotation;
+            tmp.transform.localScale = Vector3.one * scale;
 
-            // 5. 크기 설정
-            tmp.transform.localScale = Vector3.one * bridge.uniformScale;
-
-            // 6. 텍스트 갱신
+            // 5. 텍스트 갱신
             tmp.text = $"{hp.CurrentValue}/{hp.MaxValue}";
         }
 

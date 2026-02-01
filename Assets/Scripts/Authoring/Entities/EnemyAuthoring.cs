@@ -30,6 +30,7 @@ namespace Authoring
 
         [Header("Attack Type")]
         public bool isRanged = false;
+        public bool isFlying = false;
 
         class Baker : Baker<EnemyAuthoring>
         {
@@ -46,6 +47,12 @@ namespace Authoring
                 if (authoring.isRanged)
                 {
                     AddComponent(entity, new RangedEnemyTag());
+                }
+
+                // 공중 유닛 태그
+                if (authoring.isFlying)
+                {
+                    AddComponent(entity, new FlyingTag());
                 }
 
                 // =======================================================================

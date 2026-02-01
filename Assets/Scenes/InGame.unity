@@ -2559,6 +2559,8 @@ MonoBehaviour:
   text3dPrefab: {fileID: 4477705279423593694, guid: 6f8bafa029afe224bbf18c30f0345c22, type: 3}
   heightOffset: 5
   uniformScale: 1
+  flyingHeightOffset: 2
+  flyingScale: 0.5
 --- !u!1 &1013351824
 GameObject:
   m_ObjectHideFlags: 0

@@ -54,6 +54,7 @@ namespace Server
             var actionStateLookup = SystemAPI.GetComponentLookup<UnitActionState>(true);
             var transformLookup = SystemAPI.GetComponentLookup<LocalTransform>(true);
             var radiusLookup = SystemAPI.GetComponentLookup<ObstacleRadius>(true);
+            var flyingTagLookup = SystemAPI.GetComponentLookup<FlyingTag>(true);
 
             var wallFilter = new CollisionFilter
             {
@@ -72,6 +73,7 @@ namespace Server
                 EnemyStateLookup = enemyStateLookup,
                 IntentLookup = intentLookup,
                 ActionStateLookup = actionStateLookup,
+                FlyingTagLookup = flyingTagLookup,
                 CellSize = SpatialHashUtility.MovementCellSize,
                 SeparationStrength = 4.0f,
                 CollisionWorld = physicsWorld.CollisionWorld,
@@ -98,6 +100,7 @@ namespace Server
         [ReadOnly] public ComponentLookup<EnemyState> EnemyStateLookup;
         [ReadOnly] public ComponentLookup<UnitIntentState> IntentLookup;
         [ReadOnly] public ComponentLookup<UnitActionState> ActionStateLookup;
+        [ReadOnly] public ComponentLookup<FlyingTag> FlyingTagLookup;
 
         public float CellSize;
         public float SeparationStrength;
@@ -179,11 +182,12 @@ namespace Server
 
             // Separation (Avoidance)
             bool iAmEnemy = EnemyTagLookup.HasComponent(entity);
+            bool iAmFlying = FlyingTagLookup.HasComponent(entity);
             bool iAmGathering = false;
             if (IntentLookup.TryGetComponent(entity, out UnitIntentState intent) && intent.State == Intent.Gather)
                 iAmGathering = true;
 
-            float3 separationForce = CalculateSeparation(currentPos, obstacleRadius.Radius, entity, iAmEnemy, iAmGathering);
+            float3 separationForce = CalculateSeparation(currentPos, obstacleRadius.Radius, entity, iAmEnemy, iAmFlying, iAmGathering);
             float3 finalVelocity = desiredVelocity + (separationForce * SeparationStrength);
 
             // Cap Velocity
@@ -193,8 +197,11 @@ namespace Server
                 finalVelocity = math.normalizesafe(finalVelocity) * maxLimit;
             }
 
-            // Wall Collision
-            finalVelocity = ResolveWallCollision(currentPos, finalVelocity, obstacleRadius.Radius, DeltaTime, iAmEnemy);
+            // Wall Collision (flying 엔티티는 벽 무시)
+            if (!iAmFlying)
+            {
+                finalVelocity = ResolveWallCollision(currentPos, finalVelocity, obstacleRadius.Radius, DeltaTime, iAmEnemy);
+            }
 
             // Apply
             transform.Position += finalVelocity * DeltaTime;
@@ -208,7 +215,7 @@ namespace Server
             }
         }
 
-        private float3 CalculateSeparation(float3 myPos, float myRadius, Entity myEntity, bool iAmEnemy, bool iAmGathering)
+        private float3 CalculateSeparation(float3 myPos, float myRadius, Entity myEntity, bool iAmEnemy, bool iAmFlying, bool iAmGathering)
         {
             float3 separation = float3.zero;
 
@@ -223,6 +230,10 @@ namespace Server
                         do
                         {
                             if (neighbor.Entity == myEntity) continue;
+
+                            // Flying <-> Ground 충돌 스킵
+                            bool neighborIsFlying = FlyingTagLookup.HasComponent(neighbor.Entity);
+                            if (iAmFlying != neighborIsFlying) continue;
 
                             // Lookup을 통해 이웃 데이터 조회
                             bool isEnemy = EnemyTagLookup.HasComponent(neighbor.Entity);

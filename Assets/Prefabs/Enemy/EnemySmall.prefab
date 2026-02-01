@@ -175,7 +175,7 @@ MonoBehaviour:
   visionRange: 10
   radius: 0.5
   attackPower: 3
-  attackSpeed: 3.4
+  attackSpeed: 3
   attackRange: 1.2
   aggroRange: 30
   isRanged: 0
