@@ -18,7 +18,7 @@ namespace Shared
             state.RequireForUpdate<GhostInstance>();
             
             // 1. 맵 생성 (넉넉한 용량, 필요시 자동 증가 안됨에 주의 -> 충분히 크게 잡기)
-            var map = new NativeParallelHashMap<int, Entity>(2000, Allocator.Persistent);
+            var map = new NativeParallelHashMap<int, Entity>(6400, Allocator.Persistent);
             
             // 2. 싱글톤으로 등록하여 다른 시스템이 접근 가능하게 함
             state.EntityManager.CreateSingleton(new GhostIdMap { Map = map });
