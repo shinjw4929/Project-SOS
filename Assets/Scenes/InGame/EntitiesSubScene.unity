@@ -2526,8 +2526,8 @@ MonoBehaviour:
   lockRotation: 1
   edgePanSpeed: 50
   edgeThreshold: 20
-  mapBoundsMin: {x: -100, y: -100}
-  mapBoundsMax: {x: 100, y: 100}
+  mapBoundsMin: {x: -40, y: -50}
+  mapBoundsMax: {x: 40, y: 40}
 --- !u!4 &1988281444 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 4569317304208565447, guid: 118356b3d5301164d85e3ec67bda087e, type: 3}
