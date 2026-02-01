@@ -34,6 +34,11 @@ namespace Authoring
         [Min(1)]
         public int wave2TriggerKillCount = 30;
 
+        [Header("Enemy Limit")]
+        [Tooltip("맵에 존재할 수 있는 최대 적 수")]
+        [Min(1)]
+        public int maxEnemyCount = 1200;
+
         [Header("Wave1+ Spawn Settings")]
         [Tooltip("Wave1 적 스폰 주기 (초)")]
         [Min(0.5f)]
@@ -64,7 +69,8 @@ namespace Authoring
                     Wave1SpawnInterval = authoring.wave1SpawnInterval,
                     Wave1SpawnCount = authoring.wave1SpawnCount,
                     Wave2SpawnInterval = authoring.wave2SpawnInterval,
-                    Wave2SpawnCount = authoring.wave2SpawnCount
+                    Wave2SpawnCount = authoring.wave2SpawnCount,
+                    MaxEnemyCount = authoring.maxEnemyCount
                 });
             }
         }

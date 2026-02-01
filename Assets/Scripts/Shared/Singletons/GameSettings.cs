@@ -59,5 +59,10 @@ namespace Shared
         /// Wave2 1회 스폰 수 (기본값: 4)
         /// </summary>
         public int Wave2SpawnCount;
+
+        /// <summary>
+        /// 맵에 존재할 수 있는 최대 적 수 (기본값: 1200)
+        /// </summary>
+        public int MaxEnemyCount;
     }
 }

@@ -2500,14 +2500,15 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   initialWallDecayTime: 50
-  wave0InitialSpawnCount: 6
-  wave1TriggerTime: 120
-  wave1TriggerKillCount: 3
+  wave0InitialSpawnCount: 5
+  wave1TriggerTime: 100
+  wave1TriggerKillCount: 5
   wave2TriggerTime: 180
   wave2TriggerKillCount: 10
-  wave1SpawnInterval: 5
+  maxEnemyCount: 2400
+  wave1SpawnInterval: 6
   wave1SpawnCount: 5
-  wave2SpawnInterval: 4
+  wave2SpawnInterval: 5
   wave2SpawnCount: 6
 --- !u!114 &1956711776
 MonoBehaviour:

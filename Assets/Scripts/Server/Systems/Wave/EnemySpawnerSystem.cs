@@ -21,6 +21,7 @@ namespace Server
     public partial struct EnemySpawnerSystem : ISystem
     {
         private EntityQuery _spawnPointQuery;
+        private EntityQuery _enemyQuery;
         private uint _spawnCounter; // 스폰마다 증가하는 카운터 (고유 시드용)
 
         [BurstCompile]
@@ -33,6 +34,10 @@ namespace Server
 
             _spawnPointQuery = new EntityQueryBuilder(Allocator.Temp)
                 .WithAll<EnemySpawnPoint>()
+                .Build(ref state);
+
+            _enemyQuery = new EntityQueryBuilder(Allocator.Temp)
+                .WithAll<EnemyTag>()
                 .Build(ref state);
 
             _spawnCounter = 1;
@@ -65,6 +70,9 @@ namespace Server
             Entity prefabBig = catalog.BigPrefab;
             Entity prefabFlying = catalog.FlyingPrefab;
 
+            // 현재 적 수 조회
+            int currentEnemyCount = _enemyQuery.CalculateEntityCount();
+
             bool stateChanged = false;
 
             switch (phaseState.CurrentWave)
@@ -72,13 +80,14 @@ namespace Server
                 case WavePhase.Wave0:
                     stateChanged = HandleWave0Spawn(
                         ref state, ref ecb, ref phaseState,
-                        prefabBig, spawnPoints, gameSettings);
+                        prefabBig, spawnPoints, gameSettings, currentEnemyCount);
                     break;
 
                 case WavePhase.Wave1:
                     stateChanged = HandlePeriodicSpawn(
                         ref state, ref ecb, ref phaseState, deltaTime,
                         gameSettings.Wave1SpawnInterval, gameSettings.Wave1SpawnCount,
+                        gameSettings.MaxEnemyCount, currentEnemyCount,
                         spawnPoints, prefabSmall, prefabBig, Entity.Null);
                     break;
 
@@ -86,6 +95,7 @@ namespace Server
                     stateChanged = HandlePeriodicSpawn(
                         ref state, ref ecb, ref phaseState, deltaTime,
                         gameSettings.Wave2SpawnInterval, gameSettings.Wave2SpawnCount,
+                        gameSettings.MaxEnemyCount, currentEnemyCount,
                         spawnPoints, prefabSmall, prefabBig, prefabFlying);
                     break;
             }
@@ -106,13 +116,19 @@ namespace Server
             ref GamePhaseState phaseState,
             Entity prefabBig,
             NativeArray<EnemySpawnPoint> spawnPoints,
-            GameSettings settings)
+            GameSettings settings,
+            int currentEnemyCount)
         {
             // 이미 초기 스폰 완료
             if (phaseState.Wave0SpawnedCount >= settings.Wave0InitialSpawnCount)
                 return false;
 
             int toSpawn = settings.Wave0InitialSpawnCount - phaseState.Wave0SpawnedCount;
+
+            // 최대 적 수 제한 적용
+            int available = settings.MaxEnemyCount - currentEnemyCount;
+            if (available <= 0) return false;
+            toSpawn = math.min(toSpawn, available);
 
             // 고유 시드 사용 (스폰 카운터 기반)
             var random = Random.CreateFromIndex(_spawnCounter);
@@ -148,7 +164,7 @@ namespace Server
                 ecb.SetComponent(enemy, LocalTransform.FromPosition(spawnPos));
             }
 
-            phaseState.Wave0SpawnedCount = settings.Wave0InitialSpawnCount;
+            phaseState.Wave0SpawnedCount += toSpawn;
             return true;
         }
 
@@ -159,6 +175,8 @@ namespace Server
             float deltaTime,
             float spawnInterval,
             int spawnCount,
+            int maxEnemyCount,
+            int currentEnemyCount,
             NativeArray<EnemySpawnPoint> spawnPoints,
             Entity prefabSmall,
             Entity prefabBig,
@@ -170,6 +188,11 @@ namespace Server
                 return true; // 타이머만 업데이트됨
 
             phaseState.SpawnTimer -= spawnInterval;
+
+            // 최대 적 수 제한 적용
+            int available = maxEnemyCount - currentEnemyCount;
+            if (available <= 0) return true;
+            spawnCount = math.min(spawnCount, available);
 
             // 고유 시드 사용 (스폰 카운터 기반)
             var random = Random.CreateFromIndex(_spawnCounter);
