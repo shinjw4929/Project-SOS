@@ -101,7 +101,7 @@ Assets/Scripts/
     HeroDeathDetectionSystem → ServerDeathSystem → NavMeshObstacleCleanupSystem, TechStateRecalculateSystem
 
 [8. 후처리] LateSimulationSystemGroup
-    GridOccupancyEventSystem → SpatialMapDisposeSystem (CompleteDependency 후 맵 Dispose)
+    GridOccupancyEventSystem
 
 [9. Transform] TransformSystemGroup
     CarriedResourceFollowSystem (Scale 기반 가시성 토글)
@@ -113,7 +113,7 @@ Assets/Scripts/
 **핵심 의존성**:
 - `UnifiedTargetingSystem`: UpdateAfter `SpatialPartitioningGroup`, `HandleAttackRequestSystem`
 - `DamageApplySystem`: UpdateAfter `MeleeAttackSystem` (DamageEvent 버퍼 소비)
-- `SpatialMapDisposeSystem`: `CompleteDependency()` 후 맵 해제 (LateSimulationSystemGroup)
+- `SpatialMapBuildSystem`: Persistent 맵 + Job 기반 Clear → dependency chain으로 동기화 (CompleteDependency 불필요)
 
 ---
 
@@ -158,7 +158,7 @@ public enum UserContext : byte {
 - **Selection System**: Phase 기반 (`UserSelectionInputState.Phase`) → `EntitySelectionSystem`에서 Selected 토글
 - **Combat Flow**: MeleeAttackSystem/RangedAttackSystem → DamageEvent 버퍼 → DamageApplySystem
 - **CarriedResource Visibility**: Scale 토글 (`CarriedAmount > 0 ? 1f : 0f`) - Structural Change 없음
-- **Spatial Partitioning**: `SpatialMapBuildSystem`에서 빌드 → 사용 시스템에서 ReadOnly → `SpatialMapDisposeSystem`에서 해제
+- **Spatial Partitioning**: `SpatialMapBuildSystem`에서 Persistent 맵 Clear + 재빌드 → 사용 시스템에서 ReadOnly → Job dependency chain으로 동기화
 - **Catalog Patterns**: UnitCatalog/StructureCatalog(버퍼) vs EnemyPrefabCatalog(명시적 필드)
 
 ### 5. Network RPCs

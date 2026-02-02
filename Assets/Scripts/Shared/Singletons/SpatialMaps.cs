@@ -27,8 +27,8 @@ namespace Shared
 
     /// <summary>
     /// 공유 공간 분할 맵 싱글톤
-    /// <para>- SpatialMapBuildSystem에서 매 프레임 생성</para>
-    /// <para>- SpatialMapDisposeSystem에서 프레임 종료 시 해제</para>
+    /// <para>- SpatialMapBuildSystem에서 Persistent 할당 후 매 프레임 Clear + 재빌드</para>
+    /// <para>- Job dependency chain으로 동기화 (CompleteDependency 불필요)</para>
     /// </summary>
     public struct SpatialMaps : IComponentData
     {

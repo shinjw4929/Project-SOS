@@ -18,9 +18,6 @@ PathFollowSystem → MovementWaypoints.Current/Next 공급
 PredictedMovementSystem → LocalTransform 직접 이동 (SpatialMaps.MovementMap 사용)
     ↓
 MovementArrivalSystem → 도착 판정 → 이동 정지 + Intent.Idle 전환
-    ↓
-[LateSimulationSystemGroup]
-SpatialMapDisposeSystem → MovementMap 해제
 ```
 
 # 핵심 설계 포인트
@@ -46,11 +43,8 @@ SpatialMapDisposeSystem → MovementMap 해제
 그룹: SpatialPartitioningGroup (OrderFirst=true)
 역할: 공간 분할 맵 빌드
 - MovementMap (셀 크기: 3.0f): 이동 충돌 회피용 (대형 유닛 AABB 등록)
+- Persistent 맵을 매 프레임 Job 기반 Clear 후 재빌드 (CompleteDependency 불필요)
 - 결과를 SpatialMaps 싱글톤에 저장
----
-파일: SpatialMapDisposeSystem.cs
-그룹: LateSimulationSystemGroup
-역할: 공간 분할 맵 해제. CompleteDependency() 후 맵 Dispose
 
 ---
 
@@ -219,9 +213,6 @@ MovementArrivalSystem (UpdateAfter: PredictedMovementSystem)
     → MovementWaypoints 비활성화
     → Intent.Move → Intent.Idle 전환
 
-[LateSimulationSystemGroup] ─────────────────────────────
-SpatialMapDisposeSystem
-    → CompleteDependency() 후 맵 Dispose
 ```
 
 ## 충돌 회피 로직

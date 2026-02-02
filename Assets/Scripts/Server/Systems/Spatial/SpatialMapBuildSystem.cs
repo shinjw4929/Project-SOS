@@ -12,7 +12,8 @@ namespace Server
     /// 공간 분할 맵 빌드 시스템
     /// <para>- TargetingMap (10.0f): 유닛+건물+적 (WallTag 제외)</para>
     /// <para>- MovementMap (3.0f): 유닛+적 (대형 유닛 AABB 등록)</para>
-    /// <para>- 매 프레임 SpatialMaps 싱글톤에 맵 참조 저장</para>
+    /// <para>- Persistent 맵을 한 번 할당 후, 매 프레임 Job 기반 Clear + 재빌드로 재사용</para>
+    /// <para>- CompleteDependency 없이 Job dependency chain만으로 동기화</para>
     /// </summary>
     [UpdateInGroup(typeof(SpatialPartitioningGroup), OrderFirst = true)]
     [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
@@ -22,6 +23,9 @@ namespace Server
         private EntityQuery _targetingQuery;
         private EntityQuery _movementQuery;
         private Entity _spatialMapsEntity;
+
+        private NativeParallelMultiHashMap<int, SpatialTargetEntry> _targetingMap;
+        private NativeParallelMultiHashMap<int, SpatialMovementEntry> _movementMap;
 
         public void OnCreate(ref SystemState state)
         {
@@ -55,77 +59,92 @@ namespace Server
                 .WithAny<UnitTag, EnemyTag>()
                 .Build(ref state);
 
+            // Persistent 맵 할당
+            _targetingMap = new NativeParallelMultiHashMap<int, SpatialTargetEntry>(64, Allocator.Persistent);
+            _movementMap = new NativeParallelMultiHashMap<int, SpatialMovementEntry>(64, Allocator.Persistent);
+
             // SpatialMaps 싱글톤 엔티티 생성
             _spatialMapsEntity = state.EntityManager.CreateEntity();
             state.EntityManager.AddComponentData(_spatialMapsEntity, new SpatialMaps
             {
+                TargetingMap = _targetingMap,
+                MovementMap = _movementMap,
                 IsValid = false
             });
         }
 
         public void OnDestroy(ref SystemState state)
         {
-            // 월드 종료 시 맵 정리
-            if (SystemAPI.TryGetSingleton<SpatialMaps>(out var maps) && maps.IsValid)
-            {
-                if (maps.TargetingMap.IsCreated) maps.TargetingMap.Dispose();
-                if (maps.MovementMap.IsCreated) maps.MovementMap.Dispose();
-            }
+            if (_targetingMap.IsCreated) _targetingMap.Dispose();
+            if (_movementMap.IsCreated) _movementMap.Dispose();
         }
 
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
-            // 엔티티 수 계산
             int targetingCount = _targetingQuery.CalculateEntityCount();
             int movementCount = _movementQuery.CalculateEntityCount();
 
+            // Job 기반 Clear: state.Dependency에 이전 소비 시스템의 read handle 포함
+            // ClearJob은 모든 읽기 완료 후 자동 실행 (메인 스레드 블로킹 없음)
+            var clearTargetingHandle = new ClearTargetingMapJob { Map = _targetingMap }
+                .Schedule(state.Dependency);
+            var clearMovementHandle = new ClearMovementMapJob { Map = _movementMap }
+                .Schedule(state.Dependency);
+
             if (targetingCount == 0 && movementCount == 0)
             {
-                // 엔티티가 없으면 빈 맵 생성
-                SystemAPI.SetSingleton(new SpatialMaps { IsValid = false });
+                state.Dependency = JobHandle.CombineDependencies(clearTargetingHandle, clearMovementHandle);
+                SystemAPI.SetSingleton(new SpatialMaps
+                {
+                    TargetingMap = _targetingMap,
+                    MovementMap = _movementMap,
+                    IsValid = false
+                });
                 return;
             }
 
-            // 해시 충돌 방지를 위한 여유 계수 적용
-            int targetingCapacity = (int)(targetingCount * SpatialHashUtility.CapacityMultiplier);
-            int movementCapacity = (int)(movementCount * SpatialHashUtility.CapacityMultiplier);
-
-            // 맵 생성
-            var targetingMap = new NativeParallelMultiHashMap<int, SpatialTargetEntry>(
-                math.max(targetingCapacity, 16), Allocator.TempJob);
-            var movementMap = new NativeParallelMultiHashMap<int, SpatialMovementEntry>(
-                math.max(movementCapacity, 16), Allocator.TempJob);
-
-            // 타겟팅 맵 빌드 Job
+            // Build Job: Clear 완료 후 실행 (dependency chain)
             var buildTargetingJob = new BuildTargetingMapJob
             {
-                SpatialMap = targetingMap.AsParallelWriter(),
+                SpatialMap = _targetingMap.AsParallelWriter(),
                 CellSize = SpatialHashUtility.TargetingCellSize
             };
-
-            // 이동 맵 빌드 Job
             var buildMovementJob = new BuildMovementMapJob
             {
-                SpatialMap = movementMap.AsParallelWriter(),
+                SpatialMap = _movementMap.AsParallelWriter(),
                 CellSize = SpatialHashUtility.MovementCellSize
             };
 
-            // 두 Job 병렬 실행
-            var targetingHandle = buildTargetingJob.ScheduleParallel(_targetingQuery, state.Dependency);
-            var movementHandle = buildMovementJob.ScheduleParallel(_movementQuery, state.Dependency);
-
-            // 두 핸들 결합
+            var targetingHandle = buildTargetingJob.ScheduleParallel(_targetingQuery, clearTargetingHandle);
+            var movementHandle = buildMovementJob.ScheduleParallel(_movementQuery, clearMovementHandle);
             state.Dependency = JobHandle.CombineDependencies(targetingHandle, movementHandle);
 
-            // 싱글톤에 맵 참조 저장
             SystemAPI.SetSingleton(new SpatialMaps
             {
-                TargetingMap = targetingMap,
-                MovementMap = movementMap,
+                TargetingMap = _targetingMap,
+                MovementMap = _movementMap,
                 IsValid = true
             });
         }
+    }
+
+    // =========================================================================
+    // Clear Jobs (Persistent 맵 재사용을 위한 Job 기반 Clear)
+    // =========================================================================
+
+    [BurstCompile]
+    public struct ClearTargetingMapJob : IJob
+    {
+        public NativeParallelMultiHashMap<int, SpatialTargetEntry> Map;
+        public void Execute() => Map.Clear();
+    }
+
+    [BurstCompile]
+    public struct ClearMovementMapJob : IJob
+    {
+        public NativeParallelMultiHashMap<int, SpatialMovementEntry> Map;
+        public void Execute() => Map.Clear();
     }
 
     // =========================================================================
