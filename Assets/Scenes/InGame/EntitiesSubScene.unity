@@ -2499,17 +2499,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: dc5414274d42d0c4cb2f6f07ea5b57f9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  initialWallDecayTime: 50
-  wave0InitialSpawnCount: 5
+  initialWallDecayTime: 0.5
+  wave0InitialSpawnCount: 0
   wave1TriggerTime: 100
   wave1TriggerKillCount: 3
   wave2TriggerTime: 180
   wave2TriggerKillCount: 10
   maxEnemyCount: 2400
   wave1SpawnInterval: 6
-  wave1SpawnCount: 5
+  wave1SpawnCount: 1
   wave2SpawnInterval: 5
-  wave2SpawnCount: 6
+  wave2SpawnCount: 1
 --- !u!114 &1956711776
 MonoBehaviour:
   m_ObjectHideFlags: 0
