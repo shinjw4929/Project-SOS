@@ -113,6 +113,8 @@ namespace Server
         private const float DestinationThresholdSq = 1.0f;
         // 타겟 고착화 계수 (LoseTargetDistance의 1.3배)
         private const float HysteresisMultiplier = 1.3f;
+        // 시간 분할 주기 (4프레임에 1번 탐색)
+        private const uint TimeSliceDivisor = 4;
 
         public void Execute(
             Entity entity,
@@ -211,6 +213,43 @@ namespace Server
             if (!needNewTarget) return;
 
             // ---------------------------------------------------------
+            // 시간 분할: 배회 중(타겟 없음)이면 4프레임에 1번만 탐색
+            // 타겟 상실(hadTarget=true)이면 전투 반응성을 위해 즉시 탐색
+            // ---------------------------------------------------------
+            bool hadTarget = currentTarget != Entity.Null;
+
+            if (!hadTarget)
+            {
+                uint frameSlice = FrameCount % TimeSliceDivisor;
+                bool isMySearchFrame = ((uint)entity.Index % TimeSliceDivisor) == frameSlice;
+                if (!isMySearchFrame)
+                {
+                    target.ValueRW.TargetEntity = Entity.Null;
+
+                    bool needNewWanderTarget = enemyState.ValueRO.CurrentState != EnemyContext.Wandering
+                                               || !waypointsEnabled.ValueRO;
+                    if (needNewWanderTarget)
+                    {
+                        uint seed = (uint)entity.Index ^ (FrameCount * 0x9E3779B9) ^ (uint)(ElapsedTime * 1000);
+                        var random = Random.CreateFromIndex(seed);
+                        float2 mapMin = GridSettings.GridOrigin;
+                        float2 mapMax = mapMin + new float2(
+                            GridSettings.GridSize.x * GridSettings.CellSize,
+                            GridSettings.GridSize.y * GridSettings.CellSize);
+                        float3 wanderDest = new float3(
+                            random.NextFloat(mapMin.x + 5f, mapMax.x - 5f),
+                            myPos.y,
+                            random.NextFloat(mapMin.y + 5f, mapMax.y - 5f));
+                        goal.ValueRW.Destination = wanderDest;
+                        goal.ValueRW.IsPathDirty = true;
+                        waypointsEnabled.ValueRW = true;
+                    }
+                    enemyState.ValueRW.CurrentState = EnemyContext.Wandering;
+                    return;
+                }
+            }
+
+            // ---------------------------------------------------------
             // 2. 새로운 타겟 탐색 (공간 분할 기반)
             // ---------------------------------------------------------
             Entity bestTarget = Entity.Null;
@@ -218,10 +257,11 @@ namespace Server
             float3 bestTargetPos = float3.zero;
             float searchRadiusSq = loseDistSq;
 
-            // 인접 9개 셀만 순회
-            for (int x = -1; x <= 1; x++)
+            // 탐색 범위: aggroRange / CellSize (올림)
+            int searchRadius = (int)math.ceil(chaseDistance.ValueRO.LoseTargetDistance / CellSize);
+            for (int x = -searchRadius; x <= searchRadius; x++)
             {
-                for (int z = -1; z <= 1; z++)
+                for (int z = -searchRadius; z <= searchRadius; z++)
                 {
                     int hash = SpatialHashUtility.GetCellHash(myPos, x, z, CellSize);
 
@@ -336,7 +376,7 @@ namespace Server
             RefRO<VisionRange> visionRange,
             RefRW<UnitIntentState> intent,
             RefRW<AggroTarget> aggroTarget,
-            RefRO<AggroLock> aggroLock,
+            RefRW<AggroLock> aggroLock,
             RefRW<MovementGoal> goal,
             EnabledRefRW<MovementWaypoints> waypointsEnabled)
         {
@@ -354,7 +394,7 @@ namespace Server
             // 1. 자동 타겟팅 활성화 조건 체크
             // ---------------------------------------------------------
             Intent currentIntent = intent.ValueRO.State;
-            if (currentIntent != Intent.Idle && currentIntent != Intent.AttackMove)
+            if (currentIntent != Intent.Idle && currentIntent != Intent.AttackMove && currentIntent != Intent.Attack)
                 return;
 
             float3 myPos = myTransform.ValueRO.Position;
@@ -363,7 +403,7 @@ namespace Server
             float hysteresisRangeSq = visionRangeSq * (HysteresisMultiplier * HysteresisMultiplier);
 
             // ---------------------------------------------------------
-            // 2. 현재 타겟 유효성 검사 (Early Exit + 고착화)
+            // 2. 현재 타겟 유효성 검사 (Early Exit 제거 → 시간 분할로 이어짐)
             // ---------------------------------------------------------
             Entity currentTarget = aggroTarget.ValueRO.TargetEntity;
             bool needImmediateSearch = currentTarget == Entity.Null;
@@ -378,12 +418,8 @@ namespace Server
                     // 고착화: 원래 범위의 1.3배까지 타겟 유지
                     if (distSqToTarget <= hysteresisRangeSq)
                     {
-                        if (currentIntent != Intent.Attack)
-                        {
-                            intent.ValueRW.State = Intent.Attack;
-                            intent.ValueRW.TargetEntity = currentTarget;
-                        }
-
+                        // 유효 타겟 → 위치만 업데이트, return 하지 않음
+                        // needImmediateSearch는 false 유지 → 시간 분할 적용됨
                         aggroTarget.ValueRW.LastTargetPosition = targetTransform.Position;
 
                         if (math.distancesq(goal.ValueRO.Destination, targetTransform.Position) > DestinationThresholdSq)
@@ -392,22 +428,36 @@ namespace Server
                             goal.ValueRW.IsPathDirty = true;
                         }
                         waypointsEnabled.ValueRW = true;
-                        return; // Early Exit
+
+                        // Intent 업데이트 (기존 로직 유지)
+                        if (currentIntent != Intent.Attack)
+                        {
+                            intent.ValueRW.State = Intent.Attack;
+                            intent.ValueRW.TargetEntity = currentTarget;
+                        }
+                        // return 제거 → 시간 분할 체크로 진행
+                    }
+                    else
+                    {
+                        needImmediateSearch = true;
                     }
                 }
-                // 타겟 무효화됨 - 즉시 탐색 필요
-                needImmediateSearch = true;
+                else
+                {
+                    // 타겟 무효화됨 - 즉시 탐색 필요
+                    needImmediateSearch = true;
+                }
             }
 
             // ---------------------------------------------------------
-            // 3. 시간 분할: 타겟 없으면 즉시 탐색, 있으면 4프레임에 1번
+            // 3. 시간 분할 (유효 타겟 있는 경우에도 도달 가능)
             // ---------------------------------------------------------
             if (!needImmediateSearch)
             {
                 uint frameSlice = FrameCount % TimeSliceDivisor;
                 bool isMySearchFrame = ((uint)entity.Index % TimeSliceDivisor) == frameSlice;
                 if (!isMySearchFrame)
-                    return;
+                    return;  // 기존 타겟 유지한 채 리턴
             }
 
             // ---------------------------------------------------------
@@ -458,15 +508,24 @@ namespace Server
             // ---------------------------------------------------------
             if (bestTarget != Entity.Null)
             {
-                intent.ValueRW.State = Intent.Attack;
-                intent.ValueRW.TargetEntity = bestTarget;
+                // 새 타겟이 기존 타겟보다 가깝거나, 기존 타겟이 없는 경우에만 전환
+                bool shouldSwitch = currentTarget == Entity.Null
+                    || bestDistSq < math.distancesq(myPos, aggroTarget.ValueRO.LastTargetPosition);
+                if (shouldSwitch)
+                {
+                    intent.ValueRW.State = Intent.Attack;
+                    intent.ValueRW.TargetEntity = bestTarget;
 
-                aggroTarget.ValueRW.TargetEntity = bestTarget;
-                aggroTarget.ValueRW.LastTargetPosition = bestTargetPos;
+                    aggroTarget.ValueRW.TargetEntity = bestTarget;
+                    aggroTarget.ValueRW.LastTargetPosition = bestTargetPos;
 
-                goal.ValueRW.Destination = bestTargetPos;
-                goal.ValueRW.IsPathDirty = true;
-                waypointsEnabled.ValueRW = true;
+                    aggroLock.ValueRW.LockedTarget = bestTarget;
+                    aggroLock.ValueRW.RemainingLockTime = aggroLock.ValueRO.LockDuration;
+
+                    goal.ValueRW.Destination = bestTargetPos;
+                    goal.ValueRW.IsPathDirty = true;
+                    waypointsEnabled.ValueRW = true;
+                }
             }
             else if (currentIntent == Intent.Idle && currentTarget != Entity.Null)
             {

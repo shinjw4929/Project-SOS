@@ -116,71 +116,69 @@ namespace Server
             in MovementDynamics dynamics,
             in ObstacleRadius obstacleRadius)
         {
-            // 적이 공격 중이면 이동 스킵
-            if (EnemyTagLookup.HasComponent(entity) &&
-                EnemyStateLookup.TryGetComponent(entity, out EnemyState enemyState) &&
-                enemyState.CurrentState == EnemyContext.Attacking)
-            {
-                velocity.Linear = float3.zero;
-                return;
-            }
+            // 공격 중이면 이동은 스킵하되 분리는 유지
+            bool isEnemyAttacking = EnemyTagLookup.HasComponent(entity) &&
+                                    EnemyStateLookup.TryGetComponent(entity, out EnemyState enemyState) &&
+                                    enemyState.CurrentState == EnemyContext.Attacking;
 
-            // 유닛이 공격 중이면 이동 스킵
-            if (ActionStateLookup.TryGetComponent(entity, out UnitActionState actionState) &&
-                actionState.State == Action.Attacking)
-            {
-                velocity.Linear = float3.zero;
-                return;
-            }
+            bool isUnitAttacking = ActionStateLookup.TryGetComponent(entity, out UnitActionState actionState) &&
+                                   actionState.State == Action.Attacking;
+
+            bool isAttacking = isEnemyAttacking || isUnitAttacking;
 
             float3 currentPos = transform.Position;
-            float3 targetPos = waypoints.Current;
-            targetPos.y = currentPos.y;
+            float3 desiredVelocity = float3.zero;
 
-            // Waypoint Logic
-            float3 toTarget = targetPos - currentPos;
-            float distSq = math.lengthsq(toTarget);
-
-            if (waypoints.HasNext && distSq < 0.25f)
+            if (!isAttacking)
             {
-                waypoints.Current = waypoints.Next;
-                waypoints.HasNext = false;
-                targetPos = waypoints.Current;
+                float3 targetPos = waypoints.Current;
                 targetPos.y = currentPos.y;
-                toTarget = targetPos - currentPos;
-                distSq = math.lengthsq(toTarget);
+
+                // Waypoint Logic
+                float3 toTarget = targetPos - currentPos;
+                float distSq = math.lengthsq(toTarget);
+
+                if (waypoints.HasNext && distSq < 0.25f)
+                {
+                    waypoints.Current = waypoints.Next;
+                    waypoints.HasNext = false;
+                    targetPos = waypoints.Current;
+                    targetPos.y = currentPos.y;
+                    toTarget = targetPos - currentPos;
+                    distSq = math.lengthsq(toTarget);
+                }
+
+                float arrivalR = waypoints.ArrivalRadius > 0 ? waypoints.ArrivalRadius : 0.1f;
+                if (!waypoints.HasNext && distSq < arrivalR * arrivalR)
+                {
+                    velocity.Linear = float3.zero;
+                    return;
+                }
+
+                float dist = math.sqrt(distSq);
+
+                // Velocity Logic
+                float3 moveDir = dist > 0.001f ? toTarget / dist : float3.zero;
+                float targetSpeed = dynamics.MaxSpeed;
+
+                if (!waypoints.HasNext)
+                {
+                    float decel = math.max(0.1f, dynamics.Deceleration);
+                    float slowingDist = (dynamics.MaxSpeed * dynamics.MaxSpeed) / (2f * decel);
+                    if (dist < slowingDist)
+                        targetSpeed = math.lerp(0, dynamics.MaxSpeed, dist / slowingDist);
+                }
+
+                float currentSpeed = math.length(velocity.Linear);
+                float speedDiff = targetSpeed - currentSpeed;
+                float accelRate = speedDiff > 0 ? dynamics.Acceleration : dynamics.Deceleration;
+                float newSpeed = currentSpeed + math.sign(speedDiff) * math.min(math.abs(speedDiff), accelRate * DeltaTime);
+
+                desiredVelocity = moveDir * newSpeed;
+                desiredVelocity.y = 0;
             }
 
-            float arrivalR = waypoints.ArrivalRadius > 0 ? waypoints.ArrivalRadius : 0.1f;
-            if (!waypoints.HasNext && distSq < arrivalR * arrivalR)
-            {
-                velocity.Linear = float3.zero;
-                return;
-            }
-
-            float dist = math.sqrt(distSq);
-
-            // Velocity Logic
-            float3 moveDir = dist > 0.001f ? toTarget / dist : float3.zero;
-            float targetSpeed = dynamics.MaxSpeed;
-
-            if (!waypoints.HasNext)
-            {
-                float decel = math.max(0.1f, dynamics.Deceleration);
-                float slowingDist = (dynamics.MaxSpeed * dynamics.MaxSpeed) / (2f * decel);
-                if (dist < slowingDist)
-                    targetSpeed = math.lerp(0, dynamics.MaxSpeed, dist / slowingDist);
-            }
-
-            float currentSpeed = math.length(velocity.Linear);
-            float speedDiff = targetSpeed - currentSpeed;
-            float accelRate = speedDiff > 0 ? dynamics.Acceleration : dynamics.Deceleration;
-            float newSpeed = currentSpeed + math.sign(speedDiff) * math.min(math.abs(speedDiff), accelRate * DeltaTime);
-
-            float3 desiredVelocity = moveDir * newSpeed;
-            desiredVelocity.y = 0;
-
-            // Separation (Avoidance)
+            // Separation (Avoidance) - 공격 중에도 실행
             bool iAmEnemy = EnemyTagLookup.HasComponent(entity);
             bool iAmFlying = FlyingTagLookup.HasComponent(entity);
             bool iAmGathering = false;

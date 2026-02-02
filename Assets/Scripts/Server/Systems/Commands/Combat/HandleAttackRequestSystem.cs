@@ -28,6 +28,7 @@ namespace Server
         private ComponentLookup<MovementGoal> _movementGoalLookup;
         private ComponentLookup<UnitIntentState> _unitIntentStateLookup;
         private ComponentLookup<AggroTarget> _aggroTargetLookup;
+        private ComponentLookup<AggroLock> _aggroLockLookup;
 
         public void OnCreate(ref SystemState state)
         {
@@ -43,6 +44,7 @@ namespace Server
             _movementGoalLookup = state.GetComponentLookup<MovementGoal>(false);
             _unitIntentStateLookup = state.GetComponentLookup<UnitIntentState>(false);
             _aggroTargetLookup = state.GetComponentLookup<AggroTarget>(false);
+            _aggroLockLookup = state.GetComponentLookup<AggroLock>(false);
         }
 
         [BurstCompile]
@@ -55,6 +57,7 @@ namespace Server
             _movementGoalLookup.Update(ref state);
             _unitIntentStateLookup.Update(ref state);
             _aggroTargetLookup.Update(ref state);
+            _aggroLockLookup.Update(ref state);
 
             var ecb = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>()
                 .CreateCommandBuffer(state.WorldUnmanaged);
@@ -119,12 +122,19 @@ namespace Server
                 intentRW.ValueRW.TargetEntity = targetEntity;
             }
 
-            // 5. AggroTarget 설정
+            // 5. AggroTarget + AggroLock 설정
             if (_aggroTargetLookup.HasComponent(unitEntity))
             {
                 RefRW<AggroTarget> aggroRW = _aggroTargetLookup.GetRefRW(unitEntity);
                 aggroRW.ValueRW.TargetEntity = targetEntity;
                 aggroRW.ValueRW.LastTargetPosition = rpc.TargetPosition;
+            }
+
+            if (_aggroLockLookup.HasComponent(unitEntity))
+            {
+                RefRW<AggroLock> lockRW = _aggroLockLookup.GetRefRW(unitEntity);
+                lockRW.ValueRW.LockedTarget = targetEntity;
+                lockRW.ValueRW.RemainingLockTime = lockRW.ValueRO.LockDuration;
             }
 
             // 6. MovementGoal 설정 (타겟 위치로 추격)

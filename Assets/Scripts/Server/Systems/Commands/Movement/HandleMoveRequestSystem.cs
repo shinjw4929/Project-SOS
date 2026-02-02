@@ -26,6 +26,7 @@ namespace Server
         private ComponentLookup<MovementGoal> _movementGoalLookup;
         private ComponentLookup<UnitIntentState> _unitIntentStateLookup;
         private ComponentLookup<AggroTarget> _aggroTargetLookup;
+        private ComponentLookup<AggroLock> _aggroLockLookup;
 
         public void OnCreate(ref SystemState state)
         {
@@ -40,6 +41,7 @@ namespace Server
             _movementGoalLookup = state.GetComponentLookup<MovementGoal>(false);
             _unitIntentStateLookup = state.GetComponentLookup<UnitIntentState>(false);
             _aggroTargetLookup = state.GetComponentLookup<AggroTarget>(false);
+            _aggroLockLookup = state.GetComponentLookup<AggroLock>(false);
         }
 
         [BurstCompile]
@@ -51,6 +53,7 @@ namespace Server
             _movementGoalLookup.Update(ref state);
             _unitIntentStateLookup.Update(ref state);
             _aggroTargetLookup.Update(ref state);
+            _aggroLockLookup.Update(ref state);
 
             var ecb = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>()
                 .CreateCommandBuffer(state.WorldUnmanaged);
@@ -112,12 +115,19 @@ namespace Server
                 intentRW.ValueRW.TargetEntity = Entity.Null;
             }
 
-            // 5. AggroTarget 초기화 (공격 대상 제거)
+            // 5. AggroTarget + AggroLock 초기화 (공격 대상 및 어그로 고정 해제)
             if (_aggroTargetLookup.HasComponent(unitEntity))
             {
                 RefRW<AggroTarget> aggroRW = _aggroTargetLookup.GetRefRW(unitEntity);
                 aggroRW.ValueRW.TargetEntity = Entity.Null;
                 aggroRW.ValueRW.LastTargetPosition = default;
+            }
+
+            if (_aggroLockLookup.HasComponent(unitEntity))
+            {
+                RefRW<AggroLock> lockRW = _aggroLockLookup.GetRefRW(unitEntity);
+                lockRW.ValueRW.LockedTarget = Entity.Null;
+                lockRW.ValueRW.RemainingLockTime = 0f;
             }
 
             // 6. MovementWaypoints 활성화
