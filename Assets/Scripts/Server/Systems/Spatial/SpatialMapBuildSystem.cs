@@ -60,8 +60,8 @@ namespace Server
                 .Build(ref state);
 
             // Persistent 맵 할당
-            _targetingMap = new NativeParallelMultiHashMap<int, SpatialTargetEntry>(64, Allocator.Persistent);
-            _movementMap = new NativeParallelMultiHashMap<int, SpatialMovementEntry>(64, Allocator.Persistent);
+            _targetingMap = new NativeParallelMultiHashMap<int, SpatialTargetEntry>(256, Allocator.Persistent);
+            _movementMap = new NativeParallelMultiHashMap<int, SpatialMovementEntry>(512, Allocator.Persistent);
 
             // SpatialMaps 싱글톤 엔티티 생성
             _spatialMapsEntity = state.EntityManager.CreateEntity();
@@ -84,6 +84,22 @@ namespace Server
         {
             int targetingCount = _targetingQuery.CalculateEntityCount();
             int movementCount = _movementQuery.CalculateEntityCount();
+
+            // capacity 확보 (대형 유닛 멀티셀 등록 + 여유분)
+            int requiredTargeting = math.max(64, targetingCount * 2);
+            int requiredMovement = math.max(64, movementCount * 4);
+
+            bool needResize = _targetingMap.Capacity < requiredTargeting
+                           || _movementMap.Capacity < requiredMovement;
+            if (needResize)
+            {
+                // Capacity 변경은 메인 스레드 작업 → 이전 읽기 Job 완료 필요
+                state.CompleteDependency();
+                if (_targetingMap.Capacity < requiredTargeting)
+                    _targetingMap.Capacity = requiredTargeting;
+                if (_movementMap.Capacity < requiredMovement)
+                    _movementMap.Capacity = requiredMovement;
+            }
 
             // Job 기반 Clear: state.Dependency에 이전 소비 시스템의 read handle 포함
             // ClearJob은 모든 읽기 완료 후 자동 실행 (메인 스레드 블로킹 없음)
