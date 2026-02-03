@@ -11,7 +11,7 @@
 SpatialMapBuildSystem → MovementMap 빌드 (셀 크기: 3.0f)
     ↓
 [SimulationSystemGroup]
-PathfindingSystem → NavMesh 경로 계산 → PathWaypoint 버퍼 (시간 기반 제한: 1ms/프레임)
+PathfindingSystem → NavMeshQuery 기반 경로 계산 + Funnel 알고리즘 → PathWaypoint 버퍼 (시간 기반 제한: 1ms/프레임)
     ↓
 PathFollowSystem → MovementWaypoints.Current/Next 공급
     ↓
@@ -76,12 +76,17 @@ MovementArrivalSystem → 도착 판정 → 이동 정지 + Intent.Idle 전환
 ---
 파일: PathfindingSystem.cs
 그룹: SimulationSystemGroup (UpdateAfter: NavMeshObstacleSpawnSystem)
-역할: IsPathDirty=true인 유닛 감지 → NavMesh 경로 계산 → PathWaypoint 버퍼 채우기
+타입: `partial struct PathfindingSystem : ISystem` (unmanaged)
+역할: IsPathDirty=true인 유닛 감지 → NavMeshQuery 기반 경로 계산 → PathWaypoint 버퍼 채우기
+- **NavMeshQuery 기반**: `BeginFindPath` → `UpdateFindPath` → `EndFindPath` → `GetPathResult` → Funnel 알고리즘
+- **Funnel 알고리즘**: `NavMeshPathUtils.FindStraightPath`로 폴리곤 경로를 직선 웨이포인트로 변환 (Burst 호환)
 - **시간 기반 제한**: 프레임당 최대 1.0ms (Stopwatch 기반 Time Slicing)
+- **lazy 초기화**: NavMeshQuery는 NavMeshWorld가 유효해진 후 생성
 - Agent ID 캐싱으로 NavMesh.GetSettingsByIndex 호출 최소화
-- GetCornersNonAlloc 사용 (GC 방지)
+- `MapLocation`으로 시작/끝 위치를 NavMesh 위에 매핑 (SampleExtent: 5.0f)
+- Partial Path 지원: `PathQueryStatus.Partial` 플래그도 수용
 - ProcessFirstWaypoint: Look-ahead 로직으로 지나친 웨이포인트 스킵
-- 최대 경로 길이: 64개
+- 최대 경로 길이: 64개, 폴리곤 노드 풀: 256개
 ---
 파일: PathFollowSystem.cs
 그룹: SimulationSystemGroup (UpdateAfter: PathfindingSystem)
@@ -125,7 +130,15 @@ MovementArrivalSystem → 도착 판정 → 이동 정지 + Intent.Idle 전환
 | ArrivalRadius | 0.5 | 도착 판정 반경 |
 | AgentTypeIndex | 0 | Unity Navigation Agents 탭 순서 |
 
-## 유틸리티 (Shared/Utilities/)
+## 유틸리티
+
+### Server/Utilities/
+
+| 파일 | 역할 |
+| --- | --- |
+| NavMeshPathUtils.cs | Funnel 알고리즘(String-Pulling) 기반 폴리곤 경로 → 직선 웨이포인트 변환. `[BurstCompile]` 적용. `NavMeshQuery.GetPortalPoints`로 포탈 에지 획득, XZ 평면 Cross Product로 funnel 좁히기 수행 |
+
+### Shared/Utilities/
 
 | 파일 | 역할 |
 | --- | --- |
@@ -196,7 +209,8 @@ NavMeshObstacleSpawnSystem
     ↓
 PathfindingSystem (UpdateAfter: NavMeshObstacleSpawnSystem)
     → IsPathDirty=true 감지
-    → NavMesh.CalculatePath (시간 제한: 1ms/프레임)
+    → NavMeshQuery: BeginFindPath → UpdateFindPath → EndFindPath (시간 제한: 1ms/프레임)
+    → NavMeshPathUtils.FindStraightPath (Funnel 알고리즘)
     → PathWaypoint 버퍼 채우기
     ↓
 PathFollowSystem (UpdateAfter: PathfindingSystem)
