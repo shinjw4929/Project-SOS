@@ -4,6 +4,7 @@ using Unity.Mathematics;
 using Unity.NetCode;
 using Unity.Transforms;
 using Unity.Collections;
+using Unity.Physics;
 using Shared;
 
 namespace Server
@@ -28,6 +29,8 @@ namespace Server
         [ReadOnly] private ComponentLookup<NeedsNavMeshObstacle> _needsNavMeshLookup;
         [ReadOnly] private ComponentLookup<ResourceCenterTag> _resourceCenterTagLookup;
         [ReadOnly] private ComponentLookup<ObstacleRadius> _obstacleRadiusLookup;
+        [ReadOnly] private ComponentLookup<WorkRange> _workRangeLookup;
+        [ReadOnly] private ComponentLookup<PhysicsVelocity> _velocityLookup;
 
         private ComponentLookup<UserCurrency> _userCurrencyLookup;
         private ComponentLookup<UserTechState> _userTechStateLookup;
@@ -45,6 +48,8 @@ namespace Server
             _needsNavMeshLookup = state.GetComponentLookup<NeedsNavMeshObstacle>(true);
             _resourceCenterTagLookup = state.GetComponentLookup<ResourceCenterTag>(true);
             _obstacleRadiusLookup = state.GetComponentLookup<ObstacleRadius>(true);
+            _workRangeLookup = state.GetComponentLookup<WorkRange>(true);
+            _velocityLookup = state.GetComponentLookup<PhysicsVelocity>(true);
 
             _userCurrencyLookup = state.GetComponentLookup<UserCurrency>(false);
             _userTechStateLookup = state.GetComponentLookup<UserTechState>(false);
@@ -63,6 +68,8 @@ namespace Server
             _needsNavMeshLookup.Update(ref state);
             _resourceCenterTagLookup.Update(ref state);
             _obstacleRadiusLookup.Update(ref state);
+            _workRangeLookup.Update(ref state);
+            _velocityLookup.Update(ref state);
             _userCurrencyLookup.Update(ref state);
             _userTechStateLookup.Update(ref state);
 
@@ -83,39 +90,53 @@ namespace Server
 
             // PendingBuildServerData가 있고 MovementWaypoints가 비활성화된 유닛 감지
             // IgnoreComponentEnabledState 사용하여 비활성화된 MovementWaypoints도 쿼리
-            foreach (var (pendingData, transform, intentState, waypointsEnabled, entity) in
+            foreach (var (pendingData, transform, intentState, waypoints, waypointsEnabled, entity) in
                      SystemAPI.Query<
                          RefRO<PendingBuildServerData>,
                          RefRO<LocalTransform>,
                          RefRW<UnitIntentState>,
+                         RefRW<MovementWaypoints>,
                          EnabledRefRO<MovementWaypoints>>()
                          .WithAll<BuilderTag>()
                          .WithOptions(EntityQueryOptions.IgnoreComponentEnabledState)
                          .WithEntityAccess())
             {
-                // MovementWaypoints가 비활성화되었으면 도착한 것
-                if (waypointsEnabled.ValueRO)
-                    continue;
-
                 var pending = pendingData.ValueRO;
 
-                // 추가 도착 검증 (거리 체크)
-                float unitRadius = 0.5f;
-                if (_obstacleRadiusLookup.HasComponent(entity))
-                {
-                    unitRadius = _obstacleRadiusLookup[entity].Radius;
-                }
-
+                // 거리 계산 (BuildSiteCenter 기준)
                 float3 unitPos = transform.ValueRO.Position;
                 float centerDistance = math.distance(
                     new float2(unitPos.x, unitPos.z),
                     new float2(pending.BuildSiteCenter.x, pending.BuildSiteCenter.z)
                 );
                 float distanceToSurface = centerDistance - pending.StructureRadius;
-                float arrivalThreshold = unitRadius + 1.0f; // 여유분 포함
+
+                float workRange = 1.0f;
+                if (_workRangeLookup.HasComponent(entity))
+                {
+                    workRange = _workRangeLookup[entity].Value;
+                }
+                float arrivalThreshold = workRange + 1.0f;
+
+                // 도착 판정: MovementWaypoints 비활성화 OR (사거리 내 + 저속)
+                bool waypointsDone = !waypointsEnabled.ValueRO;
+                bool inRangeAndStopped = false;
+
+                if (!waypointsDone && distanceToSurface <= arrivalThreshold)
+                {
+                    // MovementWaypoints가 아직 enabled이지만 사거리 내에서 거의 멈춤
+                    // (ECB 타이밍 이슈로 disabled가 안 된 경우 백업)
+                    float speed = _velocityLookup.HasComponent(entity)
+                        ? math.length(_velocityLookup[entity].Linear)
+                        : 0f;
+                    inRangeAndStopped = speed < 0.1f;
+                }
+
+                if (!waypointsDone && !inRangeAndStopped)
+                    continue;
 
                 if (distanceToSurface > arrivalThreshold)
-                    continue; // 아직 도착하지 않음
+                    continue;
 
                 // 건물 생성 시도
                 bool buildSuccess = TryBuild(
@@ -128,6 +149,10 @@ namespace Server
 
                 // PendingBuildServerData 제거
                 ecb.RemoveComponent<PendingBuildServerData>(entity);
+
+                // ArrivalRadius 초기화 + MovementWaypoints 비활성화
+                waypoints.ValueRW.ArrivalRadius = 0f;
+                ecb.SetComponentEnabled<MovementWaypoints>(entity, false);
 
                 // UnitIntentState를 Idle로 복원
                 intentState.ValueRW.State = Intent.Idle;

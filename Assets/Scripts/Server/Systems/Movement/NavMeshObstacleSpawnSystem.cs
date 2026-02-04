@@ -10,30 +10,16 @@ namespace Server
     /// <summary>
     /// 건물 엔티티 생성 시 NavMeshObstacle GameObject를 동적으로 생성하는 시스템
     /// - NeedsNavMeshObstacle 태그가 있는 건물에 대해 GameObject + NavMeshObstacle 생성
-    /// - ObstaclePadding을 적용하여 NavMesh 구멍을 실제 건물보다 살짝 작게 뚫음 (유닛이 딱 붙게 하기 위함)
     /// </summary>
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
     public partial class NavMeshObstacleSpawnSystem : SystemBase
     {
-        private const float PathInvalidationRadius = 8f; // 건물 최대 크기의 2배로 축소
-        private const int MaxObstaclesPerFrame = 2; // 프레임당 스폰 제한
-        
-        // [핵심 설정] 장애물을 실제 크기보다 얼마나 작게 만들 것인가?
-        // NavMesh Agent Radius(보통 0.5)만큼 NavMesh가 자동으로 벌어지므로,
-        // 이를 상쇄하기 위해 장애물 자체를 작게 만듭니다.
-        // 값 추천: 0.2f ~ 0.5f (너무 크면 유닛이 건물 안으로 파고듬)
-        private const float ObstaclePadding = 0.0f;
-
-        protected override void OnCreate()
-        {
-            // GridSettings 의존성 제거 - WorldWidth/WorldLength 사용
-        }
+        private const float PathInvalidationRadius = 8f;
 
         protected override void OnUpdate()
         {
             var ecb = new EntityCommandBuffer(Unity.Collections.Allocator.Temp);
-            int spawnsThisFrame = 0;
 
             foreach (var (transform, footprint, entity) in
                 SystemAPI.Query<RefRO<LocalTransform>, RefRO<StructureFootprint>>()
@@ -41,10 +27,6 @@ namespace Server
                     .WithAll<NeedsNavMeshObstacle>()
                     .WithEntityAccess())
             {
-                // 프레임당 스폰 제한: 나머지는 다음 프레임으로 미룸
-                if (spawnsThisFrame >= MaxObstaclesPerFrame)
-                    break;
-
                 // 1. GameObject 생성
                 GameObject obstacleObj = new GameObject($"NavMeshObstacle_{entity.Index}");
                 obstacleObj.transform.position = transform.ValueRO.Position;
@@ -54,31 +36,26 @@ namespace Server
                 NavMeshObstacle obstacle = obstacleObj.AddComponent<NavMeshObstacle>();
 
                 // 3. 형태에 따른 크기 및 중심점 설정
+                float obstacleHeight = footprint.ValueRO.WorldHeight;
+
                 if (footprint.ValueRO.IsCircular)
                 {
                     // 원형 장애물 (Capsule)
                     obstacle.shape = NavMeshObstacleShape.Capsule;
-                    obstacle.center = new Vector3(0, footprint.ValueRO.Height * 0.5f, 0);
-                    obstacle.radius = math.max(0.1f, footprint.ValueRO.WorldRadius - ObstaclePadding);
-                    obstacle.height = footprint.ValueRO.Height;
+                    obstacle.center = new Vector3(0, obstacleHeight * 0.5f, 0);
+                    obstacle.radius = math.max(0.1f, footprint.ValueRO.WorldRadius);
+                    obstacle.height = obstacleHeight;
                 }
                 else
                 {
                     // 박스형 장애물 (Box)
                     obstacle.shape = NavMeshObstacleShape.Box;
-
-                    // 중심점: 높이의 절반만큼 올려야 바닥에 묻히지 않음
-                    obstacle.center = new Vector3(0, footprint.ValueRO.Height * 0.5f, 0);
-
-                    // [핵심] Padding 적용: 실제 크기에서 Padding만큼 빼서 장애물을 축소
-                    // math.max(0.1f, ...)는 크기가 음수가 되는 것을 방지
-                    float sizeX = math.max(0.1f, footprint.ValueRO.WorldWidth - ObstaclePadding);
-                    float sizeZ = math.max(0.1f, footprint.ValueRO.WorldLength - ObstaclePadding);
+                    obstacle.center = new Vector3(0, obstacleHeight * 0.5f, 0);
 
                     obstacle.size = new Vector3(
-                        sizeX,
-                        footprint.ValueRO.Height,
-                        sizeZ
+                        footprint.ValueRO.WorldWidth,
+                        obstacleHeight,
+                        footprint.ValueRO.WorldLength
                     );
                 }
 
@@ -99,8 +76,6 @@ namespace Server
 
                 // 6. 주변 유닛 경로 재계산 요청
                 InvalidateNearbyPaths(transform.ValueRO.Position);
-
-                spawnsThisFrame++;
             }
 
             ecb.Playback(EntityManager);

@@ -183,12 +183,14 @@ namespace Server
             _query.GetPathResult(_polygonBuffer);
 
             // Funnel 알고리즘으로 직선 웨이포인트 변환
+            // endPos 원본 사용: MapLocation 스냅 위치(endLoc.position)를 쓰면
+            // 건설 도착 판정 등에서 목표 좌표 불일치 발생
             int waypointCount = NavMeshPathUtils.FindStraightPath(
                 ref _query,
                 _polygonBuffer,
                 pathLength,
                 startLoc.position,
-                endLoc.position,
+                endPos,
                 _waypointBuffer,
                 MaxPathLength);
 

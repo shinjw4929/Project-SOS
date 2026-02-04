@@ -25,8 +25,10 @@ namespace Server
         [ReadOnly] private ComponentLookup<NetworkId> _networkIdLookup;
         [ReadOnly] private ComponentLookup<BuilderTag> _builderTagLookup;
         [ReadOnly] private ComponentLookup<UnitTag> _unitTagLookup;
+        [ReadOnly] private ComponentLookup<ObstacleRadius> _obstacleRadiusLookup;
 
         private ComponentLookup<MovementGoal> _movementGoalLookup;
+        private ComponentLookup<MovementWaypoints> _movementWaypointsLookup;
         private ComponentLookup<UnitIntentState> _unitIntentStateLookup;
         private ComponentLookup<AggroTarget> _aggroTargetLookup;
 
@@ -40,8 +42,10 @@ namespace Server
             _networkIdLookup = state.GetComponentLookup<NetworkId>(true);
             _builderTagLookup = state.GetComponentLookup<BuilderTag>(true);
             _unitTagLookup = state.GetComponentLookup<UnitTag>(true);
+            _obstacleRadiusLookup = state.GetComponentLookup<ObstacleRadius>(true);
 
             _movementGoalLookup = state.GetComponentLookup<MovementGoal>(false);
+            _movementWaypointsLookup = state.GetComponentLookup<MovementWaypoints>(false);
             _unitIntentStateLookup = state.GetComponentLookup<UnitIntentState>(false);
             _aggroTargetLookup = state.GetComponentLookup<AggroTarget>(false);
         }
@@ -56,7 +60,9 @@ namespace Server
             _networkIdLookup.Update(ref state);
             _builderTagLookup.Update(ref state);
             _unitTagLookup.Update(ref state);
+            _obstacleRadiusLookup.Update(ref state);
             _movementGoalLookup.Update(ref state);
+            _movementWaypointsLookup.Update(ref state);
             _unitIntentStateLookup.Update(ref state);
             _aggroTargetLookup.Update(ref state);
 
@@ -108,13 +114,24 @@ namespace Server
                 return;
             }
 
-            // 3. MovementGoal 설정
+            // 3. MovementGoal 설정: 건물 중심으로 이동 (NavMesh 도달 확률 높음)
+            float unitRadius = _obstacleRadiusLookup.HasComponent(builderEntity)
+                ? _obstacleRadiusLookup[builderEntity].Radius
+                : 0.5f;
+
             if (_movementGoalLookup.HasComponent(builderEntity))
             {
                 RefRW<MovementGoal> goalRW = _movementGoalLookup.GetRefRW(builderEntity);
-                goalRW.ValueRW.Destination = rpc.MoveTarget;
+                goalRW.ValueRW.Destination = rpc.BuildSiteCenter;
                 goalRW.ValueRW.IsPathDirty = true;
                 goalRW.ValueRW.CurrentWaypointIndex = 0;
+            }
+
+            // ArrivalRadius 설정: 건물 표면 + 유닛 반지름 + 여유분에서 정지
+            if (_movementWaypointsLookup.HasComponent(builderEntity))
+            {
+                RefRW<MovementWaypoints> waypointsRW = _movementWaypointsLookup.GetRefRW(builderEntity);
+                waypointsRW.ValueRW.ArrivalRadius = rpc.StructureRadius + unitRadius + 0.5f;
             }
 
             // 4. UnitIntentState 설정 (Build)

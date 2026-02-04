@@ -28,15 +28,21 @@ namespace Authoring
         [Min(1)] public int width = 1;
         [Min(1)] public int length = 1;
         public float height = 1;
-        public float radius = 1;
 
         [Header("World Size (실제 크기, NavMeshObstacle용)")]
         [Min(0.1f)] public float worldWidth = 1f;
         [Min(0.1f)] public float worldLength = 1f;
+        [Min(0.1f)] public float navMeshHeight = 1f;
 
         [Header("Shape (NavMeshObstacle 형태)")]
         [Tooltip("원형 콜라이더(Capsule/Sphere)를 사용하는 경우 체크")]
         public bool isCircular = false;
+        [Tooltip("원형일 때 NavMeshObstacle 캡슐 반지름")]
+        [Min(0.1f)] public float navMeshRadius = 1f;
+
+        [Header("Interaction (상호작용 반지름)")]
+        [Tooltip("도착 판정, 공격 범위, 충돌 회피, SelectionRing 등에 사용")]
+        [Min(0.1f)] public float interactionRadius = 1f;
 
         [Header("Build Info (Cost & Time)")]
         public int cost = 100;
@@ -186,13 +192,14 @@ namespace Authoring
                     Height = authoring.height,
                     WorldWidth = authoring.worldWidth,
                     WorldLength = authoring.worldLength,
+                    WorldHeight = authoring.navMeshHeight,
                     IsCircular = authoring.isCircular,
-                    WorldRadius = authoring.radius  // 원형일 때 NavMeshObstacle 반지름
+                    WorldRadius = authoring.navMeshRadius
                 });
                 
                 AddComponent(entity, new ObstacleRadius
                 {
-                    Radius = authoring.radius
+                    Radius = authoring.interactionRadius
                 });
                 
                 // 그리드 위치

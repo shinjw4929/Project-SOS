@@ -15,7 +15,7 @@
 | **Netcode for Entities** | 클라이언트-서버 동기화, Ghost 복제 |
 | **Burst Compiler + Job System** | 멀티스레드 병렬 처리 |
 | **Spatial Hashing** | O(1) 인접 엔티티 탐색 (타겟팅/충돌 회피) |
-| **NavMesh Pathfinding** | 동적 장애물 회피 경로 탐색 |
+| **NavMeshQuery + Funnel** | NavMeshQuery 기반 경로 탐색 + String-Pulling 알고리즘 |
 
 ## 주요 구현 사항
 
@@ -30,6 +30,8 @@
 - **시각 전용 투사체**: 원거리 공격은 필중 + 별도의 시각 투사체 생성으로 네트워크 트래픽 최적화
 
 ### 이동 및 경로 탐색
+- **NavMeshQuery 기반 Pathfinding**: `BeginFindPath` → `UpdateFindPath` → `EndFindPath` 비동기 파이프라인, ISystem(unmanaged) 구조
+- **Funnel 알고리즘 (String-Pulling)**: 폴리곤 경로를 최적 직선 웨이포인트로 변환 (`NavMeshPathUtils`)
 - **동적 NavMesh Obstacle**: 건물 배치 시 런타임 장애물 생성/제거
 - **Spatial Partitioning 충돌 회피**: 인접 유닛 간 밀어내기로 자연스러운 군집 이동
 - **가속/감속 기반 이동**: 부드러운 출발과 정지
@@ -98,7 +100,7 @@ Assets/Scripts/
 | [코드베이스 구조](Docs/코드베이스%20구조.md) | 전체 파일/폴더 구조 |
 | [시스템 그룹 및 의존성](Docs/시스템%20그룹%20및%20의존성.md) | 시스템 실행 순서 |
 | [엔티티 선택 시스템](Docs/엔티티%20선택%20시스템.md) | 유닛/건물 선택 로직 |
-| [엔티티 이동 시스템](Docs/엔티티%20이동%20시스템(navmesh).md) | NavMesh 기반 이동 |
+| [엔티티 이동 시스템](Docs/엔티티%20이동%20시스템(navmesh).md) | NavMeshQuery + Funnel 기반 이동 |
 | [엔티티 전투](Docs/엔티티%20전투.md) | 전투 로직 상세 |
 | [건설 시스템](Docs/건설%20시스템.md) | 건물 배치 및 건설 |
 | [자원 채집 시스템](Docs/자원%20채집%20시스템.md) | Worker 자원 수집 |

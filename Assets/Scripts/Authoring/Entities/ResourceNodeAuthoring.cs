@@ -15,18 +15,22 @@ namespace Authoring
         [Header("World Size (실제 크기, NavMeshObstacle용)")]
         [Min(0.1f)] public float worldWidth = 1f;
         [Min(0.1f)] public float worldLength = 1f;
+        [Min(0.1f)] public float navMeshHeight = 1f;
 
         [Header("Shape (NavMeshObstacle 형태)")]
         [Tooltip("원형 콜라이더(Capsule/Sphere)를 사용하는 경우 체크")]
         public bool isCircular = true;
+        [Tooltip("원형일 때 NavMeshObstacle 캡슐 반지름")]
+        [Min(0.1f)] public float navMeshRadius = 1.5f;
+
+        [Header("Interaction (상호작용 반지름)")]
+        [Tooltip("도착 판정, 채집 범위, SelectionRing 등에 사용")]
+        [Min(0.1f)] public float interactionRadius = 1.5f;
 
         [Header("Gathering Settings")]
         public ResourceType resourceType = ResourceType.Cheese;
         [Min(1)] public int amountPerGather = 10;
         [Min(1f)] public float baseGatherDuration = 1.0f;
-
-        [Header("Collision")]
-        [Min(0.1f)] public float radius = 1.5f;
 
         public class Baker : Baker<ResourceNodeAuthoring>
         {
@@ -59,8 +63,9 @@ namespace Authoring
                     Height = authoring.height,
                     WorldWidth = authoring.worldWidth,
                     WorldLength = authoring.worldLength,
+                    WorldHeight = authoring.navMeshHeight,
                     IsCircular = authoring.isCircular,
-                    WorldRadius = authoring.radius  // 원형일 때 NavMeshObstacle 반지름
+                    WorldRadius = authoring.navMeshRadius
                 });
 
                 // 그리드 위치
@@ -72,7 +77,7 @@ namespace Authoring
                 SetComponentEnabled<NeedsNavMeshObstacle>(entity, false); // 초기 비활성화
 
                 // Selection Ring 크기 결정용
-                AddComponent(entity, new ObstacleRadius { Radius = authoring.radius });
+                AddComponent(entity, new ObstacleRadius { Radius = authoring.interactionRadius });
             }
         }
     }

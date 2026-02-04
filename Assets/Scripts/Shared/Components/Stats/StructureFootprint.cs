@@ -10,9 +10,10 @@ namespace Shared
         public int Length; // 세로 칸 수
         public float Height; // 건물 높이
 
-        // 실제 월드 크기 (NavMeshObstacle용, 프리팹 Collider에서 추출)
+        // NavMeshObstacle용 실제 월드 크기
         public float WorldWidth;  // 실제 가로 크기
         public float WorldLength; // 실제 세로 크기
+        public float WorldHeight; // NavMeshObstacle 높이
 
         // 원형 장애물 지원 (NavMeshObstacle Capsule 형태)
         public bool IsCircular;   // 원형 여부 (true면 Capsule, false면 Box)
