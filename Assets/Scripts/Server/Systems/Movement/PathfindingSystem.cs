@@ -12,6 +12,12 @@ using PathQueryStatus = UnityEngine.Experimental.AI.PathQueryStatus;
 
 namespace Server
 {
+    struct PathResult
+    {
+        public int WaypointCount;
+        public bool IsPartial;
+    }
+
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     [UpdateAfter(typeof(NavMeshObstacleSpawnSystem))]
     [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
@@ -120,21 +126,23 @@ namespace Server
                 if (!_agentIdCache.TryGetValue(agentIndex, out int agentTypeID))
                     agentTypeID = GetAgentTypeIDFromIndex(agentIndex);
 
-                int waypointCount = CalculatePath(startPos, endPos, agentTypeID);
+                var result = CalculatePath(startPos, endPos, agentTypeID);
 
-                if (waypointCount > 0)
+                if (result.WaypointCount > 0)
                 {
                     pathBuffer.Clear();
-                    for (int i = 0; i < waypointCount; i++)
+                    for (int i = 0; i < result.WaypointCount; i++)
                     {
                         pathBuffer.Add(new PathWaypoint { Position = _waypointBuffer[i] });
                     }
 
                     ProcessFirstWaypoint(startPos, endPos, pathBuffer, waypoints, waypointsEnabled, goal);
+                    goal.ValueRW.IsPathPartial = result.IsPartial;
                 }
                 else
                 {
                     FailPath(pathBuffer, waypointsEnabled, ref goal.ValueRW);
+                    goal.ValueRW.IsPathPartial = true;
                     continue;
                 }
 
@@ -142,24 +150,25 @@ namespace Server
             }
         }
 
-        private int CalculatePath(float3 startPos, float3 endPos, int agentTypeID)
+        private PathResult CalculatePath(float3 startPos, float3 endPos, int agentTypeID)
         {
+            var fail = new PathResult { WaypointCount = 0, IsPartial = false };
             var extents = new float3(SampleExtent);
 
             // MapLocation (start)
             var startLoc = _query.MapLocation(startPos, extents, agentTypeID);
             if (!_query.IsValid(startLoc.polygon))
-                return 0;
+                return fail;
 
             // MapLocation (end)
             var endLoc = _query.MapLocation(endPos, extents, agentTypeID);
             if (!_query.IsValid(endLoc.polygon))
-                return 0;
+                return fail;
 
             // BeginFindPath
             var status = _query.BeginFindPath(startLoc, endLoc);
             if ((status & PathQueryStatus.Failure) != 0)
-                return 0;
+                return fail;
 
             // UpdateFindPath (반복)
             int retries = 0;
@@ -170,17 +179,20 @@ namespace Server
             }
 
             if ((status & PathQueryStatus.Success) == 0)
-                return 0;
+                return fail;
 
             // EndFindPath (Success 비트가 설정되면 partial path도 포함)
             status = _query.EndFindPath(out int pathLength);
             if ((status & PathQueryStatus.Success) == 0)
-                return 0;
+                return fail;
 
             pathLength = math.min(pathLength, _polygonBuffer.Length);
 
             // GetPathResult
             _query.GetPathResult(_polygonBuffer);
+
+            // Partial path 감지: 마지막 폴리곤이 목적지 폴리곤과 다르면 partial
+            bool isPartial = pathLength > 0 && _polygonBuffer[pathLength - 1] != endLoc.polygon;
 
             // Funnel 알고리즘으로 직선 웨이포인트 변환
             // endPos 원본 사용: MapLocation 스냅 위치(endLoc.position)를 쓰면
@@ -194,7 +206,11 @@ namespace Server
                 _waypointBuffer,
                 MaxPathLength);
 
-            return waypointCount;
+            // Partial path: 마지막 웨이포인트(도달 불가능한 endPos)를 제거
+            if (isPartial && waypointCount > 2)
+                waypointCount--;
+
+            return new PathResult { WaypointCount = waypointCount, IsPartial = isPartial };
         }
 
         private static void FailPath(

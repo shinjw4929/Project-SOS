@@ -18,5 +18,7 @@ namespace Shared
         public byte CurrentWaypointIndex;
         //총 웨이포인트 개수 [서버만 사용]
         public byte TotalWaypoints;
+        // 경로가 목적지에 도달하지 못함 (partial path) [서버만 사용]
+        public bool IsPathPartial;
     }
 }

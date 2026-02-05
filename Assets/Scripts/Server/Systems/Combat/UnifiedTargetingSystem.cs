@@ -160,6 +160,16 @@ namespace Server
                         {
                             goal.ValueRW.Destination = lockedPos;
                             goal.ValueRW.IsPathDirty = true;
+                            goal.ValueRW.IsPathPartial = false;
+                        }
+                        else if (goal.ValueRO.IsPathPartial)
+                        {
+                            // Partial path: 120프레임마다 재시도 (장애물 변화 대응)
+                            uint retryInterval = 120;
+                            if ((FrameCount % retryInterval) == ((uint)entity.Index % retryInterval))
+                            {
+                                goal.ValueRW.IsPathDirty = true;
+                            }
                         }
 
                         enemyState.ValueRW.CurrentState = EnemyContext.Chasing;
@@ -205,6 +215,16 @@ namespace Server
                         {
                             goal.ValueRW.Destination = targetPos;
                             goal.ValueRW.IsPathDirty = true;
+                            goal.ValueRW.IsPathPartial = false;
+                        }
+                        else if (goal.ValueRO.IsPathPartial)
+                        {
+                            // Partial path: 120프레임마다 재시도 (장애물 변화 대응)
+                            uint retryInterval = 120;
+                            if ((FrameCount % retryInterval) == ((uint)entity.Index % retryInterval))
+                            {
+                                goal.ValueRW.IsPathDirty = true;
+                            }
                         }
                     }
                 }
@@ -306,6 +326,7 @@ namespace Server
                 {
                     goal.ValueRW.Destination = bestTargetPos;
                     goal.ValueRW.IsPathDirty = true;
+                    goal.ValueRW.IsPathPartial = false;
                 }
 
                 enemyState.ValueRW.CurrentState = EnemyContext.Chasing;

@@ -84,7 +84,7 @@ MovementArrivalSystem → 도착 판정 → 이동 정지 + Intent.Idle 전환
 - **lazy 초기화**: NavMeshQuery는 NavMeshWorld가 유효해진 후 생성
 - Agent ID 캐싱으로 NavMesh.GetSettingsByIndex 호출 최소화
 - `MapLocation`으로 시작/끝 위치를 NavMesh 위에 매핑 (SampleExtent: 5.0f)
-- Partial Path 지원: `PathQueryStatus.Partial` 플래그도 수용
+- **Partial Path 처리**: `PathQueryStatus.Partial` 감지 → 마지막 웨이포인트(도달 불가능한 endPos) 제거 → `MovementGoal.IsPathPartial = true` 설정
 - ProcessFirstWaypoint: Look-ahead 로직으로 지나친 웨이포인트 스킵
 - 최대 경로 길이: 64개, 폴리곤 노드 풀: 256개
 ---
@@ -166,7 +166,7 @@ MovementArrivalSystem → 도착 판정 → 이동 정지 + Intent.Idle 전환
 
 | 파일 | 역할 |
 | --- | --- |
-| MovementGoal.cs | 최종 목적지(Destination), 경로 재계산 플래그(IsPathDirty), 웨이포인트 인덱스(CurrentWaypointIndex, TotalWaypoints) |
+| MovementGoal.cs | 최종 목적지(Destination), 경로 재계산 플래그(IsPathDirty), 웨이포인트 인덱스(CurrentWaypointIndex, TotalWaypoints), Partial 경로 플래그(IsPathPartial) |
 | MovementWaypoints.cs | 현재 이동 목표(Current), 다음 지점(Next), HasNext, ArrivalRadius. IEnableableComponent로 이동 중/정지 상태 토글 |
 | MovementDynamics.cs | 유닛 이동 파라미터: MaxSpeed, Acceleration, Deceleration, RotationSpeed |
 | NavMeshAgentConfig.cs | Unity NavMesh Agent Type 인덱스 참조 (유닛 크기별 경로 계산) |
@@ -175,7 +175,7 @@ MovementArrivalSystem → 도착 판정 → 이동 정지 + Intent.Idle 전환
 
 | 컴포넌트 | 동기화 필드 | 비동기화 필드 (서버 전용) |
 | --- | --- | --- |
-| MovementGoal | Destination | IsPathDirty, CurrentWaypointIndex, TotalWaypoints |
+| MovementGoal | Destination | IsPathDirty, CurrentWaypointIndex, TotalWaypoints, IsPathPartial |
 | MovementWaypoints | Current, Next, HasNext, ArrivalRadius | - |
 
 ## 버퍼 (Shared/Buffers/)
@@ -246,8 +246,10 @@ bool shouldCollide = iAmEnemy || isEnemy || (!iAmGathering && !isGathering);
 
 1. **Raycast**: 이동 방향으로 벽 감지 → 속도 벡터에서 법선 성분 제거 (미끄러짐)
 2. **PointDistance**: 주변 전방향 충돌 검사 → 겹침 시 밀어내기
+3. **위치 보정 (안전망)**: `transform.Position` 업데이트 후, 벽과 겹침(overlap > 0.05f)이면 SurfaceNormal 방향으로 밀어내기. Separation Force 합산이 벽 push를 초과하는 경우 방지.
 
 ```csharp
 // 유닛: 속도 절대값 유지 (미끄러지면서도 동일 속력)
 // 적: 기존 로직 (속도 감소 가능)
+// 위치 보정: flying이 아닌 엔티티만 적용
 ```
