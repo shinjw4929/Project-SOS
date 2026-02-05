@@ -229,11 +229,13 @@ MonoBehaviour:
   height: 0
   worldWidth: 3.5
   worldLength: 3.5
+  navMeshHeight: 3.5
   isCircular: 1
+  navMeshRadius: 1.5
+  interactionRadius: 1.7
   resourceType: 1
   amountPerGather: 10
   baseGatherDuration: 1
-  radius: 2
 --- !u!114 &6134974049345022030
 MonoBehaviour:
   m_ObjectHideFlags: 0

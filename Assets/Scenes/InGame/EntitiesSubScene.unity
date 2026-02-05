@@ -2501,9 +2501,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   initialWallDecayTime: 50
   wave0InitialSpawnCount: 0
-  wave1TriggerTime: 100
+  wave1TriggerTime: 300
   wave1TriggerKillCount: 3
-  wave2TriggerTime: 180
+  wave2TriggerTime: 360
   wave2TriggerKillCount: 10
   maxEnemyCount: 2400
   wave1SpawnInterval: 6

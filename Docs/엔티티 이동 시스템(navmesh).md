@@ -67,8 +67,8 @@ MovementArrivalSystem → 도착 판정 → 이동 정지 + Intent.Idle 전환
 역할: 건물 생성 시 NavMeshObstacle GameObject 동적 생성
 - NeedsNavMeshObstacle 태그 감지 → NavMeshObstacle 생성
 - Carving 설정: carveOnlyStationary=true, carvingTimeToStationary=0.5초 (스파이크 방지)
-- 8m 반경 내 이동 중인 유닛 경로 무효화 (IsPathDirty=true)
-- 프레임당 최대 2개 스폰 제한
+- 건물 내부 엔티티(유닛/적) 자동 밀어내기: 건물 footprint + ObstacleRadius + 0.3f 바깥으로 위치 이동
+- 8m 반경 내 이동 중인 유닛/적 경로 무효화 (IsPathDirty=true)
 ---
 파일: NavMeshObstacleCleanupSystem.cs
 그룹: SimulationSystemGroup (UpdateAfter: ServerDeathSystem)
