@@ -117,11 +117,13 @@ MonoBehaviour:
   - {fileID: 5905964026690146530, guid: 0e27e05ade413924eafedc9d64c33da1, type: 3}
   width: 3
   length: 3
-  height: 3
-  radius: 2.13
+  height: 0
   worldWidth: 3
   worldLength: 3
+  navMeshHeight: 3
   isCircular: 0
+  navMeshRadius: 1
+  interactionRadius: 2.1
   cost: 100
   buildTime: 3
   maxHealth: 10

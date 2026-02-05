@@ -154,10 +154,12 @@ MonoBehaviour:
   width: 4
   length: 4
   height: 0
-  radius: 2.84
   worldWidth: 4
   worldLength: 4
+  navMeshHeight: 4
   isCircular: 0
+  navMeshRadius: 1
+  interactionRadius: 2.8
   cost: 100
   buildTime: 1
   maxHealth: 10

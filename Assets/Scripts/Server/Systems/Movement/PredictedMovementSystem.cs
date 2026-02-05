@@ -203,6 +203,33 @@ namespace Server
 
             // Apply
             transform.Position += finalVelocity * DeltaTime;
+
+            // 위치 보정: Separation Force로 인한 벽 관통 차단 (안전망)
+            if (!iAmFlying)
+            {
+                var clampInput = new PointDistanceInput
+                {
+                    Position = transform.Position + new float3(0, 0.5f, 0),
+                    MaxDistance = obstacleRadius.Radius,
+                    Filter = WallFilter
+                };
+
+                if (CollisionWorld.CalculateDistance(clampInput, out DistanceHit clampHit))
+                {
+                    float overlap = obstacleRadius.Radius - clampHit.Distance;
+                    if (overlap > 0.05f)
+                    {
+                        float3 pushNormal = math.normalizesafe(clampHit.SurfaceNormal);
+                        pushNormal.y = 0;
+                        if (math.lengthsq(pushNormal) > 0.001f)
+                        {
+                            pushNormal = math.normalize(pushNormal);
+                            transform.Position += pushNormal * (overlap + 0.02f);
+                        }
+                    }
+                }
+            }
+
             velocity.Linear = finalVelocity;
             velocity.Angular = float3.zero;
 

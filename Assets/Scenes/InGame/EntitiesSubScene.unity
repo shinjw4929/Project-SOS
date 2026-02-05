@@ -2191,6 +2191,10 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 7355284329193973005, guid: 118356b3d5301164d85e3ec67bda087e, type: 3}
+      propertyPath: m_Radius
+      value: 0.5
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
@@ -2507,9 +2511,9 @@ MonoBehaviour:
   wave2TriggerKillCount: 10
   maxEnemyCount: 2400
   wave1SpawnInterval: 6
-  wave1SpawnCount: 5
+  wave1SpawnCount: 1
   wave2SpawnInterval: 5
-  wave2SpawnCount: 6
+  wave2SpawnCount: 1
 --- !u!114 &1956711776
 MonoBehaviour:
   m_ObjectHideFlags: 0
