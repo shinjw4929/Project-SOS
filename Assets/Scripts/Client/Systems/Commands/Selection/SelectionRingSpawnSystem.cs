@@ -52,7 +52,6 @@ namespace Client
             foreach (var (radius, entity) in SystemAPI.Query<RefRO<ObstacleRadius>>()
                 .WithAll<Selected>()
                 .WithNone<SelectionRingLinked>()
-                .WithOptions(EntityQueryOptions.IgnoreComponentEnabledState)
                 .WithEntityAccess())
             {
                 // 팀에 따라 프리팹 선택

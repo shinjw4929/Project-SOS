@@ -207,7 +207,7 @@ MonoBehaviour:
   worldLength: 0.5
   navMeshHeight: 2
   isCircular: 1
-  navMeshRadius: 0.5
+  navMeshRadius: 0.4
   interactionRadius: 1.4
   cost: 0
   buildTime: 1
