@@ -29,6 +29,7 @@ namespace Server
         private ComponentLookup<ResourceNodeSetting> _resourceNodeSettingLookup;
         private ComponentLookup<ObstacleRadius> _obstacleRadiusLookup;
         private ComponentLookup<PhysicsVelocity> _physicsVelocityLookup;
+        [ReadOnly] private ComponentLookup<GhostOwner> _ghostOwnerLookup;
 
         public void OnCreate(ref SystemState state)
         {
@@ -42,6 +43,7 @@ namespace Server
             _resourceNodeSettingLookup = state.GetComponentLookup<ResourceNodeSetting>(true);
             _obstacleRadiusLookup = state.GetComponentLookup<ObstacleRadius>(true);
             _physicsVelocityLookup = state.GetComponentLookup<PhysicsVelocity>(false);
+            _ghostOwnerLookup = state.GetComponentLookup<GhostOwner>(true);
         }
 
         [BurstCompile]
@@ -96,6 +98,7 @@ namespace Server
             _resourceNodeSettingLookup.Update(ref state);
             _obstacleRadiusLookup.Update(ref state);
             _physicsVelocityLookup.Update(ref state);
+            _ghostOwnerLookup.Update(ref state);
         }
 
         /// <summary>
@@ -593,12 +596,14 @@ namespace Server
         }
 
         /// <summary>
-        /// 워커 현재 위치에서 가장 가까운 ResourceCenter 찾기
+        /// 워커 현재 위치에서 가장 가까운 아군 ResourceCenter 찾기
         /// </summary>
         private Entity FindNearestResourceCenter(ref SystemState state, Entity workerEntity)
         {
             if (!_transformLookup.HasComponent(workerEntity)) return Entity.Null;
+            if (!_ghostOwnerLookup.HasComponent(workerEntity)) return Entity.Null;
 
+            int workerOwnerId = _ghostOwnerLookup[workerEntity].NetworkId;
             float3 workerPos = _transformLookup[workerEntity].Position;
             Entity nearest = Entity.Null;
             float minDist = float.MaxValue;
@@ -607,6 +612,10 @@ namespace Server
                 .WithAll<ResourceCenterTag>()
                 .WithEntityAccess())
             {
+                // 소유권 검증: 같은 유저의 ResourceCenter만 선택
+                if (!_ghostOwnerLookup.HasComponent(entity)) continue;
+                if (_ghostOwnerLookup[entity].NetworkId != workerOwnerId) continue;
+
                 float dist = math.distance(workerPos, transform.ValueRO.Position);
                 if (dist < minDist)
                 {

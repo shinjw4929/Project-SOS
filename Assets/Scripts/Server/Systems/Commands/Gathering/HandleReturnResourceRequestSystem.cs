@@ -107,7 +107,13 @@ namespace Server
             if (!_resourceCenterTagLookup.HasComponent(resourceCenterEntity))
                 return;
 
-            // 3. 자원을 들고 있는지 확인
+            // 3. ResourceCenter 소유권 검증 (다른 유저의 센터에 반납 방지)
+            if (!_ghostOwnerLookup.HasComponent(resourceCenterEntity))
+                return;
+            if (_ghostOwnerLookup[resourceCenterEntity].NetworkId != ownerId)
+                return;
+
+            // 4. 자원을 들고 있는지 확인
             if (!_workerStateLookup.HasComponent(workerEntity))
                 return;
 
@@ -115,7 +121,7 @@ namespace Server
             if (workerStateRW.ValueRO.CarriedAmount <= 0)
                 return; // 자원이 없으면 반납할 것도 없음
 
-            // 4. GatheringTarget 업데이트
+            // 5. GatheringTarget 업데이트
             if (_gatheringTargetLookup.HasComponent(workerEntity))
             {
                 RefRW<GatheringTarget> targetRW = _gatheringTargetLookup.GetRefRW(workerEntity);
@@ -131,7 +137,7 @@ namespace Server
                 targetRW.ValueRW.AutoReturn = true;
             }
 
-            // 5. 상태 설정: Intent.Gather + Action.Moving + Phase.MovingToReturn
+            // 6. 상태 설정: Intent.Gather + Action.Moving + Phase.MovingToReturn
             if (_unitIntentStateLookup.HasComponent(workerEntity))
             {
                 RefRW<UnitIntentState> intentRW = _unitIntentStateLookup.GetRefRW(workerEntity);
@@ -148,7 +154,7 @@ namespace Server
             // Phase를 MovingToReturn으로 설정 (채굴 없이 바로 반납)
             workerStateRW.ValueRW.Phase = GatherPhase.MovingToReturn;
 
-            // 6. MovementGoal 설정 (ResourceCenter 표면으로 이동)
+            // 7. MovementGoal 설정 (ResourceCenter 표면으로 이동)
             if (_movementGoalLookup.HasComponent(workerEntity) &&
                 _transformLookup.HasComponent(resourceCenterEntity))
             {

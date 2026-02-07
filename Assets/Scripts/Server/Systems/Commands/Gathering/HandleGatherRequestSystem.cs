@@ -141,14 +141,9 @@ namespace Server
             }
             // TODO: rpc.ReturnPointGhostId != 0인 경우 해당 엔티티 사용
 
-            // ResourceCenter가 없으면 채집 불가
-            if (returnPointEntity == Entity.Null && resourceCenters.Length == 0)
+            // 아군 ResourceCenter가 없으면 채집 불가
+            if (returnPointEntity == Entity.Null)
                 return;
-
-            if (returnPointEntity == Entity.Null && resourceCenters.Length > 0)
-            {
-                returnPointEntity = resourceCenters[0]; // 일단 첫 번째 사용
-            }
 
             // 4. GatheringTarget 설정 (점유 여부와 무관하게 설정)
             if (_gatheringTargetLookup.HasComponent(workerEntity))
@@ -214,8 +209,10 @@ namespace Server
         private Entity FindNearestResourceCenter(Entity workerEntity, NativeList<Entity> resourceCenters)
         {
             if (resourceCenters.Length == 0) return Entity.Null;
-            if (!_transformLookup.HasComponent(workerEntity)) return resourceCenters[0];
+            if (!_transformLookup.HasComponent(workerEntity)) return Entity.Null;
+            if (!_ghostOwnerLookup.HasComponent(workerEntity)) return Entity.Null;
 
+            int workerOwnerId = _ghostOwnerLookup[workerEntity].NetworkId;
             float3 workerPos = _transformLookup[workerEntity].Position;
             Entity nearest = Entity.Null;
             float minDist = float.MaxValue;
@@ -224,6 +221,8 @@ namespace Server
             {
                 Entity center = resourceCenters[i];
                 if (!_transformLookup.HasComponent(center)) continue;
+                if (!_ghostOwnerLookup.HasComponent(center)) continue;
+                if (_ghostOwnerLookup[center].NetworkId != workerOwnerId) continue;
 
                 float dist = math.distance(workerPos, _transformLookup[center].Position);
                 if (dist < minDist)
