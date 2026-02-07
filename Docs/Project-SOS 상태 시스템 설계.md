@@ -147,7 +147,7 @@ Construction 모드에서 건물 배치 상태를 시각화합니다.
 | Status | 값 | 설명 |
 |--------|:--:|------|
 | Invalid | 0 | 건설 불가 (빨간색) |
-| ValidInRange | 1 | 건설 가능 + 사거리 내 (초록색) |
+| ValidInRange | 1 | 건설 가능 + 사거리 내 (파란색) |
 | ValidOutOfRange | 2 | 건설 가능 + 사거리 밖 (노란색) |
 
 **데이터 필드**

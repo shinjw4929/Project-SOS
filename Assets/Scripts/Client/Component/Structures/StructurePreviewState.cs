@@ -9,7 +9,7 @@ namespace Client
     public enum PlacementStatus : byte
     {
         Invalid = 0,        // 건설 불가 (빨간색)
-        ValidInRange = 1,   // 건설 가능 + 사거리 내 (초록색)
+        ValidInRange = 1,   // 건설 가능 + 사거리 내 (파란색)
         ValidOutOfRange = 2 // 건설 가능 + 사거리 밖 (노란색)
     }
 

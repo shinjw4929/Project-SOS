@@ -44,8 +44,8 @@ namespace Server
                             kills >= gameSettings.Wave1TriggerKillCount)
                         {
                             phaseState.ValueRW.CurrentWave = WavePhase.Wave1;
-                            // Wave1 시작 시 스폰 타이머 리셋
-                            phaseState.ValueRW.SpawnTimer = 0f;
+                            // Wave1 시작 시 스폰 타이머 리셋 (현재 ElapsedTime으로)
+                            phaseState.ValueRW.LastSpawnTime = elapsed;
                         }
                         break;
 
@@ -54,8 +54,8 @@ namespace Server
                             kills >= gameSettings.Wave2TriggerKillCount)
                         {
                             phaseState.ValueRW.CurrentWave = WavePhase.Wave2;
-                            // Wave2 시작 시 스폰 타이머 리셋
-                            phaseState.ValueRW.SpawnTimer = 0f;
+                            // Wave2 시작 시 스폰 타이머 리셋 (현재 ElapsedTime으로)
+                            phaseState.ValueRW.LastSpawnTime = elapsed;
                         }
                         break;
 

@@ -39,8 +39,8 @@ namespace Shared
         public int Wave0SpawnedCount;
 
         /// <summary>
-        /// 마지막 주기적 스폰 이후 경과 시간
+        /// 마지막 주기적 스폰 시점 (ElapsedTime 기준)
         /// </summary>
-        public float SpawnTimer;
+        public float LastSpawnTime;
     }
 }

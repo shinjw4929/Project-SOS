@@ -115,6 +115,12 @@ namespace Server
         private const float HysteresisMultiplier = 1.3f;
         // 시간 분할 주기 (4프레임에 1번 탐색)
         private const uint TimeSliceDivisor = 4;
+        // Partial Path 재시도 최소 간격 (초)
+        private const float PathRetryInterval = 2.0f;
+        // 위치 정체 체크 간격 (초)
+        private const float StuckCheckInterval = 3.0f;
+        // stuck 판정 이동 거리 (미터)
+        private const float StuckThreshold = 2.0f;
 
         public void Execute(
             Entity entity,
@@ -161,14 +167,18 @@ namespace Server
                             goal.ValueRW.Destination = lockedPos;
                             goal.ValueRW.IsPathDirty = true;
                             goal.ValueRW.IsPathPartial = false;
+                            goal.ValueRW.DestinationSetTime = ElapsedTime;
                         }
                         else if (goal.ValueRO.IsPathPartial)
                         {
-                            // Partial path: 120프레임마다 재시도 (장애물 변화 대응)
-                            uint retryInterval = 120;
-                            if ((FrameCount % retryInterval) == ((uint)entity.Index % retryInterval))
+                            // Partial path: 시간 게이트 + 프레임 분산으로 재시도
+                            if (ElapsedTime - goal.ValueRO.DestinationSetTime >= PathRetryInterval)
                             {
-                                goal.ValueRW.IsPathDirty = true;
+                                if (FrameCount % TimeSliceDivisor == (uint)entity.Index % TimeSliceDivisor)
+                                {
+                                    goal.ValueRW.IsPathDirty = true;
+                                    goal.ValueRW.DestinationSetTime = ElapsedTime;
+                                }
                             }
                         }
 
@@ -216,14 +226,18 @@ namespace Server
                             goal.ValueRW.Destination = targetPos;
                             goal.ValueRW.IsPathDirty = true;
                             goal.ValueRW.IsPathPartial = false;
+                            goal.ValueRW.DestinationSetTime = ElapsedTime;
                         }
                         else if (goal.ValueRO.IsPathPartial)
                         {
-                            // Partial path: 120프레임마다 재시도 (장애물 변화 대응)
-                            uint retryInterval = 120;
-                            if ((FrameCount % retryInterval) == ((uint)entity.Index % retryInterval))
+                            // Partial path: 시간 게이트 + 프레임 분산으로 재시도
+                            if (ElapsedTime - goal.ValueRO.DestinationSetTime >= PathRetryInterval)
                             {
-                                goal.ValueRW.IsPathDirty = true;
+                                if (FrameCount % TimeSliceDivisor == (uint)entity.Index % TimeSliceDivisor)
+                                {
+                                    goal.ValueRW.IsPathDirty = true;
+                                    goal.ValueRW.DestinationSetTime = ElapsedTime;
+                                }
                             }
                         }
                     }
@@ -246,8 +260,25 @@ namespace Server
                 {
                     target.ValueRW.TargetEntity = Entity.Null;
 
+                    // stuck 감지: 배회 중 위치 정체 시 재배회
+                    bool forceRefresh = false;
+                    if (enemyState.ValueRO.CurrentState == EnemyContext.Wandering)
+                    {
+                        if (ElapsedTime - goal.ValueRO.LastPositionCheckTime >= StuckCheckInterval)
+                        {
+                            float movedDistance = math.distance(myPos, goal.ValueRO.LastPositionCheck);
+                            if (movedDistance < StuckThreshold)
+                            {
+                                forceRefresh = true;
+                            }
+                            goal.ValueRW.LastPositionCheckTime = ElapsedTime;
+                            goal.ValueRW.LastPositionCheck = myPos;
+                        }
+                    }
+
                     bool needNewWanderTarget = enemyState.ValueRO.CurrentState != EnemyContext.Wandering
-                                               || !waypointsEnabled.ValueRO;
+                                               || !waypointsEnabled.ValueRO
+                                               || forceRefresh;
                     if (needNewWanderTarget)
                     {
                         uint seed = (uint)entity.Index ^ (FrameCount * 0x9E3779B9) ^ (uint)(ElapsedTime * 1000);
@@ -262,6 +293,9 @@ namespace Server
                             random.NextFloat(mapMin.y + 5f, mapMax.y - 5f));
                         goal.ValueRW.Destination = wanderDest;
                         goal.ValueRW.IsPathDirty = true;
+                        goal.ValueRW.DestinationSetTime = ElapsedTime;
+                        goal.ValueRW.LastPositionCheckTime = ElapsedTime;
+                        goal.ValueRW.LastPositionCheck = myPos;
                         waypointsEnabled.ValueRW = true;
                     }
                     enemyState.ValueRW.CurrentState = EnemyContext.Wandering;
@@ -327,6 +361,7 @@ namespace Server
                     goal.ValueRW.Destination = bestTargetPos;
                     goal.ValueRW.IsPathDirty = true;
                     goal.ValueRW.IsPathPartial = false;
+                    goal.ValueRW.DestinationSetTime = ElapsedTime;
                 }
 
                 enemyState.ValueRW.CurrentState = EnemyContext.Chasing;
@@ -338,8 +373,25 @@ namespace Server
                 // ---------------------------------------------------------
                 // 배회 로직
                 // ---------------------------------------------------------
+                // stuck 감지: 배회 중 위치 정체 시 재배회
+                bool forceRefresh = false;
+                if (enemyState.ValueRO.CurrentState == EnemyContext.Wandering)
+                {
+                    if (ElapsedTime - goal.ValueRO.LastPositionCheckTime >= StuckCheckInterval)
+                    {
+                        float movedDistance = math.distance(myPos, goal.ValueRO.LastPositionCheck);
+                        if (movedDistance < StuckThreshold)
+                        {
+                            forceRefresh = true;
+                        }
+                        goal.ValueRW.LastPositionCheckTime = ElapsedTime;
+                        goal.ValueRW.LastPositionCheck = myPos;
+                    }
+                }
+
                 bool needNewWanderTarget = enemyState.ValueRO.CurrentState != EnemyContext.Wandering
-                                           || !waypointsEnabled.ValueRO;
+                                           || !waypointsEnabled.ValueRO
+                                           || forceRefresh;
 
                 if (needNewWanderTarget)
                 {
@@ -361,6 +413,9 @@ namespace Server
 
                     goal.ValueRW.Destination = wanderDest;
                     goal.ValueRW.IsPathDirty = true;
+                    goal.ValueRW.DestinationSetTime = ElapsedTime;
+                    goal.ValueRW.LastPositionCheckTime = ElapsedTime;
+                    goal.ValueRW.LastPositionCheck = myPos;
                     waypointsEnabled.ValueRW = true;
                 }
 
@@ -568,6 +623,11 @@ namespace Server
         public float ElapsedTime;
         public uint FrameCount;
 
+        // 위치 정체 체크 간격 (초)
+        private const float StuckCheckInterval = 3.0f;
+        // stuck 판정 이동 거리 (미터)
+        private const float StuckThreshold = 2.0f;
+
         public void Execute(
             Entity entity,
             RefRO<LocalTransform> myTransform,
@@ -578,16 +638,33 @@ namespace Server
             in EnemyTag enemyTag)
         {
             target.ValueRW.TargetEntity = Entity.Null;
+            float3 myPos = myTransform.ValueRO.Position;
+
+            // stuck 감지: 배회 중 위치 정체 시 재배회
+            bool forceRefresh = false;
+            if (enemyState.ValueRO.CurrentState == EnemyContext.Wandering)
+            {
+                if (ElapsedTime - goal.ValueRO.LastPositionCheckTime >= StuckCheckInterval)
+                {
+                    float movedDistance = math.distance(myPos, goal.ValueRO.LastPositionCheck);
+                    if (movedDistance < StuckThreshold)
+                    {
+                        forceRefresh = true;
+                    }
+                    goal.ValueRW.LastPositionCheckTime = ElapsedTime;
+                    goal.ValueRW.LastPositionCheck = myPos;
+                }
+            }
 
             bool needNewWanderTarget = enemyState.ValueRO.CurrentState != EnemyContext.Wandering
-                                       || !waypointsEnabled.ValueRO;
+                                       || !waypointsEnabled.ValueRO
+                                       || forceRefresh;
 
             if (needNewWanderTarget)
             {
                 // 황금비 매직 넘버로 비트 패턴을 잘 섞어줌
                 uint seed = (uint)entity.Index ^ (FrameCount * 0x9E3779B9) ^ (uint)(ElapsedTime * 1000);
                 var random = Random.CreateFromIndex(seed);
-                float3 myPos = myTransform.ValueRO.Position;
 
                 float2 mapMin = GridSettings.GridOrigin;
                 float2 mapMax = mapMin + new float2(
@@ -603,6 +680,9 @@ namespace Server
 
                 goal.ValueRW.Destination = wanderDest;
                 goal.ValueRW.IsPathDirty = true;
+                goal.ValueRW.DestinationSetTime = ElapsedTime;
+                goal.ValueRW.LastPositionCheckTime = ElapsedTime;
+                goal.ValueRW.LastPositionCheck = myPos;
                 waypointsEnabled.ValueRW = true;
             }
 

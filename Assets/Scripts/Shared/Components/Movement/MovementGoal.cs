@@ -20,5 +20,11 @@ namespace Shared
         public byte TotalWaypoints;
         // 경로가 목적지에 도달하지 못함 (partial path) [서버만 사용]
         public bool IsPathPartial;
+        // 목적지 설정 시간 (Partial Path 재시도용) [서버만 사용]
+        public float DestinationSetTime;
+        // 마지막 위치 체크 시점의 위치 (stuck 감지용) [서버만 사용]
+        public float3 LastPositionCheck;
+        // 마지막 위치 체크 시간 (stuck 감지용) [서버만 사용]
+        public float LastPositionCheckTime;
     }
 }

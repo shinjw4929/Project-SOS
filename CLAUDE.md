@@ -102,7 +102,7 @@ Assets/Scripts/
     HeroDeathDetectionSystem → ServerDeathSystem → NavMeshObstacleCleanupSystem, TechStateRecalculateSystem
 
 [8. 후처리] LateSimulationSystemGroup
-    GridOccupancyEventSystem
+    GridOccupancyEventSystem, PopulationApplySystem (인구수 변경 이벤트 소비)
 
 [9. Transform] TransformSystemGroup
     CarriedResourceFollowSystem (Scale 기반 가시성 토글)
@@ -173,8 +173,8 @@ public enum UserContext : byte {
 ```
 Assets/Prefabs/
 ├── Enemy/           EnemySmall, EnemyBig, EnemyFlying (isRanged=true)
-├── Units/           Hero, Worker, Swordsman, Trooper, Sniper
-├── Structures/      Wall, Wall2, Barracks, ResourceCenter
+├── Units/           Hero, Worker, Striker, Archer, Tank
+├── Structures/      Wall, Barracks, ResourceCenter
 ├── Economies/       Cheese (운반 자원), UserEconomy
 ├── Shoot/           Projectile
 └── UI/              CommandButton, SelectionRing*, EnemyHPText3D

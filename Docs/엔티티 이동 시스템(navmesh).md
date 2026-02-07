@@ -166,7 +166,7 @@ MovementArrivalSystem → 도착 판정 → 이동 정지 + Intent.Idle 전환
 
 | 파일 | 역할 |
 | --- | --- |
-| MovementGoal.cs | 최종 목적지(Destination), 경로 재계산 플래그(IsPathDirty), 웨이포인트 인덱스(CurrentWaypointIndex, TotalWaypoints), Partial 경로 플래그(IsPathPartial) |
+| MovementGoal.cs | 최종 목적지(Destination), 경로 재계산 플래그(IsPathDirty), 웨이포인트 인덱스(CurrentWaypointIndex, TotalWaypoints), Partial 경로 플래그(IsPathPartial), 목적지 설정 시간(DestinationSetTime), 마지막 위치 체크(LastPositionCheck, LastPositionCheckTime) |
 | MovementWaypoints.cs | 현재 이동 목표(Current), 다음 지점(Next), HasNext, ArrivalRadius. IEnableableComponent로 이동 중/정지 상태 토글 |
 | MovementDynamics.cs | 유닛 이동 파라미터: MaxSpeed, Acceleration, Deceleration, RotationSpeed |
 | NavMeshAgentConfig.cs | Unity NavMesh Agent Type 인덱스 참조 (유닛 크기별 경로 계산) |
@@ -175,7 +175,7 @@ MovementArrivalSystem → 도착 판정 → 이동 정지 + Intent.Idle 전환
 
 | 컴포넌트 | 동기화 필드 | 비동기화 필드 (서버 전용) |
 | --- | --- | --- |
-| MovementGoal | Destination | IsPathDirty, CurrentWaypointIndex, TotalWaypoints, IsPathPartial |
+| MovementGoal | Destination | IsPathDirty, CurrentWaypointIndex, TotalWaypoints, IsPathPartial, DestinationSetTime, LastPositionCheck, LastPositionCheckTime |
 | MovementWaypoints | Current, Next, HasNext, ArrivalRadius | - |
 
 ## 버퍼 (Shared/Buffers/)

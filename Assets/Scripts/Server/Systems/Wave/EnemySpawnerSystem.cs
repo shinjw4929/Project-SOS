@@ -62,7 +62,6 @@ namespace Server
                 return;
             }
 
-            float deltaTime = SystemAPI.Time.DeltaTime;
             var ecb = new EntityCommandBuffer(Allocator.Temp);
 
             // 명시적 필드로 프리팹 참조
@@ -85,7 +84,7 @@ namespace Server
 
                 case WavePhase.Wave1:
                     stateChanged = HandlePeriodicSpawn(
-                        ref state, ref ecb, ref phaseState, deltaTime,
+                        ref state, ref ecb, ref phaseState,
                         gameSettings.Wave1SpawnInterval, gameSettings.Wave1SpawnCount,
                         gameSettings.MaxEnemyCount, currentEnemyCount,
                         spawnPoints, prefabSmall, prefabBig, Entity.Null);
@@ -93,7 +92,7 @@ namespace Server
 
                 case WavePhase.Wave2:
                     stateChanged = HandlePeriodicSpawn(
-                        ref state, ref ecb, ref phaseState, deltaTime,
+                        ref state, ref ecb, ref phaseState,
                         gameSettings.Wave2SpawnInterval, gameSettings.Wave2SpawnCount,
                         gameSettings.MaxEnemyCount, currentEnemyCount,
                         spawnPoints, prefabSmall, prefabBig, prefabFlying);
@@ -172,7 +171,6 @@ namespace Server
             ref SystemState state,
             ref EntityCommandBuffer ecb,
             ref GamePhaseState phaseState,
-            float deltaTime,
             float spawnInterval,
             int spawnCount,
             int maxEnemyCount,
@@ -182,16 +180,15 @@ namespace Server
             Entity prefabBig,
             Entity prefabFlying)
         {
-            phaseState.SpawnTimer += deltaTime;
+            float currentTime = phaseState.ElapsedTime;
+            if (currentTime - phaseState.LastSpawnTime < spawnInterval)
+                return false; // 스폰 간격 미도달
 
-            if (phaseState.SpawnTimer < spawnInterval)
-                return true; // 타이머만 업데이트됨
-
-            phaseState.SpawnTimer -= spawnInterval;
-
-            // 최대 적 수 제한 적용
+            // max enemy 체크를 먼저 - LastSpawnTime 업데이트 전에 체크해야 누적 스폰 유지
             int available = maxEnemyCount - currentEnemyCount;
-            if (available <= 0) return true;
+            if (available <= 0) return false; // LastSpawnTime 업데이트 안 함 -> 다음 프레임 재시도
+
+            phaseState.LastSpawnTime = currentTime;
             spawnCount = math.min(spawnCount, available);
 
             // 고유 시드 사용 (스폰 카운터 기반)

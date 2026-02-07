@@ -27,7 +27,7 @@ namespace Server
                 ElapsedTime = 0f,
                 TotalKillCount = 0,
                 Wave0SpawnedCount = 0,
-                SpawnTimer = 0f
+                LastSpawnTime = 0f
             });
 
 #if UNITY_EDITOR
