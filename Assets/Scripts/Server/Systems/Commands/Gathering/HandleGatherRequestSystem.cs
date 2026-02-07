@@ -170,21 +170,21 @@ namespace Server
 
             // 6. 점유 상태에 따른 Phase 분기
             RefRW<ResourceNodeState> nodeStateRW = _resourceNodeStateLookup.GetRefRW(resourceNodeEntity);
-            bool isOccupied = nodeStateRW.ValueRO.OccupyingWorker != Entity.Null;
+            Entity currentOccupier = nodeStateRW.ValueRO.OccupyingWorker;
 
             if (_workerStateLookup.HasComponent(workerEntity))
             {
                 RefRW<WorkerState> workerStateRW = _workerStateLookup.GetRefRW(workerEntity);
 
-                if (!isOccupied)
+                if (currentOccupier == Entity.Null || currentOccupier == workerEntity)
                 {
-                    // 비점유: 즉시 점유 설정 + MovingToNode
+                    // 비점유 또는 자기 자신이 점유 중: 즉시 점유 설정 + MovingToNode
                     nodeStateRW.ValueRW.OccupyingWorker = workerEntity;
                     workerStateRW.ValueRW.Phase = GatherPhase.MovingToNode;
                 }
                 else
                 {
-                    // 점유 중: WaitingForNode (점유 없이 이동 후 대기)
+                    // 다른 워커가 점유 중: WaitingForNode (점유 없이 이동 후 대기)
                     workerStateRW.ValueRW.Phase = GatherPhase.WaitingForNode;
                 }
             }

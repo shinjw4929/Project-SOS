@@ -556,8 +556,9 @@ namespace Server
 
                 RefRW<ResourceNodeState> nodeStateRW = _resourceNodeStateLookup.GetRefRW(nodeEntity);
 
-                // 빈 자리 발견 → 즉시 Gathering 시작
-                if (nodeStateRW.ValueRO.OccupyingWorker == Entity.Null)
+                // 빈 자리 또는 자기 자신이 점유 중 → 즉시 Gathering 시작
+                if (nodeStateRW.ValueRO.OccupyingWorker == Entity.Null ||
+                    nodeStateRW.ValueRO.OccupyingWorker == entity)
                 {
                     nodeStateRW.ValueRW.OccupyingWorker = entity;
                     workerState.ValueRW.Phase = GatherPhase.Gathering;
