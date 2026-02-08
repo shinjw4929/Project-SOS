@@ -3,6 +3,7 @@ using Shared;
 using TMPro;
 using Unity.Collections;
 using Unity.Entities;
+using Unity.Rendering;
 using Unity.Transforms;
 using UnityEngine;
 
@@ -12,6 +13,33 @@ public partial class EnemyHpTextPresentationSystem : SystemBase
 {
     private readonly Dictionary<Entity, TextMeshPro> _map = new();
 
+    private EntityQuery _enemyQuery;
+    private Transform _camTransform;
+    private readonly HashSet<Entity> _alive = new();
+    private readonly List<Entity> _toRemove = new();
+
+    private struct CachedHpData
+    {
+        public float CurrentValue;
+        public float MaxValue;
+    }
+
+    private readonly Dictionary<Entity, CachedHpData> _hpCache = new();
+
+    protected override void OnCreate()
+    {
+        _enemyQuery = EntityManager.CreateEntityQuery(new EntityQueryDesc
+        {
+            All = new[]
+            {
+                ComponentType.ReadOnly<LocalToWorld>(),
+                ComponentType.ReadOnly<Health>(),
+                ComponentType.ReadOnly<EnemyTag>()
+            },
+            None = new[] { ComponentType.ReadOnly<DisableRendering>() }
+        });
+    }
+
     protected override void OnDestroy()
     {
         foreach (var kv in _map)
@@ -20,6 +48,7 @@ public partial class EnemyHpTextPresentationSystem : SystemBase
                 Object.Destroy(kv.Value.gameObject);
         }
         _map.Clear();
+        _hpCache.Clear();
     }
 
     protected override void OnUpdate()
@@ -28,26 +57,24 @@ public partial class EnemyHpTextPresentationSystem : SystemBase
         if (!bridge || !bridge.text3dPrefab)
             return;
 
-        var cam = Camera.main;
-        if (!cam)
-            return;
+        if (_camTransform == null)
+        {
+            var cam = Camera.main;
+            if (cam == null) return;
+            _camTransform = cam.transform;
+        }
 
         var em = EntityManager;
+        var camRotation = _camTransform.rotation;
 
-        EntityQuery q = em.CreateEntityQuery(
-            ComponentType.ReadOnly<LocalToWorld>(),
-            ComponentType.ReadOnly<Health>(),
-            ComponentType.ReadOnly<EnemyTag>()
-        );
+        using NativeArray<Entity> entities = _enemyQuery.ToEntityArray(Allocator.Temp);
 
-        using NativeArray<Entity> entities = q.ToEntityArray(Allocator.Temp);
-
-        var alive = new HashSet<Entity>();
+        _alive.Clear();
 
         for (int i = 0; i < entities.Length; i++)
         {
             Entity e = entities[i];
-            alive.Add(e);
+            _alive.Add(e);
 
             // 1. UI 객체 관리 (없으면 생성)
             if (!_map.TryGetValue(e, out var tmp) || !tmp)
@@ -67,25 +94,43 @@ public partial class EnemyHpTextPresentationSystem : SystemBase
 
             // 4. Transform 적용
             tmp.transform.position = (Vector3)ltw.Position + Vector3.up * height;
-            tmp.transform.rotation = cam.transform.rotation;
+            tmp.transform.rotation = camRotation;
             tmp.transform.localScale = Vector3.one * scale;
 
-            // 5. 텍스트 갱신
-            tmp.text = $"{hp.CurrentValue}/{hp.MaxValue}";
-        }
-
-        // 7. 사라진 엔티티의 UI 제거
-        var toRemove = new List<Entity>();
-        foreach (var kv in _map)
-        {
-            if (!alive.Contains(kv.Key))
+            // 5. HP dirty check → 변경 시에만 텍스트 갱신
+            bool needsUpdate = true;
+            if (_hpCache.TryGetValue(e, out var cached))
             {
-                if (kv.Value) Object.Destroy(kv.Value.gameObject);
-                toRemove.Add(kv.Key);
+                if (cached.CurrentValue == hp.CurrentValue && cached.MaxValue == hp.MaxValue)
+                    needsUpdate = false;
+            }
+
+            if (needsUpdate)
+            {
+                tmp.SetText("{0:0}/{1:0}", hp.CurrentValue, hp.MaxValue);
+                _hpCache[e] = new CachedHpData
+                {
+                    CurrentValue = hp.CurrentValue,
+                    MaxValue = hp.MaxValue
+                };
             }
         }
 
-        for (int i = 0; i < toRemove.Count; i++)
-            _map.Remove(toRemove[i]);
+        // 6. 사라진 엔티티의 UI 제거
+        _toRemove.Clear();
+        foreach (var kv in _map)
+        {
+            if (!_alive.Contains(kv.Key))
+            {
+                if (kv.Value) Object.Destroy(kv.Value.gameObject);
+                _toRemove.Add(kv.Key);
+            }
+        }
+
+        for (int i = 0; i < _toRemove.Count; i++)
+        {
+            _map.Remove(_toRemove[i]);
+            _hpCache.Remove(_toRemove[i]);
+        }
     }
 }
