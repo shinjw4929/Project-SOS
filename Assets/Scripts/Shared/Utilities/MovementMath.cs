@@ -6,7 +6,7 @@ namespace Shared
 {
     /// <summary>
     /// 이동 계산 유틸리티 (순수 함수)
-    /// PredictedMovementSystem에서 사용하는 핵심 수식을 테스트 가능한 형태로 추출
+    /// 이동/경로 관련 핵심 수식을 테스트 가능한 형태로 추출
     /// </summary>
     [BurstCompile]
     public static class MovementMath
@@ -120,11 +120,38 @@ namespace Shared
             return hasNextWaypoint && distance < CornerRadius;
         }
 
+        /// <summary>
+        /// Partial Path 재시도 필요 여부 판정 (시간 게이트 + 프레임 분산)
+        /// </summary>
+        /// <param name="isPathPartial">현재 경로가 Partial인지</param>
+        /// <param name="destinationSetTime">목적지 설정 시간</param>
+        /// <param name="elapsedTime">현재 경과 시간</param>
+        /// <param name="entityIndex">엔티티 인덱스 (프레임 분산용)</param>
+        /// <param name="frameCount">현재 프레임 카운트</param>
+        /// <param name="timeSliceDivisor">시간 분할 주기</param>
+        /// <returns>재시도 필요 여부</returns>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [BurstCompile]
+        public static bool ShouldRetryPartialPath(
+            bool isPathPartial,
+            float destinationSetTime,
+            float elapsedTime,
+            int entityIndex,
+            uint frameCount,
+            uint timeSliceDivisor)
+        {
+            if (!isPathPartial) return false;
+            if (elapsedTime - destinationSetTime < PathRetryInterval) return false;
+            return frameCount % timeSliceDivisor == (uint)entityIndex % timeSliceDivisor;
+        }
+
         // 상수 정의
         public const float MinSpeed = 0.5f;
         public const float ArrivalThreshold = 0.3f;
         public const float SnapDistance = 0.02f;
         public const float SnapSpeedThreshold = 0.3f;
         public const float CornerRadius = 0.5f;
+        // Partial Path 재시도 최소 간격 (초)
+        public const float PathRetryInterval = 2.0f;
     }
 }

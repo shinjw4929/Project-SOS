@@ -101,7 +101,7 @@ namespace Server
             ref AttackCooldown cooldown,
             ref EnemyState enemyState)
         {
-            cooldown.RemainingTime = math.max(0, cooldown.RemainingTime - DeltaTime);
+            cooldown.RemainingTime = CombatUtility.TickCooldown(cooldown.RemainingTime, DeltaTime);
 
             Entity targetEntity = aggroTarget.TargetEntity;
             if (targetEntity == Entity.Null) return;
@@ -115,14 +115,14 @@ namespace Server
 
             if (targetHealth.CurrentValue <= 0) return;
 
-            // 거리 계산: 직선거리 - 타겟 반지름
+            // 유효 거리 계산: 직선거리 - 타겟 반지름
             float3 targetPos = targetTransform.Position;
             float3 myPos = transform.Position;
             float rawDist = math.distance(myPos, targetPos);
             float targetRadius = ObstacleRadiusLookup.TryGetComponent(targetEntity, out ObstacleRadius obstacleRadius)
                 ? obstacleRadius.Radius
                 : 0f;
-            float effectiveDist = math.max(0f, rawDist - targetRadius);
+            float effectiveDist = CombatUtility.CalculateEffectiveDistance(rawDist, targetRadius);
 
             bool isInRange = effectiveDist <= combatStats.AttackRange;
 
@@ -135,16 +135,8 @@ namespace Server
                     ECB.SetComponentEnabled<MovementWaypoints>(sortKey, entity, false);
                 }
 
-                // 타겟 방향 회전
-                float3 direction = targetPos - myPos;
-                direction.y = 0;
+                CombatUtility.RotateTowardTarget(in myPos, in targetPos, ref transform.Rotation);
 
-                if (math.lengthsq(direction) > 0.001f)
-                {
-                    transform.Rotation = quaternion.LookRotationSafe(math.normalize(direction), math.up());
-                }
-
-                // 쿨다운 체크 후 공격
                 if (cooldown.RemainingTime <= 0)
                 {
                     float defenseValue = DefenseLookup.TryGetComponent(targetEntity, out Defense defense)
@@ -153,11 +145,7 @@ namespace Server
 
                     float finalDamage = DamageUtility.CalculateDamage(combatStats.AttackPower, defenseValue);
                     ECB.AppendToBuffer(sortKey, targetEntity, new DamageEvent { Damage = finalDamage, Attacker = entity });
-
-                    // 쿨다운 리셋
-                    cooldown.RemainingTime = combatStats.AttackSpeed > 0
-                        ? 1.0f / combatStats.AttackSpeed
-                        : 1.0f;
+                    cooldown.RemainingTime = CombatUtility.ResetCooldown(combatStats.AttackSpeed);
                 }
             }
             else
@@ -208,7 +196,7 @@ namespace Server
             ref UnitIntentState intentState,
             ref UnitActionState actionState)
         {
-            cooldown.RemainingTime = math.max(0, cooldown.RemainingTime - DeltaTime);
+            cooldown.RemainingTime = CombatUtility.TickCooldown(cooldown.RemainingTime, DeltaTime);
 
             // Intent.Attack 상태일 때만 공격 처리
             if (intentState.State != Intent.Attack)
@@ -261,31 +249,22 @@ namespace Server
                 return;
             }
 
-            // 거리 계산: 직선거리 - 타겟 반지름
+            // 유효 거리 계산: 직선거리 - 타겟 반지름
             float3 targetPos = targetTransform.Position;
             float3 myPos = transform.Position;
             float rawDist = math.distance(myPos, targetPos);
             float targetRadius = ObstacleRadiusLookup.TryGetComponent(targetEntity, out ObstacleRadius obstacleRadius)
                 ? obstacleRadius.Radius
                 : 0f;
-            float effectiveDist = math.max(0f, rawDist - targetRadius);
+            float effectiveDist = CombatUtility.CalculateEffectiveDistance(rawDist, targetRadius);
 
             bool isInRange = effectiveDist <= combatStats.AttackRange;
 
             if (isInRange)
             {
                 actionState.State = Action.Attacking;
+                CombatUtility.RotateTowardTarget(in myPos, in targetPos, ref transform.Rotation);
 
-                // 타겟 방향 회전
-                float3 direction = targetPos - myPos;
-                direction.y = 0;
-
-                if (math.lengthsq(direction) > 0.001f)
-                {
-                    transform.Rotation = quaternion.LookRotationSafe(math.normalize(direction), math.up());
-                }
-
-                // 쿨다운 체크 후 공격
                 if (cooldown.RemainingTime <= 0)
                 {
                     float defenseValue = DefenseLookup.TryGetComponent(targetEntity, out Defense defense)
@@ -294,11 +273,7 @@ namespace Server
 
                     float finalDamage = DamageUtility.CalculateDamage(combatStats.AttackPower, defenseValue);
                     ECB.AppendToBuffer(sortKey, targetEntity, new DamageEvent { Damage = finalDamage, Attacker = entity });
-
-                    // 쿨다운 리셋
-                    cooldown.RemainingTime = combatStats.AttackSpeed > 0
-                        ? 1.0f / combatStats.AttackSpeed
-                        : 1.0f;
+                    cooldown.RemainingTime = CombatUtility.ResetCooldown(combatStats.AttackSpeed);
                 }
             }
             else
