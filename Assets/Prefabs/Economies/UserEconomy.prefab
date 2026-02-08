@@ -46,7 +46,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 25940faebbfe7ed46967a31f4dea88d1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  initialCurrency: 200
+  initialCurrency: 20000
   initialCurrentPopulation: 0
   initialMaxPopulation: 200
 --- !u!114 &3730474969093364742

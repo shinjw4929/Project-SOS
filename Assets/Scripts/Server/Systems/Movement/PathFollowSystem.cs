@@ -13,6 +13,7 @@ namespace Server
     /// </summary>
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     [UpdateAfter(typeof(PathfindingSystem))]
+    [UpdateBefore(typeof(PredictedMovementSystem))]
     [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
     [BurstCompile]
     public partial struct PathFollowSystem : ISystem

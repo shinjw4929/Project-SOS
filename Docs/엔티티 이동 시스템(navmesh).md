@@ -93,7 +93,7 @@ MovementArrivalSystem → 도착 판정 → 이동 정지 + Intent.Idle 전환
 - 최대 경로 길이: 64개, 폴리곤 노드 풀: 256개
 ---
 파일: PathFollowSystem.cs
-그룹: SimulationSystemGroup (UpdateAfter: PathfindingSystem)
+그룹: SimulationSystemGroup (UpdateAfter: PathfindingSystem, UpdateBefore: PredictedMovementSystem)
 역할: PathWaypoint 버퍼 관리 및 MovementWaypoints.Next 공급
 - 동기화 체크: PredictedMovementSystem이 웨이포인트 도착 시 인덱스 증가
 - Next 웨이포인트 미리 채워 코너링/부드러운 전환 지원
@@ -108,11 +108,13 @@ MovementArrivalSystem → 도착 판정 → 이동 정지 + Intent.Idle 전환
   - 유닛-유닛 간 충돌 회피: 둘 다 Gather 상태면 무시
 - 벽 충돌 미끄러짐 처리 (Raycast + PointDistance)
 - 공격 중(Attacking) 상태면 이동 스킵
+- Separation 진동 감지: 최종 목적지 확장 반경(2배) 내에서 밀려나는 경우 즉시 정지
 ---
 파일: MovementArrivalSystem.cs
 그룹: SimulationSystemGroup (UpdateAfter: PredictedMovementSystem)
 역할: 도착 판정 및 상태 전환
-- 도착 조건: 거리 < ArrivalRadius && !HasNext && 속도 < 0.05
+- 1차 도착 조건: 거리 < ArrivalRadius && !HasNext
+- 2차 도착 조건: 거리 < ArrivalRadius*2 && !HasNext && 목적지 방향으로 이동하지 않음 (Separation 진동 포착)
 - 적(EnemyTag): MovementWaypoints 비활성화, 속도 0
 - 유닛(UnitTag): 추가로 Intent.Move → Intent.Idle 전환 (자동 타겟팅 활성화)
 
@@ -217,7 +219,7 @@ PathfindingSystem (UpdateAfter: NavMeshObstacleSpawnSystem)
     → NavMeshPathUtils.FindStraightPath (Funnel 알고리즘)
     → PathWaypoint 버퍼 채우기
     ↓
-PathFollowSystem (UpdateAfter: PathfindingSystem)
+PathFollowSystem (UpdateAfter: PathfindingSystem, UpdateBefore: PredictedMovementSystem)
     → CurrentWaypointIndex 증가
     → MovementWaypoints.Next 공급
     ↓
@@ -225,9 +227,11 @@ PredictedMovementSystem (UpdateAfter: PathfindingSystem)
     → LocalTransform.Position 직접 수정
     → SpatialMaps.MovementMap 기반 Separation
     → 벽 충돌 미끄러짐
+    → Separation 진동 감지 (확장 반경 내 밀려남 → 정지)
     ↓
 MovementArrivalSystem (UpdateAfter: PredictedMovementSystem)
-    → 도착 판정
+    → 1차 도착 판정 (반경 이내)
+    → 2차 도착 판정 (확장 반경 + 방향 체크)
     → MovementWaypoints 비활성화
     → Intent.Move → Intent.Idle 전환
 

@@ -148,7 +148,7 @@ namespace Server
                     distSq = math.lengthsq(toTarget);
                 }
 
-                float arrivalR = waypoints.ArrivalRadius > 0 ? waypoints.ArrivalRadius : 0.1f;
+                float arrivalR = waypoints.ArrivalRadius > 0 ? waypoints.ArrivalRadius : obstacleRadius.Radius + 0.1f;
                 if (!waypoints.HasNext && distSq < arrivalR * arrivalR)
                 {
                     velocity.Linear = float3.zero;
@@ -199,6 +199,26 @@ namespace Server
             if (!iAmFlying)
             {
                 finalVelocity = ResolveWallCollision(currentPos, finalVelocity, obstacleRadius.Radius, DeltaTime, iAmEnemy);
+            }
+
+            // Separation 진동 감지: 최종 목적지 근처에서 밀려나는 경우 정지
+            // 다수 유닛이 동일 목적지로 이동 시 도착한 유닛의 Separation이
+            // 이동 중 유닛을 도착 반경 밖으로 밀어내는 현상 방지
+            if (!isAttacking && !waypoints.HasNext)
+            {
+                float3 tp = waypoints.Current;
+                tp.y = currentPos.y;
+                float3 toTarget = tp - currentPos;
+                float dSq = math.lengthsq(toTarget);
+                float aR = waypoints.ArrivalRadius > 0 ? waypoints.ArrivalRadius : obstacleRadius.Radius + 0.1f;
+                float expandedR = aR * 2f;
+
+                if (dSq < expandedR * expandedR && math.dot(finalVelocity, toTarget) <= 0)
+                {
+                    velocity.Linear = float3.zero;
+                    velocity.Angular = float3.zero;
+                    return;
+                }
             }
 
             // Apply
