@@ -1,18 +1,22 @@
 using Unity.Collections;
 using Unity.Entities;
+using Unity.Mathematics;
+using Unity.Transforms;
 using UnityEngine;
 using Shared;
 
 namespace Server
 {
     /// <summary>
-    /// 건물 파괴 시 NavMeshObstacle GameObject 제거 (Cleanup 패턴 적용)
+    /// 건물 파괴 시 NavMeshObstacle GameObject 제거 + 주변 Partial Path 경로 무효화 (Cleanup 패턴 적용)
     /// </summary>
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     [UpdateAfter(typeof(ServerDeathSystem))] // 죽음 처리 "이후"에 실행되어야 잔해를 치움
     [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
     public partial class NavMeshObstacleCleanupSystem : SystemBase
     {
+        private const float PartialPathInvalidationRadius = 12f;
+
         protected override void OnUpdate()
         {
             var ecb = new EntityCommandBuffer(Allocator.Temp);
@@ -26,9 +30,11 @@ namespace Server
                          .WithNone<StructureTag, ResourceNodeTag>()
                          .WithEntityAccess())
             {
-                // 1. GameObject 파괴
+                // 1. GameObject 파괴 전에 위치 획득 + 주변 Partial Path 무효화
                 if (obstacleRef.ObstacleObject != null)
                 {
+                    InvalidateNearbyPartialPaths(
+                        (float3)obstacleRef.ObstacleObject.transform.position);
                     UnityEngine.Object.Destroy(obstacleRef.ObstacleObject);
                 }
 
@@ -38,6 +44,24 @@ namespace Server
 
             ecb.Playback(EntityManager);
             ecb.Dispose();
+        }
+
+        private void InvalidateNearbyPartialPaths(float3 buildingPos)
+        {
+            float radiusSq = PartialPathInvalidationRadius * PartialPathInvalidationRadius;
+
+            foreach (var (goal, transform) in
+                     SystemAPI.Query<RefRW<MovementGoal>, RefRO<LocalTransform>>()
+                         .WithAny<UnitTag, EnemyTag>())
+            {
+                if (!goal.ValueRO.IsPathPartial) continue;
+
+                float3 entityPos = transform.ValueRO.Position;
+                if (math.distancesq(entityPos, buildingPos) < radiusSq)
+                {
+                    goal.ValueRW.IsPathDirty = true;
+                }
+            }
         }
     }
 }

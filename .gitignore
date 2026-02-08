@@ -122,7 +122,8 @@ Thumbs.db
 *.slnx
 
 # Claude & AI Tools
-.claude/
+.claude/*
+!.claude/skills/
 tmpclaude-*-cwd
 
 # Code Coverage

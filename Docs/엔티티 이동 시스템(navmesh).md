@@ -72,7 +72,11 @@ MovementArrivalSystem → 도착 판정 → 이동 정지 + Intent.Idle 전환
 ---
 파일: NavMeshObstacleCleanupSystem.cs
 그룹: SimulationSystemGroup (UpdateAfter: ServerDeathSystem)
-역할: 건물 파괴 시 NavMeshObstacle GameObject 제거 (NavMeshObstacleReference로 참조)
+역할: 건물 파괴 시 NavMeshObstacle GameObject 제거 + 주변 Partial Path 경로 무효화
+- NavMeshObstacleReference(Cleanup 컴포넌트)로 파괴된 건물 감지
+- GameObject.transform.position에서 위치 획득 (Cleanup 엔티티는 LocalTransform 없음)
+- 12m 반경 내 IsPathPartial 엔티티의 IsPathDirty=true 설정 (즉시 우회 경로 탐색)
+- NavMeshObstacle GameObject 파괴 + Cleanup 컴포넌트 제거
 ---
 파일: PathfindingSystem.cs
 그룹: SimulationSystemGroup (UpdateAfter: NavMeshObstacleSpawnSystem)

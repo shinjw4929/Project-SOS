@@ -166,10 +166,14 @@ namespace Server
                         {
                             goal.ValueRW.Destination = lockedPos;
                             goal.ValueRW.IsPathDirty = true;
-                            goal.ValueRW.IsPathPartial = false;
-                            goal.ValueRW.DestinationSetTime = ElapsedTime;
+                            // Partial Path 상태가 아닐 때만 타이머 리셋
+                            if (!goal.ValueRO.IsPathPartial)
+                            {
+                                goal.ValueRW.DestinationSetTime = ElapsedTime;
+                            }
                         }
-                        else if (goal.ValueRO.IsPathPartial)
+
+                        if (goal.ValueRO.IsPathPartial)
                         {
                             // Partial path: 시간 게이트 + 프레임 분산으로 재시도
                             if (ElapsedTime - goal.ValueRO.DestinationSetTime >= PathRetryInterval)
@@ -225,10 +229,14 @@ namespace Server
                         {
                             goal.ValueRW.Destination = targetPos;
                             goal.ValueRW.IsPathDirty = true;
-                            goal.ValueRW.IsPathPartial = false;
-                            goal.ValueRW.DestinationSetTime = ElapsedTime;
+                            // Partial Path 상태가 아닐 때만 타이머 리셋
+                            if (!goal.ValueRO.IsPathPartial)
+                            {
+                                goal.ValueRW.DestinationSetTime = ElapsedTime;
+                            }
                         }
-                        else if (goal.ValueRO.IsPathPartial)
+
+                        if (goal.ValueRO.IsPathPartial)
                         {
                             // Partial path: 시간 게이트 + 프레임 분산으로 재시도
                             if (ElapsedTime - goal.ValueRO.DestinationSetTime >= PathRetryInterval)
@@ -360,8 +368,11 @@ namespace Server
                 {
                     goal.ValueRW.Destination = bestTargetPos;
                     goal.ValueRW.IsPathDirty = true;
-                    goal.ValueRW.IsPathPartial = false;
-                    goal.ValueRW.DestinationSetTime = ElapsedTime;
+                    // 타겟 변경 시 또는 Partial Path 아닐 때만 타이머 리셋
+                    if (targetChanged || !goal.ValueRO.IsPathPartial)
+                    {
+                        goal.ValueRW.DestinationSetTime = ElapsedTime;
+                    }
                 }
 
                 enemyState.ValueRW.CurrentState = EnemyContext.Chasing;
