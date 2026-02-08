@@ -66,6 +66,57 @@ namespace Shared
         }
 
         /// <summary>
+        /// ObstacleRadius 포함 유효 거리 계산 (직선거리 - 타겟 반지름)
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static float GetEffectiveDistance(
+            float3 myPos, float3 targetPos,
+            Entity targetEntity,
+            in ComponentLookup<ObstacleRadius> radiusLookup)
+        {
+            float rawDist = math.distance(myPos, targetPos);
+            float targetRadius = radiusLookup.TryGetComponent(targetEntity, out var obs)
+                ? obs.Radius : 0f;
+            return CalculateEffectiveDistance(rawDist, targetRadius);
+        }
+
+        /// <summary>
+        /// 타겟 생존 여부 확인 (Transform 존재 + Health 존재 + HP > 0)
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool IsTargetAlive(
+            Entity targetEntity,
+            in ComponentLookup<LocalTransform> transformLookup,
+            in ComponentLookup<Health> healthLookup,
+            out LocalTransform targetTransform)
+        {
+            targetTransform = default;
+            if (!transformLookup.TryGetComponent(targetEntity, out targetTransform))
+                return false;
+            if (!healthLookup.TryGetComponent(targetEntity, out var health))
+                return false;
+            return health.CurrentValue > 0;
+        }
+
+        /// <summary>
+        /// Defense 조회 + 데미지 계산 + DamageEvent 버퍼 추가
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void ApplyDamage(
+            ref EntityCommandBuffer.ParallelWriter ecb,
+            int sortKey,
+            Entity targetEntity,
+            Entity attackerEntity,
+            float attackPower,
+            in ComponentLookup<Defense> defenseLookup)
+        {
+            float defenseValue = defenseLookup.TryGetComponent(targetEntity, out var defense)
+                ? defense.Value : 0f;
+            float finalDamage = DamageUtility.CalculateDamage(attackPower, defenseValue);
+            ecb.AppendToBuffer(sortKey, targetEntity, new DamageEvent { Damage = finalDamage, Attacker = attackerEntity });
+        }
+
+        /// <summary>
         /// 시각 전용 투사체 생성 (VisualOnlyTag, 필중)
         /// </summary>
         [BurstCompile]

@@ -145,8 +145,7 @@ namespace Server
                 return;
             }
 
-            if (!TransformLookup.TryGetComponent(targetEntity, out var targetTransform) ||
-                !HealthLookup.TryGetComponent(targetEntity, out var targetHealth))
+            if (!CombatUtility.IsTargetAlive(targetEntity, in TransformLookup, in HealthLookup, out var targetTransform))
             {
                 intentState.State = Intent.Idle;
                 intentState.TargetEntity = Entity.Null;
@@ -168,24 +167,9 @@ namespace Server
                 }
             }
 
-            // 타겟이 이미 사망했으면 무시
-            if (targetHealth.CurrentValue <= 0)
-            {
-                intentState.State = Intent.Idle;
-                intentState.TargetEntity = Entity.Null;
-                aggroTarget.TargetEntity = Entity.Null;
-                actionState.State = Action.Idle;
-                return;
-            }
-
-            // 유효 거리 계산 (직선거리 - 타겟 반지름)
             float3 targetPos = targetTransform.Position;
             float3 myPos = transform.Position;
-            float rawDistance = math.distance(myPos, targetPos);
-            float targetRadius = ObstacleRadiusLookup.TryGetComponent(targetEntity, out var obstacleRadius)
-                ? obstacleRadius.Radius
-                : 0f;
-            float effectiveDistance = CombatUtility.CalculateEffectiveDistance(rawDistance, targetRadius);
+            float effectiveDistance = CombatUtility.GetEffectiveDistance(myPos, targetPos, targetEntity, in ObstacleRadiusLookup);
 
             if (effectiveDistance > combatStats.AttackRange)
             {
@@ -209,12 +193,7 @@ namespace Server
 
             if (cooldown.RemainingTime > 0) return;
 
-            float defenseValue = DefenseLookup.TryGetComponent(targetEntity, out var defense)
-                ? defense.Value
-                : 0f;
-
-            float finalDamage = DamageUtility.CalculateDamage(combatStats.AttackPower, defenseValue);
-            ECB.AppendToBuffer(sortKey, targetEntity, new DamageEvent { Damage = finalDamage, Attacker = entity });
+            CombatUtility.ApplyDamage(ref ECB, sortKey, targetEntity, entity, combatStats.AttackPower, in DefenseLookup);
             CombatUtility.SpawnVisualProjectile(ref ECB, sortKey, ProjectilePrefab, in myPos, in targetPos);
             cooldown.RemainingTime = CombatUtility.ResetCooldown(combatStats.AttackSpeed);
         }
@@ -253,11 +232,8 @@ namespace Server
             Entity targetEntity = aggroTarget.TargetEntity;
             if (targetEntity == Entity.Null) return;
 
-            if (!TransformLookup.TryGetComponent(targetEntity, out var targetTransform) ||
-                !HealthLookup.TryGetComponent(targetEntity, out var targetHealth))
-            {
+            if (!CombatUtility.IsTargetAlive(targetEntity, in TransformLookup, in HealthLookup, out var targetTransform))
                 return;
-            }
 
             // 아군 히트 방지
             if (TeamLookup.TryGetComponent(targetEntity, out var targetTeam))
@@ -266,16 +242,9 @@ namespace Server
                     return;
             }
 
-            if (targetHealth.CurrentValue <= 0) return;
-
-            // 유효 거리 계산 (직선거리 - 타겟 반지름)
             float3 targetPos = targetTransform.Position;
             float3 myPos = transform.Position;
-            float rawDistance = math.distance(myPos, targetPos);
-            float targetRadius = ObstacleRadiusLookup.TryGetComponent(targetEntity, out var obstacleRadius)
-                ? obstacleRadius.Radius
-                : 0f;
-            float effectiveDistance = CombatUtility.CalculateEffectiveDistance(rawDistance, targetRadius);
+            float effectiveDistance = CombatUtility.GetEffectiveDistance(myPos, targetPos, targetEntity, in ObstacleRadiusLookup);
 
             if (effectiveDistance > combatStats.AttackRange)
             {
@@ -306,12 +275,7 @@ namespace Server
 
             if (cooldown.RemainingTime > 0) return;
 
-            float defenseValue = DefenseLookup.TryGetComponent(targetEntity, out var defense)
-                ? defense.Value
-                : 0f;
-
-            float finalDamage = DamageUtility.CalculateDamage(combatStats.AttackPower, defenseValue);
-            ECB.AppendToBuffer(sortKey, targetEntity, new DamageEvent { Damage = finalDamage, Attacker = entity });
+            CombatUtility.ApplyDamage(ref ECB, sortKey, targetEntity, entity, combatStats.AttackPower, in DefenseLookup);
             CombatUtility.SpawnVisualProjectile(ref ECB, sortKey, ProjectilePrefab, in myPos, in targetPos);
             cooldown.RemainingTime = CombatUtility.ResetCooldown(combatStats.AttackSpeed);
         }

@@ -155,48 +155,13 @@ namespace Server
                 float3 nodePos = _transformLookup[nodeEntity].Position;
                 float distance = math.distance(workerPos, nodePos);
 
-                // 노드 반지름 + 유닛 반지름 + 여유분
-                float nodeRadius = _obstacleRadiusLookup.HasComponent(nodeEntity)
-                    ? _obstacleRadiusLookup[nodeEntity].Radius
-                    : 1.5f;
-                float unitRadius = _obstacleRadiusLookup.HasComponent(entity)
-                    ? _obstacleRadiusLookup[entity].Radius
-                    : 0.5f;
-                // 여유분 1.5f: NavMesh 경로 오차 + CornerRadius(1.2f) 고려
-                float arrivalDistance = nodeRadius + unitRadius + 1.5f;
-
-                if (distance <= arrivalDistance)
+                if (distance <= GetArrivalDistance(nodeEntity, entity))
                 {
                     // 이미 자원을 들고 있으면 채굴 없이 바로 반납으로 전환
                     if (workerState.ValueRO.CarriedAmount > 0)
                     {
-                        gatherTarget.ValueRW.LastGatheredNodeEntity = nodeEntity;
-                        workerState.ValueRW.Phase = GatherPhase.MovingToReturn;
-                        actionState.ValueRW.State = Action.Moving;
-
-                        SystemAPI.SetComponentEnabled<MovementWaypoints>(entity, true);
-
-                        Entity nearestCenter = FindNearestResourceCenter(ref state, entity);
-                        Entity returnPoint = gatherTarget.ValueRO.ReturnPointEntity;
-
-                        if (nearestCenter != Entity.Null)
-                        {
-                            gatherTarget.ValueRW.ReturnPointEntity = nearestCenter;
-                            returnPoint = nearestCenter;
-                        }
-
-                        if (returnPoint != Entity.Null && _transformLookup.HasComponent(returnPoint))
-                        {
-                            float3 centerPos = _transformLookup[returnPoint].Position;
-                            float3 returnTargetPos = CalculateReturnTargetPosition(nodePos, centerPos, returnPoint, entity);
-
-                            movementGoal.ValueRW.Destination = returnTargetPos;
-                            movementGoal.ValueRW.IsPathDirty = true;
-                        }
-                        else
-                        {
-                            SetIdleState(ref intentState.ValueRW, ref actionState.ValueRW, ref workerState.ValueRW);
-                        }
+                        TransitionToReturn(ref state, ref intentState.ValueRW, ref actionState.ValueRW,
+                            ref workerState.ValueRW, gatherTarget, movementGoal, entity, nodePos);
                     }
                     else
                     {
@@ -289,34 +254,9 @@ namespace Server
                         }
                     }
 
-                    gatherTarget.ValueRW.LastGatheredNodeEntity = nodeEntity;
-                    workerState.ValueRW.Phase = GatherPhase.MovingToReturn;
-                    actionState.ValueRW.State = Action.Moving;
-
-                    SystemAPI.SetComponentEnabled<MovementWaypoints>(entity, true);
-
-                    Entity nearestCenter = FindNearestResourceCenter(ref state, entity);
-                    Entity returnPoint = gatherTarget.ValueRO.ReturnPointEntity;
-
-                    if (nearestCenter != Entity.Null)
-                    {
-                        gatherTarget.ValueRW.ReturnPointEntity = nearestCenter;
-                        returnPoint = nearestCenter;
-                    }
-
-                    if (returnPoint != Entity.Null && _transformLookup.HasComponent(returnPoint))
-                    {
-                        float3 nodePos = _transformLookup[nodeEntity].Position;
-                        float3 centerPos = _transformLookup[returnPoint].Position;
-                        float3 targetPos = CalculateReturnTargetPosition(nodePos, centerPos, returnPoint, entity);
-
-                        movementGoal.ValueRW.Destination = targetPos;
-                        movementGoal.ValueRW.IsPathDirty = true;
-                    }
-                    else
-                    {
-                        SetIdleState(ref intentState.ValueRW, ref actionState.ValueRW, ref workerState.ValueRW);
-                    }
+                    float3 nodePos = _transformLookup[nodeEntity].Position;
+                    TransitionToReturn(ref state, ref intentState.ValueRW, ref actionState.ValueRW,
+                        ref workerState.ValueRW, gatherTarget, movementGoal, entity, nodePos);
                 }
             }
         }
@@ -347,15 +287,7 @@ namespace Server
                 float3 centerPos = _transformLookup[returnPoint].Position;
                 float distance = math.distance(workerPos, centerPos);
 
-                float centerRadius = _obstacleRadiusLookup.HasComponent(returnPoint)
-                    ? _obstacleRadiusLookup[returnPoint].Radius
-                    : 1.5f;
-                float unitRadius = _obstacleRadiusLookup.HasComponent(entity)
-                    ? _obstacleRadiusLookup[entity].Radius
-                    : 0.5f;
-                float arrivalDistance = centerRadius + unitRadius + 1.5f;
-
-                if (distance <= arrivalDistance)
+                if (distance <= GetArrivalDistance(returnPoint, entity))
                 {
                     workerState.ValueRW.Phase = GatherPhase.Unloading;
                     actionState.ValueRW.State = Action.Working;
@@ -424,7 +356,7 @@ namespace Server
         {
             if (!gatherTarget.ValueRO.AutoReturn)
             {
-                SetIdleStateRef(ref intentState, ref actionState, ref workerState);
+                SetIdleState(ref intentState, ref actionState, ref workerState);
                 return;
             }
 
@@ -436,13 +368,13 @@ namespace Server
 
             if (nodeEntity == Entity.Null)
             {
-                SetIdleStateRef(ref intentState, ref actionState, ref workerState);
+                SetIdleState(ref intentState, ref actionState, ref workerState);
                 return;
             }
 
             if (!_transformLookup.HasComponent(nodeEntity) || !_resourceNodeStateLookup.HasComponent(nodeEntity))
             {
-                SetIdleStateRef(ref intentState, ref actionState, ref workerState);
+                SetIdleState(ref intentState, ref actionState, ref workerState);
                 gatherTarget.ValueRW.ResourceNodeEntity = Entity.Null;
                 gatherTarget.ValueRW.LastGatheredNodeEntity = Entity.Null;
                 return;
@@ -454,7 +386,7 @@ namespace Server
 
             float3 workerPos = _transformLookup[workerEntity].Position;
             float3 nodePos = _transformLookup[nodeEntity].Position;
-            float3 targetPos = CalculateNodeTargetPosition(workerPos, nodePos, nodeEntity, workerEntity);
+            float3 targetPos = CalculateApproachPoint(workerPos, nodePos, nodeEntity, workerEntity);
 
             // 노드가 비었거나 자기 자신이 점유 중이면 -> 즉시 점유 및 이동
             if (nodeStateRW.ValueRO.OccupyingWorker == Entity.Null ||
@@ -508,15 +440,7 @@ namespace Server
                 float3 nodePos = _transformLookup[nodeEntity].Position;
                 float distance = math.distance(workerPos, nodePos);
 
-                float nodeRadius = _obstacleRadiusLookup.HasComponent(nodeEntity)
-                    ? _obstacleRadiusLookup[nodeEntity].Radius
-                    : 1.5f;
-                float unitRadius = _obstacleRadiusLookup.HasComponent(entity)
-                    ? _obstacleRadiusLookup[entity].Radius
-                    : 0.5f;
-                float arrivalDistance = nodeRadius + unitRadius + 1.5f;
-
-                if (distance > arrivalDistance)
+                if (distance > GetArrivalDistance(nodeEntity, entity))
                 {
                     continue;
                 }
@@ -524,33 +448,8 @@ namespace Server
                 // 이미 자원을 들고 있으면 채집 없이 바로 반납으로 전환
                 if (workerState.ValueRO.CarriedAmount > 0)
                 {
-                    gatherTarget.ValueRW.LastGatheredNodeEntity = nodeEntity;
-                    workerState.ValueRW.Phase = GatherPhase.MovingToReturn;
-                    actionState.ValueRW.State = Action.Moving;
-
-                    SystemAPI.SetComponentEnabled<MovementWaypoints>(entity, true);
-
-                    Entity nearestCenter = FindNearestResourceCenter(ref state, entity);
-                    Entity returnPoint = gatherTarget.ValueRO.ReturnPointEntity;
-
-                    if (nearestCenter != Entity.Null)
-                    {
-                        gatherTarget.ValueRW.ReturnPointEntity = nearestCenter;
-                        returnPoint = nearestCenter;
-                    }
-
-                    if (returnPoint != Entity.Null && _transformLookup.HasComponent(returnPoint))
-                    {
-                        float3 centerPos = _transformLookup[returnPoint].Position;
-                        float3 returnTargetPos = CalculateReturnTargetPosition(nodePos, centerPos, returnPoint, entity);
-
-                        movementGoal.ValueRW.Destination = returnTargetPos;
-                        movementGoal.ValueRW.IsPathDirty = true;
-                    }
-                    else
-                    {
-                        SetIdleState(ref intentState.ValueRW, ref actionState.ValueRW, ref workerState.ValueRW);
-                    }
+                    TransitionToReturn(ref state, ref intentState.ValueRW, ref actionState.ValueRW,
+                        ref workerState.ValueRW, gatherTarget, movementGoal, entity, nodePos);
                     continue;
                 }
 
@@ -577,19 +476,60 @@ namespace Server
         }
 
         /// <summary>
-        /// Idle 상태로 전환 (RefRW 버전)
+        /// 반납 이동 전환: Phase → MovingToReturn, 가장 가까운 ResourceCenter로 이동 목표 설정
         /// </summary>
-        private static void SetIdleState(ref UnitIntentState intentState, ref UnitActionState actionState, ref WorkerState workerState)
+        private void TransitionToReturn(
+            ref SystemState state,
+            ref UnitIntentState intentState,
+            ref UnitActionState actionState,
+            ref WorkerState workerState,
+            RefRW<GatheringTarget> gatherTarget,
+            RefRW<MovementGoal> movementGoal,
+            Entity entity,
+            float3 nodePos)
         {
-            intentState.State = Intent.Idle;
-            actionState.State = Action.Idle;
-            workerState.Phase = GatherPhase.None;
+            gatherTarget.ValueRW.LastGatheredNodeEntity = gatherTarget.ValueRO.ResourceNodeEntity;
+            workerState.Phase = GatherPhase.MovingToReturn;
+            actionState.State = Action.Moving;
+            SystemAPI.SetComponentEnabled<MovementWaypoints>(entity, true);
+
+            Entity nearestCenter = FindNearestResourceCenter(ref state, entity);
+            Entity returnPoint = gatherTarget.ValueRO.ReturnPointEntity;
+            if (nearestCenter != Entity.Null)
+            {
+                gatherTarget.ValueRW.ReturnPointEntity = nearestCenter;
+                returnPoint = nearestCenter;
+            }
+
+            if (returnPoint != Entity.Null && _transformLookup.HasComponent(returnPoint))
+            {
+                float3 centerPos = _transformLookup[returnPoint].Position;
+                float3 returnTargetPos = CalculateApproachPoint(nodePos, centerPos, returnPoint, entity);
+                movementGoal.ValueRW.Destination = returnTargetPos;
+                movementGoal.ValueRW.IsPathDirty = true;
+            }
+            else
+            {
+                SetIdleState(ref intentState, ref actionState, ref workerState);
+            }
         }
 
         /// <summary>
-        /// Idle 상태로 전환 (ref 버전)
+        /// 도착 거리 계산: 타겟 반지름 + 유닛 반지름 + 여유분(1.5f)
         /// </summary>
-        private static void SetIdleStateRef(ref UnitIntentState intentState, ref UnitActionState actionState, ref WorkerState workerState)
+        private float GetArrivalDistance(Entity targetEntity, Entity unitEntity)
+        {
+            float targetRadius = _obstacleRadiusLookup.HasComponent(targetEntity)
+                ? _obstacleRadiusLookup[targetEntity].Radius : 1.5f;
+            float unitRadius = _obstacleRadiusLookup.HasComponent(unitEntity)
+                ? _obstacleRadiusLookup[unitEntity].Radius : 0.5f;
+            return targetRadius + unitRadius + 1.5f;
+        }
+
+        /// <summary>
+        /// Idle 상태로 전환
+        /// </summary>
+        private static void SetIdleState(ref UnitIntentState intentState, ref UnitActionState actionState, ref WorkerState workerState)
         {
             intentState.State = Intent.Idle;
             actionState.State = Action.Idle;
@@ -629,61 +569,21 @@ namespace Server
         }
 
         /// <summary>
-        /// 워커 → ResourceNode 직선 상의 표면 지점 계산
+        /// fromPos에서 toPos를 향해 접근할 때, toPos 표면 직전 지점 계산
         /// </summary>
-        private float3 CalculateNodeTargetPosition(float3 workerPos, float3 nodePos, Entity nodeEntity, Entity workerEntity)
+        private float3 CalculateApproachPoint(float3 fromPos, float3 toPos, Entity toEntity, Entity approacherEntity)
         {
-            float3 direction = nodePos - workerPos;
+            float3 direction = toPos - fromPos;
             float len = math.length(direction);
+            if (len < 0.001f) return toPos;
+            direction /= len;
 
-            if (len < 0.001f)
-            {
-                return nodePos;
-            }
+            float toRadius = _obstacleRadiusLookup.HasComponent(toEntity)
+                ? _obstacleRadiusLookup[toEntity].Radius : 1.5f;
+            float approacherRadius = _obstacleRadiusLookup.HasComponent(approacherEntity)
+                ? _obstacleRadiusLookup[approacherEntity].Radius : 0.5f;
 
-            direction = direction / len;
-
-            float nodeRadius = _obstacleRadiusLookup.HasComponent(nodeEntity)
-                ? _obstacleRadiusLookup[nodeEntity].Radius
-                : 1.5f;
-
-            float unitRadius = _obstacleRadiusLookup.HasComponent(workerEntity)
-                ? _obstacleRadiusLookup[workerEntity].Radius
-                : 0.5f;
-
-            float offset = nodeRadius + unitRadius + 0.1f;
-            float3 targetPos = nodePos - direction * offset;
-
-            return targetPos;
-        }
-
-        /// <summary>
-        /// ResourceNode → ResourceCenter 직선 상의 표면 지점 계산
-        /// </summary>
-        private float3 CalculateReturnTargetPosition(float3 nodePos, float3 centerPos, Entity centerEntity, Entity workerEntity)
-        {
-            float3 direction = centerPos - nodePos;
-            float len = math.length(direction);
-
-            if (len < 0.001f)
-            {
-                return centerPos;
-            }
-
-            direction = direction / len;
-
-            float centerRadius = _obstacleRadiusLookup.HasComponent(centerEntity)
-                ? _obstacleRadiusLookup[centerEntity].Radius
-                : 1.5f;
-
-            float unitRadius = _obstacleRadiusLookup.HasComponent(workerEntity)
-                ? _obstacleRadiusLookup[workerEntity].Radius
-                : 0.5f;
-
-            float offset = centerRadius + unitRadius + 0.1f;
-            float3 targetPos = centerPos - direction * offset;
-
-            return targetPos;
+            return toPos - direction * (toRadius + approacherRadius + 0.1f);
         }
     }
 }
