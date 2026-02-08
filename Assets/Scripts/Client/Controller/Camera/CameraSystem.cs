@@ -80,7 +80,14 @@ public partial class CameraSystem : SystemBase
         }
         else
         {
-            HandleEdgePan(ref settings);
+            bool blockEdgePan = SystemAPI.TryGetSingleton<UserSelectionInputState>(out var selectionState)
+                && (selectionState.Phase == SelectionPhase.Pressing
+                    || selectionState.Phase == SelectionPhase.Dragging);
+
+            if (!blockEdgePan)
+            {
+                HandleEdgePan(ref settings);
+            }
         }
 
         // 6. 회전 고정 적용
