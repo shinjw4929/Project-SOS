@@ -12,7 +12,7 @@ namespace Server
     /// <summary>
     /// 건설 도착 시스템
     /// - PendingBuildServerData가 있고 MovementWaypoints가 비활성화된 유닛 감지
-    /// - 건물 생성 (HandleBuildRequestSystem 로직 재사용)
+    /// - 건물 생성 (BuildingUtility.CreateBuilding 사용)
     /// - PendingBuildServerData 제거
     /// - UnitIntentState를 Idle로 복원
     /// </summary>
@@ -188,13 +188,7 @@ namespace Server
 
             if (currency.Amount < structureCost)
             {
-                // 자원 부족 알림 RPC 전송
-                if (pending.SourceConnection != Entity.Null)
-                {
-                    var notifyEntity = ecb.CreateEntity();
-                    ecb.AddComponent(notifyEntity, new NotificationRpc { Type = NotificationType.InsufficientFunds });
-                    ecb.AddComponent(notifyEntity, new SendRpcCommandRequest { TargetConnection = pending.SourceConnection });
-                }
+                EconomyUtility.SendNotification(ref ecb, pending.SourceConnection, NotificationType.InsufficientFunds);
                 return false;
             }
 
@@ -212,37 +206,10 @@ namespace Server
             );
             buildingCenter.y += footprint.Height * 0.5f;
 
-            Entity newStructure = ecb.Instantiate(structurePrefab);
-
-            if (_transformLookup.HasComponent(structurePrefab))
-            {
-                var transform = _transformLookup[structurePrefab];
-                transform.Position = buildingCenter;
-                ecb.SetComponent(newStructure, transform);
-            }
-            else
-            {
-                ecb.SetComponent(newStructure, LocalTransform.FromPosition(buildingCenter));
-            }
-
-            ecb.SetComponent(newStructure, new GridPosition { Position = pending.GridPosition });
-            ecb.AddComponent(newStructure, new GhostOwner { NetworkId = pending.OwnerNetworkId });
-            ecb.SetComponent(newStructure, new Team { teamId = pending.OwnerNetworkId });
-
-            if (_productionInfoLookup.HasComponent(structurePrefab))
-            {
-                var info = _productionInfoLookup[structurePrefab];
-                ecb.AddComponent(newStructure, new UnderConstructionTag
-                {
-                    Progress = 0f,
-                    TotalBuildTime = info.ProductionTime
-                });
-            }
-
-            if (_needsNavMeshLookup.HasComponent(structurePrefab))
-            {
-                ecb.SetComponentEnabled<NeedsNavMeshObstacle>(newStructure, true);
-            }
+            BuildingUtility.CreateBuilding(
+                ref ecb, structurePrefab, buildingCenter,
+                pending.GridPosition, pending.OwnerNetworkId,
+                in _transformLookup, in _productionInfoLookup, in _needsNavMeshLookup);
 
             // 5. ResourceCenter 건설 시 테크 상태 업데이트
             if (_resourceCenterTagLookup.HasComponent(structurePrefab))

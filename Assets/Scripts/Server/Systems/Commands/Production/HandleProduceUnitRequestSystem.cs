@@ -139,13 +139,7 @@ namespace Server
                 // 4-1. 자원 부족 검사
                 if (currencyRW.ValueRO.Amount < constructionCost)
                 {
-                    // 자원 부족 알림 RPC 전송
-                    if (sourceConnection != Entity.Null)
-                    {
-                        var notifyEntity = ecb.CreateEntity();
-                        ecb.AddComponent(notifyEntity, new NotificationRpc { Type = NotificationType.InsufficientFunds });
-                        ecb.AddComponent(notifyEntity, new SendRpcCommandRequest { TargetConnection = sourceConnection });
-                    }
+                    EconomyUtility.SendNotification(ref ecb, sourceConnection, NotificationType.InsufficientFunds);
                     return;
                 }
 
@@ -156,13 +150,7 @@ namespace Server
 
                     if (!supplyRW.ValueRO.CanProduce(populationCost))
                     {
-                        // 인구수 초과 알림 RPC 전송
-                        if (sourceConnection != Entity.Null)
-                        {
-                            var notifyEntity = ecb.CreateEntity();
-                            ecb.AddComponent(notifyEntity, new NotificationRpc { Type = NotificationType.PopulationLimitReached });
-                            ecb.AddComponent(notifyEntity, new SendRpcCommandRequest { TargetConnection = sourceConnection });
-                        }
+                        EconomyUtility.SendNotification(ref ecb, sourceConnection, NotificationType.PopulationLimitReached);
                         return;
                     }
 

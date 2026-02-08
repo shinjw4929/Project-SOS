@@ -144,7 +144,7 @@ namespace Server
                 ProductionInfoLookup = _productionInfoLookup,
                 NeedsNavMeshLookup = _needsNavMeshLookup,
                 ResourceCenterTagLookup = _resourceCenterTagLookup,
-                TransformLookup = _transformLookup, // FootprintLookup 제거 (좌표 계산 완료됨)
+                TransformLookup = _transformLookup,
                 Ecb = ecb
             };
 
@@ -389,13 +389,7 @@ namespace Server
 
                 if (currency.Amount < request.StructureCost)
                 {
-                    // 자원 부족 알림 RPC 전송
-                    if (request.SourceConnection != Entity.Null)
-                    {
-                        var notifyEntity = Ecb.CreateEntity();
-                        Ecb.AddComponent(notifyEntity, new NotificationRpc { Type = NotificationType.InsufficientFunds });
-                        Ecb.AddComponent(notifyEntity, new SendRpcCommandRequest { TargetConnection = request.SourceConnection });
-                    }
+                    EconomyUtility.SendNotification(ref Ecb, request.SourceConnection, NotificationType.InsufficientFunds);
                     Ecb.DestroyEntity(request.RpcEntity);
                     continue;
                 }
@@ -404,7 +398,10 @@ namespace Server
                 UserCurrencyLookup[userCurrencyEntity] = currency;
 
                 // 4. 건물 생성 (TargetWorldPos 사용)
-                CreateBuildingEntity(request);
+                BuildingUtility.CreateBuilding(
+                    ref Ecb, request.PrefabEntity, request.TargetWorldPos,
+                    request.GridPosition, request.SourceNetworkId,
+                    in TransformLookup, in ProductionInfoLookup, in NeedsNavMeshLookup);
 
                 // 5. ResourceCenter 건설 시 테크 상태 업데이트
                 if (ResourceCenterTagLookup.HasComponent(request.PrefabEntity))
@@ -413,43 +410,6 @@ namespace Server
                 }
 
                 Ecb.DestroyEntity(request.RpcEntity);
-            }
-        }
-
-        private void CreateBuildingEntity(BuildActionRequest request)
-        {
-            Entity prefab = request.PrefabEntity;
-            Entity newStructure = Ecb.Instantiate(prefab);
-            
-            // Transform 설정 (Job 1에서 계산한 WorldPos 사용)
-            if (TransformLookup.HasComponent(prefab))
-            {
-                var transform = TransformLookup[prefab];
-                transform.Position = request.TargetWorldPos;
-                Ecb.SetComponent(newStructure, transform);
-            }
-            else
-            {
-                Ecb.SetComponent(newStructure, LocalTransform.FromPosition(request.TargetWorldPos));
-            }
-
-            Ecb.SetComponent(newStructure, new GridPosition { Position = request.GridPosition });
-            Ecb.AddComponent(newStructure, new GhostOwner { NetworkId = request.SourceNetworkId });
-            Ecb.SetComponent(newStructure, new Team { teamId = request.SourceNetworkId });
-
-            if (ProductionInfoLookup.HasComponent(prefab))
-            {
-                var info = ProductionInfoLookup[prefab];
-                Ecb.AddComponent(newStructure, new UnderConstructionTag
-                {
-                    Progress = 0f,
-                    TotalBuildTime = info.ProductionTime
-                });
-            }
-
-            if (NeedsNavMeshLookup.HasComponent(prefab))
-            {
-                Ecb.SetComponentEnabled<NeedsNavMeshObstacle>(newStructure, true);
             }
         }
 
