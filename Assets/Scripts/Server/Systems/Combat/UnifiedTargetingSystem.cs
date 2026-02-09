@@ -427,9 +427,18 @@ namespace Server
             // ---------------------------------------------------------
             if (aggroLock.ValueRO.RemainingLockTime > 0f && aggroLock.ValueRO.LockedTarget != Entity.Null)
             {
-                // 어그로 고정 상태 - 자동 타겟팅하지 않음
-                // AggroReactionSystem에서 이미 타겟 설정됨
-                return;
+                Entity lockedTarget = aggroLock.ValueRO.LockedTarget;
+
+                // 고정 타겟 유효성 검증 (EnemyTargetJob과 동일 패턴)
+                if (TransformLookup.TryGetComponent(lockedTarget, out LocalTransform lockedTransform) &&
+                    HealthLookup.TryGetComponent(lockedTarget, out Health lockedHealth) &&
+                    lockedHealth.CurrentValue > 0)
+                {
+                    return; // 유효한 고정 타겟 → 자동 타겟팅 스킵
+                }
+                // 고정 타겟 사망/파괴 → AggroLock 해제, 정상 타겟팅 진행
+                aggroLock.ValueRW.RemainingLockTime = 0f;
+                aggroLock.ValueRW.LockedTarget = Entity.Null;
             }
 
             // ---------------------------------------------------------
@@ -569,10 +578,30 @@ namespace Server
                     waypointsEnabled.ValueRW = true;
                 }
             }
-            else if (currentIntent == Intent.Idle && currentTarget != Entity.Null)
+            else
             {
-                aggroTarget.ValueRW.TargetEntity = Entity.Null;
-                intent.ValueRW.TargetEntity = Entity.Null;
+                if (needImmediateSearch)
+                {
+                    // 타겟 상실(사망/파괴/범위이탈) → 정리 및 정지
+                    aggroTarget.ValueRW.TargetEntity = Entity.Null;
+                    intent.ValueRW.TargetEntity = Entity.Null;
+
+                    if (intent.ValueRO.State == Intent.Attack)
+                    {
+                        intent.ValueRW.State = Intent.Idle;
+                    }
+
+                    if (intent.ValueRO.State == Intent.Idle && waypointsEnabled.ValueRO)
+                    {
+                        waypointsEnabled.ValueRW = false;
+                    }
+                }
+                else if (currentIntent == Intent.Idle && currentTarget != Entity.Null)
+                {
+                    // 주기적 탐색: 오래된 aggroTarget 정리 (기존 동작 유지)
+                    aggroTarget.ValueRW.TargetEntity = Entity.Null;
+                    intent.ValueRW.TargetEntity = Entity.Null;
+                }
             }
         }
     }
