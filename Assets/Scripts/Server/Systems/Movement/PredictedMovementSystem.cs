@@ -27,14 +27,19 @@ namespace Server
             state.RequireForUpdate<PhysicsWorldSingleton>();
             state.RequireForUpdate<SpatialMaps>();
 
-            // 이동 그룹 (Waypoint 보유)
-            _movingQuery = state.GetEntityQuery(
-                ComponentType.ReadWrite<LocalTransform>(),
-                ComponentType.ReadWrite<PhysicsVelocity>(),
-                ComponentType.ReadWrite<MovementWaypoints>(),
-                ComponentType.ReadOnly<MovementDynamics>(),
-                ComponentType.ReadOnly<ObstacleRadius>()
-            );
+            // 이동 그룹 (Waypoint 보유, 비활성 포함 - 공격 중 Separation 유지)
+            _movingQuery = state.GetEntityQuery(new EntityQueryDesc
+            {
+                All = new[]
+                {
+                    ComponentType.ReadWrite<LocalTransform>(),
+                    ComponentType.ReadWrite<PhysicsVelocity>(),
+                    ComponentType.ReadWrite<MovementWaypoints>(),
+                    ComponentType.ReadOnly<MovementDynamics>(),
+                    ComponentType.ReadOnly<ObstacleRadius>()
+                },
+                Options = EntityQueryOptions.IgnoreComponentEnabledState
+            });
         }
 
         [BurstCompile]
@@ -113,10 +118,11 @@ namespace Server
             ref LocalTransform transform,
             ref PhysicsVelocity velocity,
             ref MovementWaypoints waypoints,
+            EnabledRefRW<MovementWaypoints> waypointsEnabled,
             in MovementDynamics dynamics,
             in ObstacleRadius obstacleRadius)
         {
-            // 공격 중이면 이동은 스킵하되 분리는 유지
+            // 공격 중이거나 waypoints 비활성화 시 이동은 스킵하되 Separation은 유지
             bool isEnemyAttacking = EnemyTagLookup.HasComponent(entity) &&
                                     EnemyStateLookup.TryGetComponent(entity, out EnemyState enemyState) &&
                                     enemyState.CurrentState == EnemyContext.Attacking;
@@ -125,11 +131,13 @@ namespace Server
                                    actionState.State == Action.Attacking;
 
             bool isAttacking = isEnemyAttacking || isUnitAttacking;
+            bool isWaypointsDisabled = !waypointsEnabled.ValueRO;
+            bool skipMovement = isAttacking || isWaypointsDisabled;
 
             float3 currentPos = transform.Position;
             float3 desiredVelocity = float3.zero;
 
-            if (!isAttacking)
+            if (!skipMovement)
             {
                 float3 targetPos = waypoints.Current;
                 targetPos.y = currentPos.y;
@@ -185,7 +193,7 @@ namespace Server
             if (IntentLookup.TryGetComponent(entity, out UnitIntentState intent) && intent.State == Intent.Gather)
                 iAmGathering = true;
 
-            float3 separationForce = CalculateSeparation(currentPos, obstacleRadius.Radius, entity, iAmEnemy, iAmFlying, iAmGathering);
+            float3 separationForce = CalculateSeparation(currentPos, obstacleRadius.Radius, entity, iAmEnemy, iAmFlying, iAmGathering, out float3 hardPush);
             float3 finalVelocity = desiredVelocity + (separationForce * SeparationStrength);
 
             // Cap Velocity
@@ -204,7 +212,7 @@ namespace Server
             // Separation 진동 감지: 최종 목적지 근처에서 밀려나는 경우 정지
             // 다수 유닛이 동일 목적지로 이동 시 도착한 유닛의 Separation이
             // 이동 중 유닛을 도착 반경 밖으로 밀어내는 현상 방지
-            if (!isAttacking && !waypoints.HasNext)
+            if (!skipMovement && !waypoints.HasNext)
             {
                 float3 tp = waypoints.Current;
                 tp.y = currentPos.y;
@@ -224,29 +232,21 @@ namespace Server
             // Apply
             transform.Position += finalVelocity * DeltaTime;
 
-            // 위치 보정: Separation Force로 인한 벽 관통 차단 (안전망)
+            // 이동 후 벽 관통 차단 (안전망)
             if (!iAmFlying)
             {
-                var clampInput = new PointDistanceInput
-                {
-                    Position = transform.Position + new float3(0, 0.5f, 0),
-                    MaxDistance = obstacleRadius.Radius,
-                    Filter = WallFilter
-                };
+                ClampToWall(ref transform.Position, obstacleRadius.Radius, in CollisionWorld, WallFilter);
+            }
 
-                if (CollisionWorld.CalculateDistance(clampInput, out DistanceHit clampHit))
+            // Entity 겹침 위치 보정 (Hard Constraint)
+            if (math.lengthsq(hardPush) > 0.0001f)
+            {
+                transform.Position += hardPush;
+
+                // Entity push가 벽 안으로 밀 수 있으므로 벽 관통 재검사
+                if (!iAmFlying)
                 {
-                    float overlap = obstacleRadius.Radius - clampHit.Distance;
-                    if (overlap > 0.05f)
-                    {
-                        float3 pushNormal = math.normalizesafe(clampHit.SurfaceNormal);
-                        pushNormal.y = 0;
-                        if (math.lengthsq(pushNormal) > 0.001f)
-                        {
-                            pushNormal = math.normalize(pushNormal);
-                            transform.Position += pushNormal * (overlap + 0.02f);
-                        }
-                    }
+                    ClampToWall(ref transform.Position, obstacleRadius.Radius, in CollisionWorld, WallFilter);
                 }
             }
 
@@ -260,9 +260,13 @@ namespace Server
             }
         }
 
-        private float3 CalculateSeparation(float3 myPos, float myRadius, Entity myEntity, bool iAmEnemy, bool iAmFlying, bool iAmGathering)
+        private float3 CalculateSeparation(
+            float3 myPos, float myRadius, Entity myEntity,
+            bool iAmEnemy, bool iAmFlying, bool iAmGathering,
+            out float3 hardPush)
         {
             float3 separation = float3.zero;
+            hardPush = float3.zero;
 
             for (int x = -1; x <= 1; x++)
             {
@@ -307,7 +311,19 @@ namespace Server
                             {
                                 float dist = math.sqrt(distSq);
                                 float overlap = combinedRadius - dist;
-                                separation += (toOther / dist) * overlap;
+
+                                // 비선형 force: 깊이 침투 시 기하급수적으로 강해짐
+                                float overlapRatio = overlap / combinedRadius;
+                                float forceMag = overlap * (1.0f + overlapRatio * 3.0f);
+                                separation += (toOther / dist) * forceMag;
+
+                                // Hard constraint: 실제 반경(마진 제외) 기준 겹침 위치 보정
+                                float hardCombinedR = myRadius + otherRadius;
+                                if (dist < hardCombinedR)
+                                {
+                                    float hardOverlap = hardCombinedR - dist;
+                                    hardPush += (toOther / dist) * (hardOverlap * 0.5f);
+                                }
                             }
 
                         } while (SpatialMap.TryGetNextValue(out neighbor, ref it));
@@ -315,6 +331,33 @@ namespace Server
                 }
             }
             return separation;
+        }
+
+        private static void ClampToWall(
+            ref float3 position, float radius,
+            in CollisionWorld collisionWorld, CollisionFilter wallFilter)
+        {
+            var clampInput = new PointDistanceInput
+            {
+                Position = position + new float3(0, 0.5f, 0),
+                MaxDistance = radius,
+                Filter = wallFilter
+            };
+
+            if (collisionWorld.CalculateDistance(clampInput, out DistanceHit clampHit))
+            {
+                float overlap = radius - clampHit.Distance;
+                if (overlap > 0.05f)
+                {
+                    float3 pushNormal = math.normalizesafe(clampHit.SurfaceNormal);
+                    pushNormal.y = 0;
+                    if (math.lengthsq(pushNormal) > 0.001f)
+                    {
+                        pushNormal = math.normalize(pushNormal);
+                        position += pushNormal * (overlap + 0.02f);
+                    }
+                }
+            }
         }
 
         private float3 ResolveWallCollision(float3 currentPos, float3 velocity, float radius, float dt, bool isEnemy)
