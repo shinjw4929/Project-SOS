@@ -121,7 +121,7 @@ MonoBehaviour:
   maxHealth: 100
   defense: 0
   visionRange: 10
-  workRange: 1
+  workRange: 1.2
   radius: 0.5
   attackPower: 0
   attackSpeed: 1

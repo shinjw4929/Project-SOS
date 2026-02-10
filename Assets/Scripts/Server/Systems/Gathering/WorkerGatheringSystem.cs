@@ -515,15 +515,15 @@ namespace Server
         }
 
         /// <summary>
-        /// 도착 거리 계산: 타겟 반지름 + 유닛 반지름 + 여유분(1.5f)
+        /// 도착 거리 계산: 타겟 반지름 + WorkRange (프리팹에서 조정 가능)
         /// </summary>
         private float GetArrivalDistance(Entity targetEntity, Entity unitEntity)
         {
             float targetRadius = _obstacleRadiusLookup.HasComponent(targetEntity)
                 ? _obstacleRadiusLookup[targetEntity].Radius : 1.5f;
-            float unitRadius = _obstacleRadiusLookup.HasComponent(unitEntity)
-                ? _obstacleRadiusLookup[unitEntity].Radius : 0.5f;
-            return targetRadius + unitRadius + 1.5f;
+            float workRange = _workRangeLookup.HasComponent(unitEntity)
+                ? _workRangeLookup[unitEntity].Value : 1.0f;
+            return targetRadius + workRange;
         }
 
         /// <summary>
@@ -569,7 +569,7 @@ namespace Server
         }
 
         /// <summary>
-        /// fromPos에서 toPos를 향해 접근할 때, toPos 표면 직전 지점 계산
+        /// fromPos에서 toPos를 향해 접근할 때, toPos 표면 직전 지점 계산 (Work Range 기반)
         /// </summary>
         private float3 CalculateApproachPoint(float3 fromPos, float3 toPos, Entity toEntity, Entity approacherEntity)
         {
@@ -580,10 +580,10 @@ namespace Server
 
             float toRadius = _obstacleRadiusLookup.HasComponent(toEntity)
                 ? _obstacleRadiusLookup[toEntity].Radius : 1.5f;
-            float approacherRadius = _obstacleRadiusLookup.HasComponent(approacherEntity)
-                ? _obstacleRadiusLookup[approacherEntity].Radius : 0.5f;
+            float workRange = _workRangeLookup.HasComponent(approacherEntity)
+                ? _workRangeLookup[approacherEntity].Value : 1.0f;
 
-            return toPos - direction * (toRadius + approacherRadius + 0.1f);
+            return toPos - direction * (toRadius + workRange * 0.5f);
         }
     }
 }

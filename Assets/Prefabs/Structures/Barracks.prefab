@@ -57,8 +57,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 1, y: 1, z: 1}
-  m_Center: {x: 0, y: 0, z: 0}
+  m_Size: {x: 2, y: 2, z: 2}
+  m_Center: {x: 0, y: 1, z: 0}
 --- !u!54 &6290110214241745948
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -118,12 +118,12 @@ MonoBehaviour:
   width: 3
   length: 3
   height: 0
-  worldWidth: 3
-  worldLength: 3
-  navMeshHeight: 3
+  worldWidth: 2.7
+  worldLength: 2.7
+  navMeshHeight: 2.7
   isCircular: 0
   navMeshRadius: 1
-  interactionRadius: 2.1
+  interactionRadius: 1.9
   cost: 100
   buildTime: 3
   maxHealth: 10

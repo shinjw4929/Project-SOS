@@ -116,7 +116,7 @@ namespace Server
                 {
                     workRange = _workRangeLookup[entity].Value;
                 }
-                float arrivalThreshold = workRange + 1.0f;
+                float arrivalThreshold = workRange;
 
                 // 도착 판정: MovementWaypoints 비활성화 OR (사거리 내 + 저속)
                 bool waypointsDone = !waypointsEnabled.ValueRO;

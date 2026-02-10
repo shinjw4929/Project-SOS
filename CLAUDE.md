@@ -156,14 +156,28 @@ public enum UserContext : byte {
 }
 ```
 
-### 4. Other Patterns (간략)
+### 4. Work Range Pattern (작업 거리 계산)
+모든 작업(채집, 건설, 전투)의 상호작용 거리는 **타겟 표면 기준**으로 계산한다.
+```csharp
+// 채집/건설: 도착 거리 = 타겟 반지름 + WorkRange
+float arrivalDistance = targetRadius + workRange;
+
+// 전투: 유효 거리 = 직선 거리 - 타겟 반지름
+float effectiveDistance = rawDistance - targetRadius;
+bool inRange = effectiveDistance <= attackRange;
+```
+- **공격자/작업자의 반지름 사용 안 함**: 타겟 표면까지의 거리만 계산
+- **WorkRange/AttackRange**: 프리팹 인스펙터에서 조정 가능 (UnitAuthoring.workRange)
+- **일관성**: 모든 시스템이 동일한 패턴 사용 (WorkerGatheringSystem, BuildArrivalSystem, CombatUtility)
+
+### 5. Other Patterns (간략)
 - **Selection System**: Phase 기반 (`UserSelectionInputState.Phase`) → `EntitySelectionSystem`에서 Selected 토글
 - **Combat Flow**: MeleeAttackSystem/RangedAttackSystem → DamageEvent 버퍼 → DamageApplySystem
 - **CarriedResource Visibility**: Scale 토글 (`CarriedAmount > 0 ? 1f : 0f`) - Structural Change 없음
 - **Spatial Partitioning**: `SpatialMapBuildSystem`에서 Persistent 맵 Clear + 재빌드 → 사용 시스템에서 ReadOnly → Job dependency chain으로 동기화
 - **Catalog Patterns**: UnitCatalog/StructureCatalog(버퍼) vs EnemyPrefabCatalog(명시적 필드)
 
-### 5. Network RPCs
+### 6. Network RPCs
 `MoveRequestRpc`, `AttackRequestRpc`, `BuildRequestRpc`, `BuildMoveRequestRpc`, `GatherRequestRpc`, `ReturnResourceRequestRpc`, `ProduceUnitRequestRpc`, `SelfDestructRequestRpc`, `NotificationRpc`, `HeroDeathRpc`, `GameOverRpc`
 
 ---
