@@ -2,7 +2,7 @@ using Unity.Entities;
 using Unity.Mathematics;
 using UnityEngine;
 using Shared;
-using Unity.Collections.LowLevel.Unsafe;// 메모리 바로 접근
+using Unity.Collections.LowLevel.Unsafe;
 
 namespace Authoring
 {
@@ -16,10 +16,22 @@ namespace Authoring
         {
             public override void Bake(GridSettingsAuthoring authoring)
             {
-                int gridX = authoring.gridSize.x;
-                int gridZ = authoring.gridSize.y;
+                int gridX, gridZ;
+                if (authoring.groundTransform != null)
+                {
+                    // Unity Plane: localScale * 10 = 실제 월드 크기
+                    Vector3 scale = authoring.groundTransform.localScale;
+                    gridX = Mathf.RoundToInt(scale.x * 10f / authoring.cellSize);
+                    gridZ = Mathf.RoundToInt(scale.z * 10f / authoring.cellSize);
+                }
+                else
+                {
+                    // groundTransform 미할당 시 인스펙터 필드값 사용
+                    gridX = authoring.gridSize.x;
+                    gridZ = authoring.gridSize.y;
+                }
 
-                // gridOrigin 계산: Ground 중심 기준 또는 (0,0) 기준
+                // gridOrigin 계산: Ground 중심 기준 또는 원점 기준
                 float2 gridOrigin;
                 if (authoring.groundTransform != null)
                 {
@@ -33,7 +45,6 @@ namespace Authoring
                 }
                 else
                 {
-                    // Ground가 없으면 원점 중심
                     float totalX = gridX * authoring.cellSize;
                     float totalZ = gridZ * authoring.cellSize;
                     gridOrigin = new float2(-totalX / 2f, -totalZ / 2f);
@@ -47,25 +58,16 @@ namespace Authoring
                     GridSize = new int2(gridX, gridZ),
                 });
 
-                // GridCell 버퍼 추가 및 초기화
                 var buffer = AddBuffer<GridCell>(entity);
                 int totalCells = gridX * gridZ;
 
                 buffer.Length = totalCells;
-                
-                // 버퍼를 byte 배열처럼 취급하여 포인터를 가져옴
+
                 var rawData = buffer.Reinterpret<byte>().AsNativeArray();
-                // UnsafeUtility를 사용해 메모리 전체를 0으로 초기화
-                unsafe 
+                unsafe
                 {
                     UnsafeUtility.MemSet(rawData.GetUnsafePtr(), 0, rawData.Length);
                 }
-                
-                // Legacy: for문 초기화
-                // for (int i = 0; i < buffer.Length; i++)
-                // {
-                //     buffer[i] = new GridCell { isOccupied = false };
-                // }
             }
         }
     }

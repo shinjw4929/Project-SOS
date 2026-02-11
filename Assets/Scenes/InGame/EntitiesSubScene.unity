@@ -663,7 +663,7 @@ MonoBehaviour:
   gridSize:
     x: 100
     y: 100
-  groundTransform: {fileID: 0}
+  groundTransform: {fileID: 1392215424}
 --- !u!1 &670457695
 GameObject:
   m_ObjectHideFlags: 0
@@ -1713,6 +1713,11 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 7206204841924016351, guid: dcd0c0c1db60c3341b26739b9b980025, type: 3}
   m_PrefabInstance: {fileID: 1391153319}
   m_PrefabAsset: {fileID: 0}
+--- !u!4 &1392215424 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 8314215931734994711, guid: 30865bf8e39232648b6fb54b625ea8ab, type: 3}
+  m_PrefabInstance: {fileID: 1346847918}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1001 &1399135812
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -2531,6 +2536,7 @@ MonoBehaviour:
   lockRotation: 1
   edgePanSpeed: 50
   edgeThreshold: 20
+  groundTransform: {fileID: 1392215424}
   mapBoundsMin: {x: -40, y: -50}
   mapBoundsMax: {x: 40, y: 40}
 --- !u!4 &1988281444 stripped

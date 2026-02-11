@@ -231,7 +231,7 @@ MonoBehaviour:
   worldLength: 3.5
   navMeshHeight: 3.5
   isCircular: 1
-  navMeshRadius: 1.2
+  navMeshRadius: 1.8
   interactionRadius: 2.4
   resourceType: 1
   amountPerGather: 10
