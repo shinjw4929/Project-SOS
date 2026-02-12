@@ -11,7 +11,7 @@
 SpatialMapBuildSystem → MovementMap 빌드 (셀 크기: 3.0f)
     ↓
 [SimulationSystemGroup]
-PathfindingSystem → NavMeshQuery 기반 경로 계산 + Funnel 알고리즘 → PathWaypoint 버퍼 (시간 기반 제한: 1ms/프레임)
+PathfindingSystem → NavMeshQuery 기반 경로 계산 + Funnel 알고리즘 → PathWaypoint 버퍼 (시간 기반 제한: 4ms/프레임)
     ↓
 PathFollowSystem → MovementWaypoints.Current/Next 공급
     ↓
@@ -25,7 +25,7 @@ MovementArrivalSystem → 도착 판정 → 이동 정지 + Intent.Idle 전환
 1. 서버 권위 모델: 모든 이동 계산은 서버에서 수행, 클라이언트는 Ghost 보간으로 시각화
 2. 3계층 구조: MovementGoal(명령) → PathWaypoint(계획) → MovementWaypoints(실행)
 3. Kinematic 이동: PhysicsVelocity가 아닌 LocalTransform.Position 직접 수정
-4. 대역폭 최적화: 전체 경로 대신 Current/Next 두 지점만 동기화
+4. 대역폭 최적화: MovementWaypoints/MovementGoal 필드는 서버 전용 ([GhostField] 없음), PhysicsVelocity도 동기화 안 함 (Quantization=0). Ghost enabled 상태와 LocalTransform만 동기화
 5. 공간 분할 충돌 회피: SpatialMaps.MovementMap(셀 크기 3.0f)을 사용한 Entity 기반 Separation
 6. AttackMove 지원: 이동 중 적 자동 감지 (Intent.AttackMove 상태)
 
@@ -84,7 +84,7 @@ MovementArrivalSystem → 도착 판정 → 이동 정지 + Intent.Idle 전환
 역할: IsPathDirty=true인 유닛 감지 → NavMeshQuery 기반 경로 계산 → PathWaypoint 버퍼 채우기
 - **NavMeshQuery 기반**: `BeginFindPath` → `UpdateFindPath` → `EndFindPath` → `GetPathResult` → Funnel 알고리즘
 - **Funnel 알고리즘**: `NavMeshPathUtils.FindStraightPath`로 폴리곤 경로를 직선 웨이포인트로 변환 (Burst 호환)
-- **시간 기반 제한**: 프레임당 최대 1.0ms (Stopwatch 기반 Time Slicing)
+- **시간 기반 제한**: 프레임당 최대 4.0ms (Stopwatch 기반 Time Slicing)
 - **lazy 초기화**: NavMeshQuery는 NavMeshWorld가 유효해진 후 생성
 - Agent ID 캐싱으로 NavMesh.GetSettingsByIndex 호출 최소화
 - `MapLocation`으로 시작/끝 위치를 NavMesh 위에 매핑 (SampleExtent: 5.0f)
@@ -108,7 +108,7 @@ MovementArrivalSystem → 도착 판정 → 이동 정지 + Intent.Idle 전환
   - 유닛-유닛 간 충돌 회피: 둘 다 Gather 상태면 무시
 - **공격 중 Separation 유지**: `IgnoreComponentEnabledState` + `EnabledRefRW<MovementWaypoints>`로 MovementWaypoints 비활성화 엔티티도 쿼리에 포함. 이동만 스킵하고 Separation은 계속 적용.
 - **비선형 Separation Force**: `forceMag = overlap * (1 + overlapRatio * 3)` — 깊이 침투 시 기하급수적 반발
-- **Entity Hard Constraint**: 실제 반경(마진 0.3f 제외) 기준 겹침 시 위치 직접 보정 (hardPush)
+- **Entity Hard Constraint**: 실제 반경(마진 0.3f 제외) 기준 겹침 시 위치 직접 보정 (hardPush, obstacleRadius.Radius로 크기 제한)
 - 벽 충돌 미끄러짐 처리 (Raycast + PointDistance)
 - 벽 충돌 안전망: `ClampToWall` static 메서드로 이동 후 + Entity push 후 벽 관통 재검사
 - Separation 진동 감지: 최종 목적지 확장 반경(2배) 내에서 밀려나는 경우 즉시 정지
@@ -182,10 +182,13 @@ MovementArrivalSystem → 도착 판정 → 이동 정지 + Intent.Idle 전환
 
 ### Ghost 동기화 필드
 
-| 컴포넌트 | 동기화 필드 | 비동기화 필드 (서버 전용) |
+| 컴포넌트 | 동기화 | 비동기화 필드 (서버 전용) |
 | --- | --- | --- |
-| MovementGoal | Destination | IsPathDirty, CurrentWaypointIndex, TotalWaypoints, IsPathPartial, DestinationSetTime, LastPositionCheck, LastPositionCheckTime |
-| MovementWaypoints | Current, Next, HasNext, ArrivalRadius | - |
+| MovementGoal | enabled 상태만 | Destination, IsPathDirty, CurrentWaypointIndex, TotalWaypoints, IsPathPartial, DestinationSetTime, LastPositionCheck, LastPositionCheckTime |
+| MovementWaypoints | enabled 상태만 | Current, Next, HasNext, ArrivalRadius |
+| PhysicsVelocity | 없음 (Quantization=0) | Linear, Angular (PhysicsVelocityGhostOverride) |
+
+**대역폭 최적화 근거**: 이동 시스템(PathfindingSystem, PathFollowSystem, PredictedMovementSystem)은 전부 서버 전용. 클라이언트는 Ghost 보간된 LocalTransform만으로 시각화하므로 이동 관련 필드 동기화 불필요. Ghost당 ~53바이트 절감.
 
 ## 버퍼 (Shared/Buffers/)
 
@@ -218,7 +221,7 @@ NavMeshObstacleSpawnSystem
     ↓
 PathfindingSystem (UpdateAfter: NavMeshObstacleSpawnSystem)
     → IsPathDirty=true 감지
-    → NavMeshQuery: BeginFindPath → UpdateFindPath → EndFindPath (시간 제한: 1ms/프레임)
+    → NavMeshQuery: BeginFindPath → UpdateFindPath → EndFindPath (시간 제한: 4ms/프레임)
     → NavMeshPathUtils.FindStraightPath (Funnel 알고리즘)
     → PathWaypoint 버퍼 채우기
     ↓
@@ -246,7 +249,8 @@ MovementArrivalSystem (UpdateAfter: PredictedMovementSystem)
 
 ```csharp
 // 이동 스킵 조건 (Separation은 항상 실행)
-bool skipMovement = isAttacking || isWaypointsDisabled;
+bool isPathPending = goal.IsPathDirty;  // 경로 미계산 시 (0,0,0) 이동 방지
+bool skipMovement = isAttacking || isWaypointsDisabled || isPathPending;
 
 // 충돌 회피 조건
 bool shouldCollide = iAmEnemy || isEnemy || (!iAmGathering && !isGathering);
@@ -262,7 +266,7 @@ MeleeAttackSystem 등에서 ECB로 MovementWaypoints를 비활성화하면, 기�
 
 1. **쿼리**: `EntityQueryOptions.IgnoreComponentEnabledState`로 비활성화 엔티티 포함
 2. **파라미터**: `EnabledRefRW<MovementWaypoints>`로 런타임에 활성화 상태 확인
-3. **로직**: `skipMovement = isAttacking || isWaypointsDisabled` — 이동만 스킵, Separation은 유지
+3. **로직**: `skipMovement = isAttacking || isWaypointsDisabled || isPathPending` — 이동만 스킵, Separation은 유지
 
 이 패턴은 `UnifiedTargetingSystem.EnemyTargetJob`에서도 동일하게 사용 중.
 
@@ -277,6 +281,11 @@ float forceMag = overlap * (1.0f + overlapRatio * 3.0f);
 float hardCombinedR = myRadius + otherRadius;
 if (dist < hardCombinedR)
     hardPush += (toOther / dist) * (hardOverlap * 0.5f);
+
+// hardPush 크기 제한: 밀집 시 순간이동 방지
+float maxPush = obstacleRadius.Radius;
+if (lengthsq(hardPush) > maxPush * maxPush)
+    hardPush = normalize(hardPush) * maxPush;
 ```
 
 ### 벽 충돌 처리

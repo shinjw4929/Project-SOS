@@ -28,7 +28,7 @@ namespace Server
         const int PathNodePoolSize = 256;
         const int MaxIterationsPerQuery = 1024;
         const int MaxUpdateRetries = 4;
-        const float MaxProcessingTimeMs = 1.0f;
+        const float MaxProcessingTimeMs = 4.0f;
         const float SampleExtent = 5.0f;
 
         // 시스템 상태

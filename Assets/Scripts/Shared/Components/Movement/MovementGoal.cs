@@ -10,8 +10,8 @@ namespace Shared
     [GhostComponent]
     public struct MovementGoal : IComponentData
     {
-        // 최종 목적지 [클라, 서버 둘다 사용]
-        [GhostField] public float3 Destination;
+        // 최종 목적지 [서버 전용]
+        public float3 Destination;
         // 새 경로 계산이 필요한지 여부 [서버만 사용]
         public bool IsPathDirty;
         // 현재 따라가는 웨이포인트 인덱스 [서버만 사용]

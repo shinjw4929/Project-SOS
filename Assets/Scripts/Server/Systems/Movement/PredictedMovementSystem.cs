@@ -36,7 +36,8 @@ namespace Server
                     ComponentType.ReadWrite<PhysicsVelocity>(),
                     ComponentType.ReadWrite<MovementWaypoints>(),
                     ComponentType.ReadOnly<MovementDynamics>(),
-                    ComponentType.ReadOnly<ObstacleRadius>()
+                    ComponentType.ReadOnly<ObstacleRadius>(),
+                    ComponentType.ReadOnly<MovementGoal>()
                 },
                 Options = EntityQueryOptions.IgnoreComponentEnabledState
             });
@@ -120,7 +121,8 @@ namespace Server
             ref MovementWaypoints waypoints,
             EnabledRefRW<MovementWaypoints> waypointsEnabled,
             in MovementDynamics dynamics,
-            in ObstacleRadius obstacleRadius)
+            in ObstacleRadius obstacleRadius,
+            in MovementGoal goal)
         {
             // 공격 중이거나 waypoints 비활성화 시 이동은 스킵하되 Separation은 유지
             bool isEnemyAttacking = EnemyTagLookup.HasComponent(entity) &&
@@ -132,7 +134,8 @@ namespace Server
 
             bool isAttacking = isEnemyAttacking || isUnitAttacking;
             bool isWaypointsDisabled = !waypointsEnabled.ValueRO;
-            bool skipMovement = isAttacking || isWaypointsDisabled;
+            bool isPathPending = goal.IsPathDirty;
+            bool skipMovement = isAttacking || isWaypointsDisabled || isPathPending;
 
             float3 currentPos = transform.Position;
             float3 desiredVelocity = float3.zero;
@@ -241,6 +244,11 @@ namespace Server
             // Entity 겹침 위치 보정 (Hard Constraint)
             if (math.lengthsq(hardPush) > 0.0001f)
             {
+                float maxPush = obstacleRadius.Radius;
+                float pushLenSq = math.lengthsq(hardPush);
+                if (pushLenSq > maxPush * maxPush)
+                    hardPush *= maxPush / math.sqrt(pushLenSq);
+
                 transform.Position += hardPush;
 
                 // Entity push가 벽 안으로 밀 수 있으므로 벽 관통 재검사

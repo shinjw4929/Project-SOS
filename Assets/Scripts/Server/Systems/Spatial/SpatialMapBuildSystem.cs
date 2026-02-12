@@ -60,8 +60,8 @@ namespace Server
                 .Build(ref state);
 
             // Persistent 맵 할당
-            _targetingMap = new NativeParallelMultiHashMap<int, SpatialTargetEntry>(256, Allocator.Persistent);
-            _movementMap = new NativeParallelMultiHashMap<int, SpatialMovementEntry>(512, Allocator.Persistent);
+            _targetingMap = new NativeParallelMultiHashMap<int, SpatialTargetEntry>(2048, Allocator.Persistent);
+            _movementMap = new NativeParallelMultiHashMap<int, SpatialMovementEntry>(4096, Allocator.Persistent);
 
             // SpatialMaps 싱글톤 엔티티 생성
             _spatialMapsEntity = state.EntityManager.CreateEntity();

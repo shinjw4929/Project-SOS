@@ -1,12 +1,13 @@
 using Unity.Entities;
+using Unity.Mathematics;
 using Unity.NetCode;
 using Shared;
 
 namespace Server
 {
     /// <summary>
-    /// GamePhaseState 싱글톤 초기화 시스템.
-    /// 서버에서 1회 실행하여 게임 상태 엔티티 생성.
+    /// GamePhaseState + GhostDistanceImportance 싱글톤 초기화 시스템.
+    /// 서버에서 1회 실행하여 게임 상태 엔티티 및 Ghost 우선순위 설정 생성.
     /// </summary>
     [UpdateInGroup(typeof(InitializationSystemGroup))]
     [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
@@ -32,6 +33,24 @@ namespace Server
 
 #if UNITY_EDITOR
             state.EntityManager.SetName(entity, "Singleton_GamePhaseState");
+#endif
+
+            // GhostDistanceImportance: Hero에 가까운 Ghost 우선 업데이트
+            var gridSingleton = state.EntityManager.CreateSingleton(new GhostDistanceData
+            {
+                TileSize = new int3(50, 50, 50),
+                TileCenter = int3.zero,
+                TileBorderWidth = new float3(1f, 1f, 1f),
+            });
+            state.EntityManager.AddComponentData(gridSingleton, new GhostImportance
+            {
+                BatchScaleImportanceFunction = GhostDistanceImportance.BatchScaleFunctionPointer,
+                GhostConnectionComponentType = ComponentType.ReadOnly<GhostConnectionPosition>(),
+                GhostImportanceDataType = ComponentType.ReadOnly<GhostDistanceData>(),
+                GhostImportancePerChunkDataType = ComponentType.ReadOnly<GhostDistancePartitionShared>(),
+            });
+#if UNITY_EDITOR
+            state.EntityManager.SetName(gridSingleton, "Singleton_GhostDistanceImportance");
 #endif
         }
     }

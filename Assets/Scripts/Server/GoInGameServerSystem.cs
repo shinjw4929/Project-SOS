@@ -4,7 +4,7 @@ using Unity.Mathematics;
 using Unity.NetCode;
 using Unity.Transforms;
 using UnityEngine;
-using Shared; // [필수] Player 컴포넌트(TeamId)를 수정하기 위해 필요
+using Shared;
 
 [BurstCompile]
 [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
@@ -33,6 +33,8 @@ partial struct GoInGameServerSystem : ISystem
                  in SystemAPI.Query<RefRO<ReceiveRpcCommandRequest>>().WithAll<GoInGameRequestRpc>().WithEntityAccess())
         {
           entityCommandBuffer.AddComponent<NetworkStreamInGame>(receiveRpcCommandRequest.ValueRO.SourceConnection);
+          entityCommandBuffer.AddComponent(receiveRpcCommandRequest.ValueRO.SourceConnection,
+              default(GhostConnectionPosition));
 
           // 서버 연결 디버깅 시 사용
           // Debug.Log("Client Connected to Server!");
@@ -76,7 +78,7 @@ partial struct GoInGameServerSystem : ISystem
               HeroEntity = heroEntity
           });
 
-          // 7. 플레이어 자원 엔티티 생성 (Ghost 프리팹 인스턴스화)
+          // 7. 유저 자원 엔티티 생성 (Ghost 프리팹 인스턴스화)
           Entity economyEntity = entityCommandBuffer.Instantiate(userEconomyPrefab);
           entityCommandBuffer.AddComponent(economyEntity, new GhostOwner
           {
