@@ -90,7 +90,7 @@ Assets/Scripts/
         └─ UnitAutoTargetJob → 유닛→적 자동 감지
 
 [5. 이동] SimulationSystemGroup (Server)
-    NavMeshObstacleSpawnSystem → PathfindingSystem (NavMeshQuery + Funnel) → PathFollowSystem
+    NavMeshObstacleSpawnSystem → PathfindingSystem (Collect→Compute×8→Apply) → PathFollowSystem
     PredictedMovementSystem (SpatialMaps.MovementMap 사용)
     MovementArrivalSystem → BuildArrivalSystem (도착 시 건설)
 
@@ -114,7 +114,7 @@ Assets/Scripts/
 **핵심 의존성**:
 - `UnifiedTargetingSystem`: UpdateAfter `SpatialPartitioningGroup`, `HandleAttackRequestSystem`
 - `DamageApplySystem`: UpdateAfter `MeleeAttackSystem` (DamageEvent 버퍼 소비)
-- `PathfindingSystem`: ISystem(unmanaged), NavMeshQuery lazy 초기화, `NavMeshPathUtils.FindStraightPath` (Funnel 알고리즘)
+- `PathfindingSystem`: ISystem(unmanaged), NavMeshQuery×8 병렬 IJob, `NavMeshPathUtils.FindStraightPath` (Funnel 알고리즘)
 - `SpatialMapBuildSystem`: Persistent 맵 + Job 기반 Clear → dependency chain으로 동기화 (CompleteDependency 불필요)
 
 ---

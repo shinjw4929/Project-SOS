@@ -1,21 +1,130 @@
 #pragma warning disable CS0618 // NavMeshQuery, NavMeshWorld, PolygonId - deprecated without replacement in Unity 6
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
+using Unity.Jobs;
 using Unity.Mathematics;
 using Unity.Transforms;
 using UnityEngine;
 using UnityEngine.AI;
 using UnityEngine.Experimental.AI;
 using Shared;
-using System.Diagnostics;
 using PathQueryStatus = UnityEngine.Experimental.AI.PathQueryStatus;
 
 namespace Server
 {
-    struct PathResult
+    struct PathRequest
     {
-        public int WaypointCount;
+        public Entity Entity;
+        public float3 StartPos;
+        public float3 EndPos;
+        public int AgentTypeID; // -1 = invalid (NaN 좌표 등 → Apply에서 FailPath 처리)
+    }
+
+    struct PathOutput
+    {
+        public int WaypointCount; // 0 = 경로 계산 실패
         public bool IsPartial;
+    }
+
+    // NavMeshQuery는 managed 내부 호출 → Burst 불가
+    struct PathComputeJob : IJob
+    {
+        public int StartIndex;
+        public int EndIndex;
+
+        [ReadOnly, NativeDisableContainerSafetyRestriction]
+        public NativeArray<PathRequest> Requests;
+
+        // 워커 전용 (struct 복사, IntPtr 동일 → 같은 네이티브 핸들)
+        public NavMeshQuery Query;
+        [NativeDisableContainerSafetyRestriction]
+        public NativeArray<PolygonId> PolygonBuffer;
+        [NativeDisableContainerSafetyRestriction]
+        public NativeArray<float3> TempWaypointBuffer;
+
+        // 공유 출력 (비겹침 인덱스 범위 쓰기)
+        [NativeDisableContainerSafetyRestriction]
+        public NativeArray<PathOutput> Outputs;
+        [NativeDisableContainerSafetyRestriction]
+        public NativeArray<float3> OutputWaypoints;
+
+        const int MaxIterationsPerQuery = 1024;
+        const int MaxUpdateRetries = 4;
+        const int MaxPathLength = 64;
+        const float SampleExtent = 5.0f;
+
+        public void Execute()
+        {
+            for (int i = StartIndex; i < EndIndex; i++)
+            {
+                var req = Requests[i];
+                if (req.AgentTypeID < 0)
+                {
+                    Outputs[i] = default;
+                    continue;
+                }
+
+                var result = CalculatePath(req.StartPos, req.EndPos, req.AgentTypeID, i);
+                Outputs[i] = result;
+            }
+        }
+
+        PathOutput CalculatePath(float3 startPos, float3 endPos, int agentTypeID, int requestIndex)
+        {
+            var fail = new PathOutput { WaypointCount = 0, IsPartial = false };
+            var extents = new float3(SampleExtent);
+
+            var startLoc = Query.MapLocation(startPos, extents, agentTypeID);
+            if (!Query.IsValid(startLoc.polygon))
+                return fail;
+
+            var endLoc = Query.MapLocation(endPos, extents, agentTypeID);
+            if (!Query.IsValid(endLoc.polygon))
+                return fail;
+
+            var status = Query.BeginFindPath(startLoc, endLoc);
+            if ((status & PathQueryStatus.Failure) != 0)
+                return fail;
+
+            int retries = 0;
+            while ((status & PathQueryStatus.InProgress) != 0 && retries < MaxUpdateRetries)
+            {
+                status = Query.UpdateFindPath(MaxIterationsPerQuery, out _);
+                retries++;
+            }
+
+            if ((status & PathQueryStatus.Success) == 0)
+                return fail;
+
+            status = Query.EndFindPath(out int pathLength);
+            if ((status & PathQueryStatus.Success) == 0)
+                return fail;
+
+            pathLength = math.min(pathLength, PolygonBuffer.Length);
+
+            Query.GetPathResult(PolygonBuffer);
+
+            bool isPartial = pathLength > 0 && PolygonBuffer[pathLength - 1] != endLoc.polygon;
+
+            int waypointCount = NavMeshPathUtils.FindStraightPath(
+                ref Query,
+                PolygonBuffer,
+                pathLength,
+                startLoc.position,
+                endPos,
+                TempWaypointBuffer,
+                MaxPathLength);
+
+            if (isPartial && waypointCount > 2)
+                waypointCount--;
+
+            int offset = requestIndex * MaxPathLength;
+            for (int w = 0; w < waypointCount; w++)
+                OutputWaypoints[offset + w] = TempWaypointBuffer[w];
+
+            return new PathOutput { WaypointCount = waypointCount, IsPartial = isPartial };
+        }
     }
 
     [UpdateInGroup(typeof(SimulationSystemGroup))]
@@ -23,46 +132,57 @@ namespace Server
     [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
     public partial struct PathfindingSystem : ISystem
     {
-        // 성능 설정
         const int MaxPathLength = 64;
         const int PathNodePoolSize = 256;
-        const int MaxIterationsPerQuery = 1024;
-        const int MaxUpdateRetries = 4;
-        const float MaxProcessingTimeMs = 4.0f;
-        const float SampleExtent = 5.0f;
+        const int WorkerCount = 8;
+        const int MaxRequestsPerFrame = 512;
 
-        // 시스템 상태
-        NavMeshQuery _query;
+        // 병렬 워커 리소스 (Persistent)
+        NativeArray<NavMeshQuery> _queries;
+        NativeArray<PolygonId> _polygonBuffers;       // WorkerCount * PathNodePoolSize
+        NativeArray<float3> _tempWaypointBuffers;     // WorkerCount * MaxPathLength
+
+        // 요청/결과 버퍼 (Persistent, 프레임 간 재사용)
+        NativeArray<PathRequest> _requestArray;       // MaxRequestsPerFrame
+        NativeArray<PathOutput> _outputs;             // MaxRequestsPerFrame
+        NativeArray<float3> _outputWaypoints;         // MaxRequestsPerFrame * MaxPathLength
+
         NativeHashMap<int, int> _agentIdCache;
-        NativeArray<PolygonId> _polygonBuffer;
-        NativeArray<float3> _waypointBuffer;
         int _initialSkipFrames;
-        bool _queryCreated;
+        bool _queriesCreated;
+        int _requestCount;
 
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<MovementGoal>();
 
+            _queries = new NativeArray<NavMeshQuery>(WorkerCount, Allocator.Persistent);
+            _polygonBuffers = new NativeArray<PolygonId>(WorkerCount * PathNodePoolSize, Allocator.Persistent);
+            _tempWaypointBuffers = new NativeArray<float3>(WorkerCount * MaxPathLength, Allocator.Persistent);
+            _requestArray = new NativeArray<PathRequest>(MaxRequestsPerFrame, Allocator.Persistent);
+            _outputs = new NativeArray<PathOutput>(MaxRequestsPerFrame, Allocator.Persistent);
+            _outputWaypoints = new NativeArray<float3>(MaxRequestsPerFrame * MaxPathLength, Allocator.Persistent);
             _agentIdCache = new NativeHashMap<int, int>(4, Allocator.Persistent);
-            _polygonBuffer = new NativeArray<PolygonId>(PathNodePoolSize, Allocator.Persistent);
-            _waypointBuffer = new NativeArray<float3>(MaxPathLength, Allocator.Persistent);
+
             _initialSkipFrames = 10;
-            _queryCreated = false;
+            _queriesCreated = false;
         }
 
         public void OnDestroy(ref SystemState state)
         {
-            if (_queryCreated)
-                _query.Dispose();
+            if (_queriesCreated)
+            {
+                for (int i = 0; i < WorkerCount; i++)
+                    _queries[i].Dispose();
+            }
 
-            if (_agentIdCache.IsCreated)
-                _agentIdCache.Dispose();
-
-            if (_polygonBuffer.IsCreated)
-                _polygonBuffer.Dispose();
-
-            if (_waypointBuffer.IsCreated)
-                _waypointBuffer.Dispose();
+            if (_queries.IsCreated) _queries.Dispose();
+            if (_polygonBuffers.IsCreated) _polygonBuffers.Dispose();
+            if (_tempWaypointBuffers.IsCreated) _tempWaypointBuffers.Dispose();
+            if (_requestArray.IsCreated) _requestArray.Dispose();
+            if (_outputs.IsCreated) _outputs.Dispose();
+            if (_outputWaypoints.IsCreated) _outputWaypoints.Dispose();
+            if (_agentIdCache.IsCreated) _agentIdCache.Dispose();
         }
 
         public void OnUpdate(ref SystemState state)
@@ -76,160 +196,153 @@ namespace Server
                 return;
             }
 
-            // NavMeshQuery lazy 초기화
-            if (!_queryCreated)
+            // NavMeshQuery lazy 초기화 (WorkerCount개)
+            if (!_queriesCreated)
             {
                 var world = NavMeshWorld.GetDefaultWorld();
                 if (!world.IsValid())
                     return;
 
-                _query = new NavMeshQuery(world, Allocator.Persistent, PathNodePoolSize);
-                _queryCreated = true;
+                for (int i = 0; i < WorkerCount; i++)
+                    _queries[i] = new NavMeshQuery(world, Allocator.Persistent, PathNodePoolSize);
+
+                _queriesCreated = true;
                 CacheAgentIDs();
             }
 
             if (NavMesh.GetSettingsCount() == 0)
                 return;
 
-            // 타임 슬라이싱
-            Stopwatch stopwatch = Stopwatch.StartNew();
-            long maxTicks = (long)(Stopwatch.Frequency * (MaxProcessingTimeMs / 1000.0f));
+            // ── Phase 1: Collect (메인 스레드) ──
+            _requestCount = 0;
 
-            foreach (var (goal, pathBuffer, waypoints, waypointsEnabled, transform, agentConfig) in
+            foreach (var (goal, transform, agentConfig, entity) in
                 SystemAPI.Query<
-                    RefRW<MovementGoal>,
-                    DynamicBuffer<PathWaypoint>,
-                    RefRW<MovementWaypoints>,
-                    EnabledRefRW<MovementWaypoints>,
+                    RefRO<MovementGoal>,
                     RefRO<LocalTransform>,
                     RefRO<NavMeshAgentConfig>>()
                     .WithAny<UnitTag, EnemyTag>()
-                    .WithOptions(EntityQueryOptions.IgnoreComponentEnabledState))
+                    .WithEntityAccess())
             {
-                if (stopwatch.ElapsedTicks > maxTicks)
-                    break;
-
                 if (!goal.ValueRO.IsPathDirty)
                     continue;
+
+                if (_requestCount >= MaxRequestsPerFrame)
+                    break;
 
                 float3 startPos = transform.ValueRO.Position;
                 float3 endPos = goal.ValueRO.Destination;
 
                 if (!math.isfinite(startPos.x) || !math.isfinite(endPos.x))
                 {
-                    FailPath(pathBuffer, waypointsEnabled, ref goal.ValueRW);
+                    _requestArray[_requestCount] = new PathRequest
+                    {
+                        Entity = entity,
+                        StartPos = startPos,
+                        EndPos = endPos,
+                        AgentTypeID = -1 // sentinel → Apply에서 FailPath
+                    };
+                    _requestCount++;
                     continue;
                 }
 
-                // Agent ID 조회
                 int agentIndex = agentConfig.ValueRO.AgentTypeIndex;
                 if (!_agentIdCache.TryGetValue(agentIndex, out int agentTypeID))
                     agentTypeID = GetAgentTypeIDFromIndex(agentIndex);
 
-                var result = CalculatePath(startPos, endPos, agentTypeID);
-
-                if (result.WaypointCount > 0)
+                _requestArray[_requestCount] = new PathRequest
                 {
-                    pathBuffer.Clear();
-                    for (int i = 0; i < result.WaypointCount; i++)
-                    {
-                        pathBuffer.Add(new PathWaypoint { Position = _waypointBuffer[i] });
-                    }
+                    Entity = entity,
+                    StartPos = startPos,
+                    EndPos = endPos,
+                    AgentTypeID = agentTypeID
+                };
+                _requestCount++;
+            }
 
-                    ProcessFirstWaypoint(startPos, endPos, pathBuffer, waypoints, waypointsEnabled, goal);
-                    goal.ValueRW.IsPathPartial = result.IsPartial;
-                }
-                else
+            if (_requestCount == 0)
+                return;
+
+            // ── Phase 2: Compute (N개 IJob 병렬) ──
+            int batchSize = (_requestCount + WorkerCount - 1) / WorkerCount;
+            var handles = new NativeArray<JobHandle>(WorkerCount, Allocator.Temp);
+            int scheduledCount = 0;
+
+            for (int w = 0; w < WorkerCount; w++)
+            {
+                int start = w * batchSize;
+                if (start >= _requestCount)
+                    break;
+                int end = math.min(start + batchSize, _requestCount);
+
+                handles[scheduledCount] = new PathComputeJob
                 {
-                    FailPath(pathBuffer, waypointsEnabled, ref goal.ValueRW);
-                    goal.ValueRW.IsPathPartial = true;
+                    StartIndex = start,
+                    EndIndex = end,
+                    Requests = _requestArray,
+                    Query = _queries[w],
+                    PolygonBuffer = _polygonBuffers.GetSubArray(w * PathNodePoolSize, PathNodePoolSize),
+                    TempWaypointBuffer = _tempWaypointBuffers.GetSubArray(w * MaxPathLength, MaxPathLength),
+                    Outputs = _outputs,
+                    OutputWaypoints = _outputWaypoints,
+                }.Schedule();
+                scheduledCount++;
+            }
+
+            var combined = JobHandle.CombineDependencies(handles.GetSubArray(0, scheduledCount));
+            combined.Complete();
+            handles.Dispose();
+
+            // ── Phase 3: Apply (메인 스레드) ──
+            var pathBufferLookup = SystemAPI.GetBufferLookup<PathWaypoint>();
+            var goalLookup = SystemAPI.GetComponentLookup<MovementGoal>();
+            var waypointsLookup = SystemAPI.GetComponentLookup<MovementWaypoints>();
+            var transformLookup = SystemAPI.GetComponentLookup<LocalTransform>(true);
+
+            for (int i = 0; i < _requestCount; i++)
+            {
+                Entity entity = _requestArray[i].Entity;
+                if (!goalLookup.HasComponent(entity))
+                    continue; // 프레임 간 파괴 대응
+
+                var output = _outputs[i];
+
+                if (output.WaypointCount <= 0 || _requestArray[i].AgentTypeID < 0)
+                {
+                    pathBufferLookup[entity].Clear();
+                    waypointsLookup.SetComponentEnabled(entity, false);
+                    var failGoal = goalLookup[entity];
+                    failGoal.IsPathDirty = false;
+                    failGoal.IsPathPartial = output.WaypointCount == 0 || _requestArray[i].AgentTypeID < 0;
+                    goalLookup[entity] = failGoal;
                     continue;
                 }
 
-                goal.ValueRW.IsPathDirty = false;
+                var buffer = pathBufferLookup[entity];
+                buffer.Clear();
+                int offset = i * MaxPathLength;
+                for (int w = 0; w < output.WaypointCount; w++)
+                    buffer.Add(new PathWaypoint { Position = _outputWaypoints[offset + w] });
+
+                var waypoints = waypointsLookup[entity];
+                var goal = goalLookup[entity];
+                float3 currentPos = transformLookup[entity].Position;
+                bool enabled = ProcessFirstWaypoint(currentPos, _requestArray[i].EndPos, buffer, ref waypoints, ref goal);
+
+                goal.IsPathPartial = output.IsPartial;
+                goal.IsPathDirty = false;
+                goalLookup[entity] = goal;
+                waypointsLookup[entity] = waypoints;
+                waypointsLookup.SetComponentEnabled(entity, enabled);
             }
         }
 
-        private PathResult CalculatePath(float3 startPos, float3 endPos, int agentTypeID)
-        {
-            var fail = new PathResult { WaypointCount = 0, IsPartial = false };
-            var extents = new float3(SampleExtent);
-
-            // MapLocation (start)
-            var startLoc = _query.MapLocation(startPos, extents, agentTypeID);
-            if (!_query.IsValid(startLoc.polygon))
-                return fail;
-
-            // MapLocation (end)
-            var endLoc = _query.MapLocation(endPos, extents, agentTypeID);
-            if (!_query.IsValid(endLoc.polygon))
-                return fail;
-
-            // BeginFindPath
-            var status = _query.BeginFindPath(startLoc, endLoc);
-            if ((status & PathQueryStatus.Failure) != 0)
-                return fail;
-
-            // UpdateFindPath (반복)
-            int retries = 0;
-            while ((status & PathQueryStatus.InProgress) != 0 && retries < MaxUpdateRetries)
-            {
-                status = _query.UpdateFindPath(MaxIterationsPerQuery, out _);
-                retries++;
-            }
-
-            if ((status & PathQueryStatus.Success) == 0)
-                return fail;
-
-            // EndFindPath (Success 비트가 설정되면 partial path도 포함)
-            status = _query.EndFindPath(out int pathLength);
-            if ((status & PathQueryStatus.Success) == 0)
-                return fail;
-
-            pathLength = math.min(pathLength, _polygonBuffer.Length);
-
-            // GetPathResult
-            _query.GetPathResult(_polygonBuffer);
-
-            // Partial path 감지: 마지막 폴리곤이 목적지 폴리곤과 다르면 partial
-            bool isPartial = pathLength > 0 && _polygonBuffer[pathLength - 1] != endLoc.polygon;
-
-            // Funnel 알고리즘으로 직선 웨이포인트 변환
-            // endPos 원본 사용: MapLocation 스냅 위치(endLoc.position)를 쓰면
-            // 건설 도착 판정 등에서 목표 좌표 불일치 발생
-            int waypointCount = NavMeshPathUtils.FindStraightPath(
-                ref _query,
-                _polygonBuffer,
-                pathLength,
-                startLoc.position,
-                endPos,
-                _waypointBuffer,
-                MaxPathLength);
-
-            // Partial path: 마지막 웨이포인트(도달 불가능한 endPos)를 제거
-            if (isPartial && waypointCount > 2)
-                waypointCount--;
-
-            return new PathResult { WaypointCount = waypointCount, IsPartial = isPartial };
-        }
-
-        private static void FailPath(
-            DynamicBuffer<PathWaypoint> pathBuffer,
-            EnabledRefRW<MovementWaypoints> waypointsEnabled,
-            ref MovementGoal goal)
-        {
-            pathBuffer.Clear();
-            waypointsEnabled.ValueRW = false;
-            goal.IsPathDirty = false;
-        }
-
-        private static void ProcessFirstWaypoint(
+        static bool ProcessFirstWaypoint(
             float3 currentPos,
             float3 goalPos,
             DynamicBuffer<PathWaypoint> pathBuffer,
-            RefRW<MovementWaypoints> waypoints,
-            EnabledRefRW<MovementWaypoints> waypointsEnabled,
-            RefRW<MovementGoal> goal)
+            ref MovementWaypoints waypoints,
+            ref MovementGoal goal)
         {
             if (pathBuffer.Length > 1)
             {
@@ -261,28 +374,26 @@ namespace Server
                     }
                 }
 
-                goal.ValueRW.CurrentWaypointIndex = (byte)firstTargetIndex;
-                waypoints.ValueRW.Current = pathBuffer[firstTargetIndex].Position;
+                goal.CurrentWaypointIndex = (byte)firstTargetIndex;
+                waypoints.Current = pathBuffer[firstTargetIndex].Position;
 
                 if (pathBuffer.Length > firstTargetIndex + 1)
                 {
-                    waypoints.ValueRW.Next = pathBuffer[firstTargetIndex + 1].Position;
-                    waypoints.ValueRW.HasNext = true;
+                    waypoints.Next = pathBuffer[firstTargetIndex + 1].Position;
+                    waypoints.HasNext = true;
                 }
                 else
                 {
-                    waypoints.ValueRW.HasNext = false;
+                    waypoints.HasNext = false;
                 }
 
-                waypointsEnabled.ValueRW = true;
+                return true;
             }
-            else
-            {
-                waypointsEnabled.ValueRW = false;
-            }
+
+            return false;
         }
 
-        private void CacheAgentIDs()
+        void CacheAgentIDs()
         {
             _agentIdCache.Clear();
             int count = NavMesh.GetSettingsCount();
@@ -293,7 +404,7 @@ namespace Server
             }
         }
 
-        private int GetAgentTypeIDFromIndex(int index)
+        int GetAgentTypeIDFromIndex(int index)
         {
             int count = NavMesh.GetSettingsCount();
             if (index >= 0 && index < count)

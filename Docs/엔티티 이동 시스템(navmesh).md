@@ -11,7 +11,7 @@
 SpatialMapBuildSystem → MovementMap 빌드 (셀 크기: 3.0f)
     ↓
 [SimulationSystemGroup]
-PathfindingSystem → NavMeshQuery 기반 경로 계산 + Funnel 알고리즘 → PathWaypoint 버퍼 (시간 기반 제한: 4ms/프레임)
+PathfindingSystem → NavMeshQuery 8개 병렬 IJob 경로 계산 + Funnel 알고리즘 → PathWaypoint 버퍼 (최대 512개/프레임)
     ↓
 PathFollowSystem → MovementWaypoints.Current/Next 공급
     ↓
@@ -81,16 +81,20 @@ MovementArrivalSystem → 도착 판정 → 이동 정지 + Intent.Idle 전환
 파일: PathfindingSystem.cs
 그룹: SimulationSystemGroup (UpdateAfter: NavMeshObstacleSpawnSystem)
 타입: `partial struct PathfindingSystem : ISystem` (unmanaged)
-역할: IsPathDirty=true인 유닛 감지 → NavMeshQuery 기반 경로 계산 → PathWaypoint 버퍼 채우기
-- **NavMeshQuery 기반**: `BeginFindPath` → `UpdateFindPath` → `EndFindPath` → `GetPathResult` → Funnel 알고리즘
-- **Funnel 알고리즘**: `NavMeshPathUtils.FindStraightPath`로 폴리곤 경로를 직선 웨이포인트로 변환 (Burst 호환)
-- **시간 기반 제한**: 프레임당 최대 4.0ms (Stopwatch 기반 Time Slicing)
-- **lazy 초기화**: NavMeshQuery는 NavMeshWorld가 유효해진 후 생성
+역할: IsPathDirty=true인 유닛 감지 → NavMeshQuery 8개 병렬 IJob → PathWaypoint 버퍼 채우기
+- **3단계 파이프라인**: Collect(메인) → Compute(8 IJob 병렬) → Apply(메인)
+  - Phase 1 Collect: IsPathDirty 엔티티를 PathRequest 배열에 수집 (최대 512개/프레임)
+  - Phase 2 Compute: PathComputeJob 8개를 Schedule, 각 워커가 비겹침 인덱스 범위 처리
+  - Phase 3 Apply: 결과를 ComponentLookup으로 PathWaypoint 버퍼, MovementGoal, MovementWaypoints에 반영
+- **NavMeshQuery 병렬화**: 8개 독립 NavMeshQuery (struct 복사, IntPtr 핸들 공유 → 안전)
+- **Funnel 알고리즘**: `NavMeshPathUtils.FindStraightPath`로 폴리곤 경로를 직선 웨이포인트로 변환
+- **lazy 초기화**: NavMeshQuery 8개는 NavMeshWorld가 유효해진 후 생성
 - Agent ID 캐싱으로 NavMesh.GetSettingsByIndex 호출 최소화
 - `MapLocation`으로 시작/끝 위치를 NavMesh 위에 매핑 (SampleExtent: 5.0f)
-- **Partial Path 처리**: `PathQueryStatus.Partial` 감지 → 마지막 웨이포인트(도달 불가능한 endPos) 제거 → `MovementGoal.IsPathPartial = true` 설정
-- ProcessFirstWaypoint: Look-ahead 로직으로 지나친 웨이포인트 스킵
-- 최대 경로 길이: 64개, 폴리곤 노드 풀: 256개
+- **Partial Path 처리**: 마지막 폴리곤 != 목적지 폴리곤 감지 → 마지막 웨이포인트(도달 불가능한 endPos) 제거 → `MovementGoal.IsPathPartial = true` 설정
+- ProcessFirstWaypoint: Look-ahead 로직으로 지나친 웨이포인트 스킵 (값 기반 ref 시그니처)
+- 최대 경로 길이: 64개, 폴리곤 노드 풀: 256개, 워커 수: 8개
+- **Persistent 메모리**: 모든 NativeArray를 Persistent로 할당, 프레임 간 재사용 (GC 0)
 ---
 파일: PathFollowSystem.cs
 그룹: SimulationSystemGroup (UpdateAfter: PathfindingSystem, UpdateBefore: PredictedMovementSystem)
@@ -220,10 +224,9 @@ NavMeshObstacleSpawnSystem
     → 건물 NavMeshObstacle 생성, 주변 경로 무효화
     ↓
 PathfindingSystem (UpdateAfter: NavMeshObstacleSpawnSystem)
-    → IsPathDirty=true 감지
-    → NavMeshQuery: BeginFindPath → UpdateFindPath → EndFindPath (시간 제한: 4ms/프레임)
-    → NavMeshPathUtils.FindStraightPath (Funnel 알고리즘)
-    → PathWaypoint 버퍼 채우기
+    → Phase 1: IsPathDirty=true 수집 → PathRequest 배열 (최대 512개)
+    → Phase 2: PathComputeJob × 8 병렬 Schedule (NavMeshQuery 8개)
+    → Phase 3: 결과 Apply (ComponentLookup으로 PathWaypoint 버퍼 채우기)
     ↓
 PathFollowSystem (UpdateAfter: PathfindingSystem, UpdateBefore: PredictedMovementSystem)
     → CurrentWaypointIndex 증가
