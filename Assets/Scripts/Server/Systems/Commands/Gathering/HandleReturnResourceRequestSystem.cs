@@ -24,12 +24,14 @@ namespace Server
         [ReadOnly] private ComponentLookup<ResourceCenterTag> _resourceCenterTagLookup;
         [ReadOnly] private ComponentLookup<LocalTransform> _transformLookup;
         [ReadOnly] private ComponentLookup<ObstacleRadius> _obstacleRadiusLookup;
+        [ReadOnly] private ComponentLookup<WorkRange> _workRangeLookup;
 
         private ComponentLookup<GatheringTarget> _gatheringTargetLookup;
         private ComponentLookup<UnitIntentState> _unitIntentStateLookup;
         private ComponentLookup<UnitActionState> _unitActionStateLookup;
         private ComponentLookup<WorkerState> _workerStateLookup;
         private ComponentLookup<MovementGoal> _movementGoalLookup;
+        private ComponentLookup<MovementWaypoints> _movementWaypointsLookup;
 
         public void OnCreate(ref SystemState state)
         {
@@ -43,12 +45,14 @@ namespace Server
             _resourceCenterTagLookup = state.GetComponentLookup<ResourceCenterTag>(true);
             _transformLookup = state.GetComponentLookup<LocalTransform>(true);
             _obstacleRadiusLookup = state.GetComponentLookup<ObstacleRadius>(true);
+            _workRangeLookup = state.GetComponentLookup<WorkRange>(true);
 
             _gatheringTargetLookup = state.GetComponentLookup<GatheringTarget>(false);
             _unitIntentStateLookup = state.GetComponentLookup<UnitIntentState>(false);
             _unitActionStateLookup = state.GetComponentLookup<UnitActionState>(false);
             _workerStateLookup = state.GetComponentLookup<WorkerState>(false);
             _movementGoalLookup = state.GetComponentLookup<MovementGoal>(false);
+            _movementWaypointsLookup = state.GetComponentLookup<MovementWaypoints>(false);
         }
 
         [BurstCompile]
@@ -60,11 +64,13 @@ namespace Server
             _resourceCenterTagLookup.Update(ref state);
             _transformLookup.Update(ref state);
             _obstacleRadiusLookup.Update(ref state);
+            _workRangeLookup.Update(ref state);
             _gatheringTargetLookup.Update(ref state);
             _unitIntentStateLookup.Update(ref state);
             _unitActionStateLookup.Update(ref state);
             _workerStateLookup.Update(ref state);
             _movementGoalLookup.Update(ref state);
+            _movementWaypointsLookup.Update(ref state);
 
             var ecb = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>()
                 .CreateCommandBuffer(state.WorldUnmanaged);
@@ -160,48 +166,26 @@ namespace Server
             {
                 float3 workerPos = _transformLookup[workerEntity].Position;
                 float3 centerPos = _transformLookup[resourceCenterEntity].Position;
-                float3 targetPos = CalculateCenterTargetPosition(workerPos, centerPos, resourceCenterEntity, workerEntity);
+                float3 targetPos = ArrivalUtility.CalculateApproachPoint(
+                    workerPos, centerPos, resourceCenterEntity, in _obstacleRadiusLookup);
 
                 RefRW<MovementGoal> pathRW = _movementGoalLookup.GetRefRW(workerEntity);
                 pathRW.ValueRW.Destination = targetPos;
                 pathRW.ValueRW.IsPathDirty = true;
+
+                // ArrivalRadius 설정 (Dead Zone 방지)
+                if (_movementWaypointsLookup.HasComponent(workerEntity))
+                {
+                    float workRange = _workRangeLookup.TryGetComponent(workerEntity, out var wr)
+                        ? wr.Value : 1.0f;
+                    _movementWaypointsLookup.GetRefRW(workerEntity).ValueRW.ArrivalRadius =
+                        ArrivalUtility.GetSafeArrivalRadius(workRange);
+                }
 
                 // 이동 활성화
                 ecb.SetComponentEnabled<MovementWaypoints>(workerEntity, true);
             }
         }
 
-        /// <summary>
-        /// 워커 → ResourceCenter 직선 상의 표면 지점 계산
-        /// </summary>
-        private float3 CalculateCenterTargetPosition(float3 workerPos, float3 centerPos, Entity centerEntity, Entity workerEntity)
-        {
-            // 워커 → 센터 방향 벡터
-            float3 direction = centerPos - workerPos;
-            float len = math.length(direction);
-
-            if (len < 0.001f)
-            {
-                return centerPos;
-            }
-
-            direction = direction / len;
-
-            // 센터 반지름
-            float centerRadius = _obstacleRadiusLookup.HasComponent(centerEntity)
-                ? _obstacleRadiusLookup[centerEntity].Radius
-                : 1.5f;
-
-            // 유닛 반지름
-            float unitRadius = _obstacleRadiusLookup.HasComponent(workerEntity)
-                ? _obstacleRadiusLookup[workerEntity].Radius
-                : 0.5f;
-
-            // 센터 표면 지점
-            float offset = centerRadius + unitRadius + 0.1f;
-            float3 targetPos = centerPos - direction * offset;
-
-            return targetPos;
-        }
     }
 }

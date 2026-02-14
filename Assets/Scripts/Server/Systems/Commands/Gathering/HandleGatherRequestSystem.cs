@@ -12,7 +12,7 @@ namespace Server
     /// 자원 채집 요청 RPC 처리 시스템 (서버)
     /// - 점유 가능 여부 확인
     /// - 점유 설정 및 GatheringTarget 설정
-    /// - Intent.Gather + Action.Moving + Phase.MovingToNode 설정
+    /// - Intent.Gather + Action.Moving + Phase 설정 (비점유: MovingToNode, 점유 중: WaitingForNode)
     /// </summary>
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
@@ -26,6 +26,7 @@ namespace Server
         [ReadOnly] private ComponentLookup<LocalTransform> _transformLookup;
         [ReadOnly] private ComponentLookup<ResourceCenterTag> _resourceCenterTagLookup;
         [ReadOnly] private ComponentLookup<ObstacleRadius> _obstacleRadiusLookup;
+        [ReadOnly] private ComponentLookup<WorkRange> _workRangeLookup;
 
         private ComponentLookup<ResourceNodeState> _resourceNodeStateLookup;
         private ComponentLookup<GatheringTarget> _gatheringTargetLookup;
@@ -33,6 +34,7 @@ namespace Server
         private ComponentLookup<UnitActionState> _unitActionStateLookup;
         private ComponentLookup<WorkerState> _workerStateLookup;
         private ComponentLookup<MovementGoal> _movementGoalLookup;
+        private ComponentLookup<MovementWaypoints> _movementWaypointsLookup;
 
         public void OnCreate(ref SystemState state)
         {
@@ -47,6 +49,7 @@ namespace Server
             _transformLookup = state.GetComponentLookup<LocalTransform>(true);
             _resourceCenterTagLookup = state.GetComponentLookup<ResourceCenterTag>(true);
             _obstacleRadiusLookup = state.GetComponentLookup<ObstacleRadius>(true);
+            _workRangeLookup = state.GetComponentLookup<WorkRange>(true);
 
             _resourceNodeStateLookup = state.GetComponentLookup<ResourceNodeState>(false);
             _gatheringTargetLookup = state.GetComponentLookup<GatheringTarget>(false);
@@ -54,6 +57,7 @@ namespace Server
             _unitActionStateLookup = state.GetComponentLookup<UnitActionState>(false);
             _workerStateLookup = state.GetComponentLookup<WorkerState>(false);
             _movementGoalLookup = state.GetComponentLookup<MovementGoal>(false);
+            _movementWaypointsLookup = state.GetComponentLookup<MovementWaypoints>(false);
         }
 
         [BurstCompile]
@@ -66,12 +70,14 @@ namespace Server
             _transformLookup.Update(ref state);
             _resourceCenterTagLookup.Update(ref state);
             _obstacleRadiusLookup.Update(ref state);
+            _workRangeLookup.Update(ref state);
             _resourceNodeStateLookup.Update(ref state);
             _gatheringTargetLookup.Update(ref state);
             _unitIntentStateLookup.Update(ref state);
             _unitActionStateLookup.Update(ref state);
             _workerStateLookup.Update(ref state);
             _movementGoalLookup.Update(ref state);
+            _movementWaypointsLookup.Update(ref state);
 
             var ecb = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>()
                 .CreateCommandBuffer(state.WorldUnmanaged);
@@ -189,17 +195,27 @@ namespace Server
                 }
             }
 
-            // 7. PathfindingState 설정 (자원 노드 표면으로 이동)
+            // 7. MovementGoal 설정 (자원 노드 표면으로 이동)
             if (_movementGoalLookup.HasComponent(workerEntity) &&
                 _transformLookup.HasComponent(resourceNodeEntity))
             {
                 float3 workerPos = _transformLookup[workerEntity].Position;
                 float3 nodePos = _transformLookup[resourceNodeEntity].Position;
-                float3 targetPos = CalculateNodeTargetPosition(workerPos, nodePos, resourceNodeEntity, workerEntity);
+                float3 targetPos = ArrivalUtility.CalculateApproachPoint(
+                    workerPos, nodePos, resourceNodeEntity, in _obstacleRadiusLookup);
 
                 RefRW<MovementGoal> pathRW = _movementGoalLookup.GetRefRW(workerEntity);
                 pathRW.ValueRW.Destination = targetPos;
                 pathRW.ValueRW.IsPathDirty = true;
+
+                // ArrivalRadius 설정 (Dead Zone 방지)
+                if (_movementWaypointsLookup.HasComponent(workerEntity))
+                {
+                    float workRange = _workRangeLookup.TryGetComponent(workerEntity, out var wr)
+                        ? wr.Value : 1.0f;
+                    _movementWaypointsLookup.GetRefRW(workerEntity).ValueRW.ArrivalRadius =
+                        ArrivalUtility.GetSafeArrivalRadius(workRange);
+                }
 
                 // 이동 활성화
                 ecb.SetComponentEnabled<MovementWaypoints>(workerEntity, true);
@@ -235,38 +251,5 @@ namespace Server
             return nearest;
         }
 
-        /// <summary>
-        /// 워커 → ResourceNode 직선 상의 표면 지점 계산
-        /// </summary>
-        private float3 CalculateNodeTargetPosition(float3 workerPos, float3 nodePos, Entity nodeEntity, Entity workerEntity)
-        {
-            // 워커 → 노드 방향 벡터
-            float3 direction = nodePos - workerPos;
-            float len = math.length(direction);
-
-            // 같은 위치면 노드 위치 반환
-            if (len < 0.001f)
-            {
-                return nodePos;
-            }
-
-            direction = direction / len; // normalize
-
-            // 노드 반지름
-            float nodeRadius = _obstacleRadiusLookup.HasComponent(nodeEntity)
-                ? _obstacleRadiusLookup[nodeEntity].Radius
-                : 1.5f;
-
-            // 유닛 반지름
-            float unitRadius = _obstacleRadiusLookup.HasComponent(workerEntity)
-                ? _obstacleRadiusLookup[workerEntity].Radius
-                : 0.5f;
-
-            // 노드 표면 지점 (노드 중심에서 워커 방향으로 반지름만큼 뺀 위치)
-            float offset = nodeRadius + unitRadius + 0.1f;
-            float3 targetPos = nodePos - direction * offset;
-
-            return targetPos;
-        }
     }
 }

@@ -170,18 +170,24 @@ public enum UserContext : byte {
 ```
 
 ### 4. Work Range Pattern (작업 거리 계산)
-모든 작업(채집, 건설, 전투)의 상호작용 거리는 **타겟 표면 기준**으로 계산한다.
+모든 작업(채집, 건설, 전투)의 상호작용 거리는 **타겟 표면 기준**으로 계산한다. 공통 로직은 `ArrivalUtility`(`Shared/Utilities/ArrivalUtility.cs`)에 집약되어 있다.
 ```csharp
-// 채집/건설: 도착 거리 = 타겟 반지름 + WorkRange
-float arrivalDistance = targetRadius + workRange;
+// 채집/건설: 도착 거리 = 타겟 반지름 + WorkRange (ArrivalUtility.GetInteractionArrivalDistance)
+float arrivalDistance = ArrivalUtility.GetInteractionArrivalDistance(targetRadius, workRange);
 
-// 전투: 유효 거리 = 직선 거리 - 타겟 반지름
+// 접근점 계산: 타겟 표면까지의 이동 목표 (ArrivalUtility.CalculateApproachPoint)
+float3 approachPos = ArrivalUtility.CalculateApproachPoint(fromPos, targetPos, targetEntity, in radiusLookup);
+
+// Dead Zone 방지: ArrivalRadius 설정 (ArrivalUtility.GetSafeArrivalRadius)
+float arrivalRadius = ArrivalUtility.GetSafeArrivalRadius(workRange);
+
+// 전투: 유효 거리 = 직선 거리 - 타겟 반지름 (CombatUtility)
 float effectiveDistance = rawDistance - targetRadius;
 bool inRange = effectiveDistance <= attackRange;
 ```
 - **공격자/작업자의 반지름 사용 안 함**: 타겟 표면까지의 거리만 계산
 - **WorkRange/AttackRange**: 프리팹 인스펙터에서 조정 가능 (UnitAuthoring.workRange)
-- **일관성**: 모든 시스템이 동일한 패턴 사용 (WorkerGatheringSystem, BuildArrivalSystem, CombatUtility)
+- **일관성**: 채집/건설 시스템은 `ArrivalUtility`를 공유, 전투는 `CombatUtility` 사용
 
 ### 5. Other Patterns (간략)
 - **Selection System**: Phase 기반 (`UserSelectionInputState.Phase`) → `EntitySelectionSystem`에서 Selected 토글
@@ -240,6 +246,10 @@ Assets/Scenes/
 2. **Job System 활용**: 연산 로직은 `IJobEntity`로 구현하여 멀티스레드 활용
 3. **네이밍**: "Player" 대신 **"User"** 사용 (Unity Player와 혼동 방지)
 4. **테스트**: EditMode(순수 함수) / PlayMode(ECS 시스템) 테스트 작성
+
+### Burst 제약사항
+1. **`[BurstCompile]` static 메서드**: struct(`float3`, `Entity` 등)를 값으로 전달/반환하면 BC1064 에러 발생 (external function 제약). struct 파라미터/반환이 있는 메서드는 `[BurstCompile]` 제거하고 `[MethodImpl(AggressiveInlining)]`만 사용. primitive(`float`, `int`, `bool`)만 다루는 메서드만 개별 `[BurstCompile]` 적용 가능. 클래스 레벨 `[BurstCompile]`은 유지.
+2. **`bool` 필드 blittable**: Burst 컴파일되는 struct에 `bool` 필드가 있고 `ref`로 전달되면 `[MarshalAs(UnmanagedType.U1)]` 필수. `[GhostField]`와 별개 목적.
 
 ### Unity DOTS Rules
 1. **Safe Lookup**: `ComponentLookup<T>.TryGetComponent()`, `SystemAPI.TryGetSingleton<T>()`

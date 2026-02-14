@@ -11,7 +11,7 @@ namespace Server
 {
     /// <summary>
     /// 건설 도착 시스템
-    /// - PendingBuildServerData가 있고 MovementWaypoints가 비활성화된 유닛 감지
+    /// - PendingBuildServerData가 있는 유닛의 도착 감지 (이동 완료 OR 사거리 내 저속)
     /// - 건물 생성 (BuildingUtility.CreateBuilding 사용)
     /// - PendingBuildServerData 제거
     /// - UnitIntentState를 Idle로 복원
@@ -88,8 +88,6 @@ namespace Server
                 networkIdToCurrencyMap.TryAdd(ghostOwner.ValueRO.NetworkId, entity);
             }
 
-            // PendingBuildServerData가 있고 MovementWaypoints가 비활성화된 유닛 감지
-            // IgnoreComponentEnabledState 사용하여 비활성화된 MovementWaypoints도 쿼리
             foreach (var (pendingData, transform, intentState, waypoints, waypointsEnabled, entity) in
                      SystemAPI.Query<
                          RefRO<PendingBuildServerData>,
@@ -103,29 +101,20 @@ namespace Server
             {
                 var pending = pendingData.ValueRO;
 
-                // 거리 계산 (BuildSiteCenter 기준)
                 float3 unitPos = transform.ValueRO.Position;
-                float centerDistance = math.distance(
-                    new float2(unitPos.x, unitPos.z),
-                    new float2(pending.BuildSiteCenter.x, pending.BuildSiteCenter.z)
-                );
-                float distanceToSurface = centerDistance - pending.StructureRadius;
-
-                float workRange = 1.0f;
-                if (_workRangeLookup.HasComponent(entity))
-                {
-                    workRange = _workRangeLookup[entity].Value;
-                }
-                float arrivalThreshold = workRange;
+                float workRange = _workRangeLookup.TryGetComponent(entity, out var wr)
+                    ? wr.Value : 1.0f;
+                float arrivalDist = ArrivalUtility.GetInteractionArrivalDistance(
+                    pending.StructureRadius, workRange);
+                bool isInRange = ArrivalUtility.IsWithinInteractionRangeXZ(
+                    unitPos, pending.BuildSiteCenter, arrivalDist);
 
                 // 도착 판정: MovementWaypoints 비활성화 OR (사거리 내 + 저속)
                 bool waypointsDone = !waypointsEnabled.ValueRO;
                 bool inRangeAndStopped = false;
 
-                if (!waypointsDone && distanceToSurface <= arrivalThreshold)
+                if (!waypointsDone && isInRange)
                 {
-                    // MovementWaypoints가 아직 enabled이지만 사거리 내에서 거의 멈춤
-                    // (ECB 타이밍 이슈로 disabled가 안 된 경우 백업)
                     float speed = _velocityLookup.HasComponent(entity)
                         ? math.length(_velocityLookup[entity].Linear)
                         : 0f;
@@ -135,7 +124,7 @@ namespace Server
                 if (!waypointsDone && !inRangeAndStopped)
                     continue;
 
-                if (distanceToSurface > arrivalThreshold)
+                if (!isInRange)
                     continue;
 
                 // 건물 생성 시도
