@@ -180,6 +180,7 @@ Construction 모드에서 건물 배치 상태를 시각화합니다.
 |------|------|------|
 | CurrentMode | CameraMode | 현재 카메라 모드 |
 | TargetEntity | Entity | HeroFollow 모드 추적 대상 |
+| ViewHalfExtent | float2 | 카메라 뷰포트 반크기 (XZ 평면, CameraSystem이 매 프레임 계산) |
 
 ---
 

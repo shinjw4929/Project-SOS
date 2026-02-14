@@ -18,6 +18,9 @@ public partial class CameraSystem : SystemBase
     private Quaternion _lockedRotation;
     private bool _rotationInitialized;
 
+    // 외부 모드 변경 감지용
+    private CameraMode _prevMode;
+
     // 카메라 위치 서버 전송용
     private int _sendTimer;
 
@@ -55,13 +58,22 @@ public partial class CameraSystem : SystemBase
             _rotationInitialized = true;
         }
 
-        // 4. T 키 토글 입력 처리
+        // 4. 외부 모드 변경 감지 (미니맵 클릭 등)
+        if (cameraState.CurrentMode != _prevMode)
+        {
+            if (cameraState.CurrentMode == CameraMode.EdgePan)
+                _velocity = Vector3.zero;
+            _prevMode = cameraState.CurrentMode;
+        }
+
+        // 5. T 키 토글 입력 처리
         if (Keyboard.current != null && Keyboard.current.tKey.wasPressedThisFrame)
         {
             if (cameraState.CurrentMode == CameraMode.EdgePan)
             {
                 // EdgePan → HeroFollow
                 cameraState.CurrentMode = CameraMode.HeroFollow;
+                _prevMode = CameraMode.HeroFollow;
                 if (TryFindLocalHero(out Entity hero))
                 {
                     cameraState.TargetEntity = hero;
@@ -71,12 +83,13 @@ public partial class CameraSystem : SystemBase
             {
                 // HeroFollow → EdgePan
                 cameraState.CurrentMode = CameraMode.EdgePan;
+                _prevMode = CameraMode.EdgePan;
                 cameraState.TargetEntity = Entity.Null;
                 _velocity = Vector3.zero; // 속도 초기화
             }
         }
 
-        // 5. 모드에 따른 카메라 처리
+        // 6. 모드에 따른 카메라 처리
         if (cameraState.CurrentMode == CameraMode.HeroFollow)
         {
             HandleHeroFollow(ref settings, ref cameraState);
@@ -93,13 +106,17 @@ public partial class CameraSystem : SystemBase
             }
         }
 
-        // 6. 회전 고정 적용
+        // 7. 회전 고정 적용
         if (settings.LockRotation)
         {
             _camTransform.rotation = _lockedRotation;
         }
 
-        // 7. 카메라 위치 + 뷰포트 반크기 서버 전송 (~20Hz)
+        // 8. 뷰포트 반크기 계산 및 캐싱
+        var viewHalfExtent = ComputeViewHalfExtent();
+        cameraState.ViewHalfExtent = viewHalfExtent;
+
+        // 9. 카메라 위치 + 뷰포트 반크기 서버 전송 (~20Hz)
         if (++_sendTimer >= 3)
         {
             _sendTimer = 0;
@@ -108,7 +125,7 @@ public partial class CameraSystem : SystemBase
             EntityManager.AddComponentData(rpcEntity, new CameraPositionRpc
             {
                 Position = new float3(camPos.x, 0f, camPos.z),
-                ViewHalfExtent = ComputeViewHalfExtent()
+                ViewHalfExtent = viewHalfExtent
             });
             EntityManager.AddComponent<SendRpcCommandRequest>(rpcEntity);
         }

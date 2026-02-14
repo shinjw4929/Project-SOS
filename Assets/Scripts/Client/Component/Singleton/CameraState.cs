@@ -1,4 +1,5 @@
 using Unity.Entities;
+using Unity.Mathematics;
 
 namespace Client
 {
@@ -12,5 +13,6 @@ namespace Client
     {
         public CameraMode CurrentMode;
         public Entity TargetEntity;  // HeroFollow 모드용 캐시
+        public float2 ViewHalfExtent; // 카메라 뷰포트 반크기 (XZ 평면)
     }
 }

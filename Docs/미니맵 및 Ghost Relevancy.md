@@ -88,6 +88,7 @@
 | 3 | 아군 유닛 | Ghost 쿼리 (UnitTag + GhostInstance) | 초록 | 2px |
 | 4 | 건물 | Ghost 쿼리 (StructureTag) | 파랑 | 3px |
 | 5 | 히어로 | Ghost 쿼리 (HeroTag) | 흰색 | 4px |
+| 6 | 카메라 뷰포트 | CameraState.ViewHalfExtent + Camera.main | 흰색 70% | 테두리 1px |
 
 - 적: **RPC 데이터** 사용 (irrelevant 적도 포함)
 - 나머지: **Ghost 엔티티 직접 쿼리** (항상 클라이언트에 존재)
@@ -113,6 +114,35 @@
 
 - 적 0마리: `TotalCount=0` RPC 1회 전송 → 클라이언트 미니맵 클리어
 - 새 FrameId 감지: PendingPositions Resize + ReceivedCount 리셋
+
+### 카메라 뷰포트 인디케이터
+
+미니맵에 현재 카메라가 보고 있는 영역을 흰색 사각형 테두리로 표시.
+
+- **데이터 소스**: `CameraState.ViewHalfExtent` (CameraSystem이 매 프레임 계산/캐싱)
+- **좌표 변환**: `Camera.main.position` ± ViewHalfExtent → UV → 텍스처 픽셀 좌표
+- **렌더링 순서**: 히어로 점 이후, `SetPixels32` 이전 (최상위 레이어)
+- **설정**: `viewportColor` (흰색 70% 알파), `viewportLineWidth` (1px)
+
+### 미니맵 클릭/드래그 인터랙션
+
+미니맵 좌클릭 또는 드래그로 카메라를 해당 월드 위치로 이동.
+
+**동작 흐름**:
+1. `wasPressedThisFrame` + 미니맵 영역 내 → `_isDraggingMinimap = true`, HeroFollow → EdgePan 전환 (1회)
+2. `isPressed` + `_isDraggingMinimap` → 매 프레임 마우스 위치를 UV → 월드 XZ로 변환하여 카메라 이동
+3. 마우스가 미니맵 밖으로 나가도 드래그 유지 (UV는 0~1로 클램프)
+4. `!isPressed` → `_isDraggingMinimap = false` (드래그 종료)
+
+**건설 모드 차단**:
+- `UserState.CurrentState == UserContext.Construction`이면 미니맵 입력 전체 차단 (early return)
+- 건설 모드에서 미니맵 좌클릭 시 카메라 이동 없이 건물 배치만 동작
+
+**입력 충돌 방지**:
+- `UserSelectionInputUpdateSystem`이 `IsPointerOverGameObject()`로 UI 위 좌클릭 차단 → 유닛 선택 충돌 없음
+- `UnitCommandInputSystem`은 우클릭/A+좌클릭만 처리 → 일반 좌클릭 충돌 없음
+
+**전제 조건**: MinimapRenderer 컴포넌트가 RawImage와 같은 GameObject에 부착되어야 함 (EventSystem이 raycast 대상 GameObject에만 이벤트 전달)
 
 ---
 
@@ -141,7 +171,8 @@
 | `Shared/Components/ConnectionViewExtent.cs` | Connection별 뷰포트 반크기 컴포넌트 |
 | `Client/Component/Singleton/MinimapDataState.cs` | 미니맵 데이터 싱글톤 |
 | `Client/Systems/MinimapDataReceiveSystem.cs` | RPC 수신 → 싱글톤 갱신 |
-| `Client/Controller/UI/MinimapRenderer.cs` | Texture2D 점 렌더링 |
+| `Client/Controller/UI/MinimapRenderer.cs` | Texture2D 렌더링 + 뷰포트 표시 + 클릭 카메라 이동 |
+| `Client/Component/Singleton/CameraState.cs` | 카메라 모드/타겟 + ViewHalfExtent 캐싱 |
 | `Client/Controller/Camera/CameraSystem.cs` | 카메라 위치 + 뷰포트 반크기 RPC 전송 (~20Hz) |
 | `Client/Controller/UI/Info/EntityCountRenderer.cs` | 적 수 표시 (MinimapDataState 사용) |
 | `Server/Systems/MinimapDataBroadcastSystem.cs` | 적 위치 수집 + 배치 전송 |
