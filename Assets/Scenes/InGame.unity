@@ -4294,8 +4294,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4d17687c9d6a7b641bdb2f6997d5836d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  size: 32
-  thickness: 2
+  cursorTexture: {fileID: 2800000, guid: b9b7f7e8bfb029b449f25efce6cb816c, type: 3}
+  hotspot: {x: 0, y: 0}
 --- !u!4 &1405847922
 Transform:
   m_ObjectHideFlags: 0
@@ -4304,12 +4304,12 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1405847920}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: -960, y: -540, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 0}
+  m_Father: {fileID: 1882599187}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1443213264
 GameObject:
@@ -5481,6 +5481,8 @@ MonoBehaviour:
   structureColor: {r: 0.3, g: 0.5, b: 1, a: 1}
   heroColor: {r: 1, g: 1, b: 1, a: 1}
   resourceColor: {r: 1, g: 0.85, b: 0.2, a: 1}
+  viewportColor: {r: 1, g: 1, b: 1, a: 0.7}
+  viewportLineWidth: 1
 --- !u!1 &1760689866
 GameObject:
   m_ObjectHideFlags: 0
@@ -5919,6 +5921,7 @@ RectTransform:
   - {fileID: 714571852}
   - {fileID: 1276457084}
   - {fileID: 1740344026}
+  - {fileID: 1405847922}
   m_Father: {fileID: 1193704593}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
@@ -7200,6 +7203,5 @@ SceneRoots:
   - {fileID: 1193704593}
   - {fileID: 971728441}
   - {fileID: 1181322090}
-  - {fileID: 1405847922}
   - {fileID: 1980826039}
   - {fileID: 228353947}
