@@ -115,6 +115,10 @@ Assets/Scripts/
 [9. Transform] TransformSystemGroup
     CarriedResourceFollowSystem (Scale 기반 가시성 토글)
 
+[9.5. 커맨드 마커] SimulationSystemGroup (Client)
+    CommandMarkerPoolInitSystem → 타입당 4개 풀 초기화 (1회 실행)
+    CommandMarkerFadeSystem → Scale 선형 감소 + 수명 만료 시 Scale=0 (풀링)
+
 [10. 렌더링] PresentationSystemGroup (Client)
     StructurePreviewUpdateSystem, EnemyHpTextPresentationSystem, CameraSystem
 ```

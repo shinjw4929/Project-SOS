@@ -12,12 +12,13 @@ using Shared;
 namespace Client
 {
     /// <summary>
-    /// Managed System으로 변경됨 (Camera 등 Unity 객체 접근 및 캐싱을 위해 필수)
+    /// 유닛 명령 입력 처리 (우클릭: 이동/공격/채집/반납, A+좌클릭: AttackMove)
+    /// - 선택된 유닛에 대해 RPC 전송 + 커맨드 마커 활성화 (풀링)
     /// </summary>
     [UpdateInGroup(typeof(GhostInputSystemGroup))]
     [UpdateAfter(typeof(SelectedEntityInfoUpdateSystem))]
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
-    public partial class UnitCommandInputSystem : SystemBase // class, SystemBase 상속
+    public partial class UnitCommandInputSystem : SystemBase
     {
         private ComponentLookup<GhostInstance> _ghostInstanceLookup;
         private ComponentLookup<ResourceNodeTag> _resourceNodeTagLookup;
@@ -26,7 +27,6 @@ namespace Client
         private ComponentLookup<WorkerState> _workerStateLookup;
         private ComponentLookup<EnemyTag> _enemyTagLookup;
 
-        // SystemBase(Class)이므로 Camera 필드 저장 가능
         private Camera _cachedCamera;
 
         protected override void OnCreate()
@@ -64,14 +64,12 @@ namespace Client
             if (!isRightClick && !isAttackMoveClick)
                 return;
 
-            // 카메라 캐싱 로직
             if (_cachedCamera == null)
             {
                 _cachedCamera = Camera.main;
                 if (_cachedCamera == null) return;
             }
 
-            // SystemBase에서는 'this'를 통해 업데이트
             _ghostInstanceLookup.Update(this);
             _resourceNodeTagLookup.Update(this);
             _workerTagLookup.Update(this);
@@ -128,10 +126,11 @@ namespace Client
             bool isEnemy,
             bool isAttackMove)
         {
-            // SystemBase에서는 World.Unmanaged 접근 방식이 다름 (this.World.Unmanaged 아님)
-            // SystemAPI를 통해 ECB Singleton 접근
             var ecb = SystemAPI.GetSingleton<BeginSimulationEntityCommandBufferSystem.Singleton>()
                 .CreateCommandBuffer(World.Unmanaged);
+
+            // 마커 타입 추적 (0=None, 1=Move, 2=Gather, 3=Attack) - 우선순위: Attack > Gather > Move
+            int markerType = 0;
 
             foreach (var (_, entity) in SystemAPI.Query<RefRO<UnitTag>>()
                 .WithAll<Selected, GhostOwnerIsLocal>()
@@ -156,6 +155,7 @@ namespace Client
                             ReturnPointGhostId = 0
                         });
                         ecb.AddComponent<SendRpcCommandRequest>(rpcEntity);
+                        markerType = math.max(markerType, 2);
                         continue;
                     }
 
@@ -176,6 +176,7 @@ namespace Client
                                 ResourceCenterGhostId = targetGhostId
                             });
                             ecb.AddComponent<SendRpcCommandRequest>(rpcEntity);
+                            markerType = math.max(markerType, 2);
                             continue;
                         }
                     }
@@ -192,13 +193,53 @@ namespace Client
                         TargetPosition = goalPos
                     });
                     ecb.AddComponent<SendRpcCommandRequest>(rpcEntity);
+                    markerType = math.max(markerType, 3);
                 }
                 else
                 {
                     // 땅 클릭: 이동 (AttackMove 여부에 따라 Intent 결정)
                     CreateMoveRpc(ecb, unitGhostId, goalPos, isAttackMove);
+                    markerType = math.max(markerType, isAttackMove ? 3 : 1);
                 }
             }
+
+            if (markerType > 0)
+                ActivatePooledMarker(goalPos, markerType);
+        }
+
+        private void ActivatePooledMarker(float3 position, int commandType)
+        {
+            byte targetType = (byte)commandType;
+            RefRW<CommandMarkerLifetime> bestLifetime = default;
+            RefRW<LocalTransform> bestTransform = default;
+            float lowestRemaining = float.MaxValue;
+            bool found = false;
+
+            foreach (var (lifetime, transform) in
+                SystemAPI.Query<RefRW<CommandMarkerLifetime>, RefRW<LocalTransform>>()
+                    .WithAll<CommandMarkerTag>())
+            {
+                if (lifetime.ValueRO.MarkerType != targetType)
+                    continue;
+
+                if (lifetime.ValueRO.RemainingTime < lowestRemaining)
+                {
+                    lowestRemaining = lifetime.ValueRO.RemainingTime;
+                    bestLifetime = lifetime;
+                    bestTransform = transform;
+                    found = true;
+                }
+            }
+
+            if (!found) return;
+
+            bestLifetime.ValueRW.TotalTime = 1.0f;
+            bestLifetime.ValueRW.RemainingTime = 1.0f;
+            bestLifetime.ValueRW.InitialScale = 2.0f;
+
+            bestTransform.ValueRW.Position = new float3(position.x, 0.05f, position.z);
+            bestTransform.ValueRW.Rotation = quaternion.Euler(math.radians(90f), 0f, 0f);
+            bestTransform.ValueRW.Scale = 2.0f;
         }
 
         private void CreateMoveRpc(EntityCommandBuffer ecb, int unitGhostId, float3 position, bool isAttackMove)
