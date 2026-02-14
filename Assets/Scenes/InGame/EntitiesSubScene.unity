@@ -1546,6 +1546,14 @@ PrefabInstance:
       value: Ground
       objectReference: {fileID: 0}
     - target: {fileID: 8314215931734994711, guid: 30865bf8e39232648b6fb54b625ea8ab, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 25
+      objectReference: {fileID: 0}
+    - target: {fileID: 8314215931734994711, guid: 30865bf8e39232648b6fb54b625ea8ab, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 25
+      objectReference: {fileID: 0}
+    - target: {fileID: 8314215931734994711, guid: 30865bf8e39232648b6fb54b625ea8ab, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0
       objectReference: {fileID: 0}
@@ -2508,17 +2516,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: dc5414274d42d0c4cb2f6f07ea5b57f9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  initialWallDecayTime: 50
+  initialWallDecayTime: 40
   wave0InitialSpawnCount: 5
-  wave1TriggerTime: 100
+  wave1TriggerTime: 80
   wave1TriggerKillCount: 3
   wave2TriggerTime: 180
   wave2TriggerKillCount: 10
-  maxEnemyCount: 2400
-  wave1SpawnInterval: 6
-  wave1SpawnCount: 1
-  wave2SpawnInterval: 5
-  wave2SpawnCount: 1
+  maxEnemyCount: 4000
+  wave1SpawnInterval: 4
+  wave1SpawnCount: 4
+  wave2SpawnInterval: 4
+  wave2SpawnCount: 8
 --- !u!114 &1956711776
 MonoBehaviour:
   m_ObjectHideFlags: 0

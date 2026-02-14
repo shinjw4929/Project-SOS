@@ -18,6 +18,9 @@ public partial class CameraSystem : SystemBase
     private Quaternion _lockedRotation;
     private bool _rotationInitialized;
 
+    // 카메라 위치 서버 전송용
+    private int _sendTimer;
+
     protected override void OnCreate()
     {
         RequireForUpdate<NetworkId>();
@@ -94,6 +97,20 @@ public partial class CameraSystem : SystemBase
         if (settings.LockRotation)
         {
             _camTransform.rotation = _lockedRotation;
+        }
+
+        // 7. 카메라 위치 + 뷰포트 반크기 서버 전송 (~20Hz)
+        if (++_sendTimer >= 3)
+        {
+            _sendTimer = 0;
+            var rpcEntity = EntityManager.CreateEntity();
+            var camPos = _camTransform.position;
+            EntityManager.AddComponentData(rpcEntity, new CameraPositionRpc
+            {
+                Position = new float3(camPos.x, 0f, camPos.z),
+                ViewHalfExtent = ComputeViewHalfExtent()
+            });
+            EntityManager.AddComponent<SendRpcCommandRequest>(rpcEntity);
         }
     }
 
@@ -173,6 +190,39 @@ public partial class CameraSystem : SystemBase
 
             _camTransform.position = currentPos;
         }
+    }
+
+    /// <summary>
+    /// 뷰포트 4코너를 y=0 평면에 투영하여 카메라 XZ 기준 반크기(halfX, halfZ) 계산.
+    /// </summary>
+    private float2 ComputeViewHalfExtent()
+    {
+        var cam = Camera.main;
+        if (cam == null) return new float2(30f, 20f);
+
+        var camPos = cam.transform.position;
+        float maxDx = 0f, maxDz = 0f;
+
+        for (int i = 0; i < 4; i++)
+        {
+            float vx = (i & 1) == 0 ? 0f : 1f;
+            float vy = (i & 2) == 0 ? 0f : 1f;
+            var ray = cam.ViewportPointToRay(new Vector3(vx, vy, 0));
+
+            if (ray.direction.y < -0.001f)
+            {
+                float t = -ray.origin.y / ray.direction.y;
+                var groundPoint = ray.origin + ray.direction * t;
+                float dx = Mathf.Abs(groundPoint.x - camPos.x);
+                float dz = Mathf.Abs(groundPoint.z - camPos.z);
+                if (dx > maxDx) maxDx = dx;
+                if (dz > maxDz) maxDz = dz;
+            }
+        }
+
+        return new float2(
+            maxDx > 0f ? maxDx : 30f,
+            maxDz > 0f ? maxDz : 20f);
     }
 
     private bool TryFindLocalHero(out Entity heroEntity)

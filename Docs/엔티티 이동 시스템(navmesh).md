@@ -72,10 +72,11 @@ MovementArrivalSystem → 도착 판정 → 이동 정지 + Intent.Idle 전환
 ---
 파일: NavMeshObstacleCleanupSystem.cs
 그룹: SimulationSystemGroup (UpdateAfter: ServerDeathSystem)
-역할: 건물 파괴 시 NavMeshObstacle GameObject 제거 + 주변 Partial Path 경로 무효화
+역할: 건물 파괴 시 NavMeshObstacle GameObject 제거 + 주변 경로 무효화 + Dormant 적 깨우기
 - NavMeshObstacleReference(Cleanup 컴포넌트)로 파괴된 건물 감지
 - GameObject.transform.position에서 위치 획득 (Cleanup 엔티티는 LocalTransform 없음)
-- 12m 반경 내 IsPathPartial 엔티티의 IsPathDirty=true 설정 (즉시 우회 경로 탐색)
+- EnemyTag: 12m 반경 내 Dormant 적 즉시 `EnemyContext.Idle`로 전환 + IsPathPartial 적 경로 무효화
+- UnitTag: 12m 반경 내 IsPathPartial 유닛 경로 무효화
 - NavMeshObstacle GameObject 파괴 + Cleanup 컴포넌트 제거
 ---
 파일: PathfindingSystem.cs
@@ -83,7 +84,7 @@ MovementArrivalSystem → 도착 판정 → 이동 정지 + Intent.Idle 전환
 타입: `partial struct PathfindingSystem : ISystem` (unmanaged)
 역할: IsPathDirty=true인 유닛 감지 → NavMeshQuery 8개 병렬 IJob → PathWaypoint 버퍼 채우기
 - **3단계 파이프라인**: Collect(메인) → Compute(8 IJob 병렬) → Apply(메인)
-  - Phase 1 Collect: IsPathDirty 엔티티를 PathRequest 배열에 수집 (최대 512개/프레임)
+  - Phase 1 Collect: IsPathDirty 엔티티를 PathRequest 배열에 수집 (초기 1024, 동적 2배 확장)
   - Phase 2 Compute: PathComputeJob 8개를 Schedule, 각 워커가 비겹침 인덱스 범위 처리
   - Phase 3 Apply: 결과를 ComponentLookup으로 PathWaypoint 버퍼, MovementGoal, MovementWaypoints에 반영
 - **NavMeshQuery 병렬화**: 8개 독립 NavMeshQuery (struct 복사, IntPtr 핸들 공유 → 안전)
@@ -179,7 +180,7 @@ MovementArrivalSystem → 도착 판정 → 이동 정지 + Intent.Idle 전환
 
 | 파일 | 역할 |
 | --- | --- |
-| MovementGoal.cs | 최종 목적지(Destination), 경로 재계산 플래그(IsPathDirty), 웨이포인트 인덱스(CurrentWaypointIndex, TotalWaypoints), Partial 경로 플래그(IsPathPartial), 목적지 설정 시간(DestinationSetTime), 마지막 위치 체크(LastPositionCheck, LastPositionCheckTime) |
+| MovementGoal.cs | 최종 목적지(Destination), 경로 재계산 플래그(IsPathDirty), 웨이포인트 인덱스(CurrentWaypointIndex, TotalWaypoints), Partial 경로 플래그(IsPathPartial), 목적지 설정 시간(DestinationSetTime), 마지막 위치 체크(LastPositionCheck, LastPositionCheckTime), Dormant 깨어남 시간(DormantWakeTime) |
 | MovementWaypoints.cs | 현재 이동 목표(Current), 다음 지점(Next), HasNext, ArrivalRadius. IEnableableComponent로 이동 중/정지 상태 토글 |
 | MovementDynamics.cs | 유닛 이동 파라미터: MaxSpeed, Acceleration, Deceleration, RotationSpeed |
 | NavMeshAgentConfig.cs | Unity NavMesh Agent Type 인덱스 참조 (유닛 크기별 경로 계산) |
@@ -188,7 +189,7 @@ MovementArrivalSystem → 도착 판정 → 이동 정지 + Intent.Idle 전환
 
 | 컴포넌트 | 동기화 | 비동기화 필드 (서버 전용) |
 | --- | --- | --- |
-| MovementGoal | enabled 상태만 | Destination, IsPathDirty, CurrentWaypointIndex, TotalWaypoints, IsPathPartial, DestinationSetTime, LastPositionCheck, LastPositionCheckTime |
+| MovementGoal | enabled 상태만 | Destination, IsPathDirty, CurrentWaypointIndex, TotalWaypoints, IsPathPartial, DestinationSetTime, LastPositionCheck, LastPositionCheckTime, DormantWakeTime |
 | MovementWaypoints | enabled 상태만 | Current, Next, HasNext, ArrivalRadius |
 | PhysicsVelocity | 없음 (Quantization=0) | Linear, Angular (PhysicsVelocityGhostOverride) |
 
@@ -224,7 +225,7 @@ NavMeshObstacleSpawnSystem
     → 건물 NavMeshObstacle 생성, 주변 경로 무효화
     ↓
 PathfindingSystem (UpdateAfter: NavMeshObstacleSpawnSystem)
-    → Phase 1: IsPathDirty=true 수집 → PathRequest 배열 (최대 512개)
+    → Phase 1: IsPathDirty=true 수집 → PathRequest 배열 (초기 1024, 동적 확장)
     → Phase 2: PathComputeJob × 8 병렬 Schedule (NavMeshQuery 8개)
     → Phase 3: 결과 Apply (ComponentLookup으로 PathWaypoint 버퍼 채우기)
     ↓

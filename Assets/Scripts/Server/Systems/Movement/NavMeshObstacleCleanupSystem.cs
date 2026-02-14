@@ -50,17 +50,28 @@ namespace Server
         {
             float radiusSq = PartialPathInvalidationRadius * PartialPathInvalidationRadius;
 
+            // EnemyTag: Dormant 깨우기 + Partial Path 무효화
+            foreach (var (goal, transform, enemyState) in
+                     SystemAPI.Query<RefRW<MovementGoal>, RefRO<LocalTransform>, RefRW<EnemyState>>()
+                         .WithAll<EnemyTag>())
+            {
+                float3 entityPos = transform.ValueRO.Position;
+                if (math.distancesq(entityPos, buildingPos) >= radiusSq) continue;
+
+                if (enemyState.ValueRO.CurrentState == EnemyContext.Dormant)
+                    enemyState.ValueRW.CurrentState = EnemyContext.Idle;
+                else if (goal.ValueRO.IsPathPartial)
+                    goal.ValueRW.IsPathDirty = true;
+            }
+
+            // UnitTag: Partial Path 무효화만
             foreach (var (goal, transform) in
                      SystemAPI.Query<RefRW<MovementGoal>, RefRO<LocalTransform>>()
-                         .WithAny<UnitTag, EnemyTag>())
+                         .WithAll<UnitTag>())
             {
                 if (!goal.ValueRO.IsPathPartial) continue;
-
-                float3 entityPos = transform.ValueRO.Position;
-                if (math.distancesq(entityPos, buildingPos) < radiusSq)
-                {
+                if (math.distancesq(transform.ValueRO.Position, buildingPos) < radiusSq)
                     goal.ValueRW.IsPathDirty = true;
-                }
             }
         }
     }

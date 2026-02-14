@@ -13,7 +13,7 @@ namespace Client
         private World _clientWorld;
         private EntityManager _clientEntityManager;
         private EntityQuery _unitQuery;
-        private EntityQuery _enemyQuery;
+        private EntityQuery _minimapDataQuery;
         private bool _isInitialized;
         private int _cachedUnitCount = -1;
         private int _cachedEnemyCount = -1;
@@ -30,7 +30,13 @@ namespace Client
             }
 
             int unitCount = _unitQuery.CalculateEntityCount();
-            int enemyCount = _enemyQuery.CalculateEntityCount();
+            int enemyCount = 0;
+            if (!_minimapDataQuery.IsEmpty)
+            {
+                var data = _minimapDataQuery.GetSingleton<MinimapDataState>();
+                if (data.EnemyPositions.IsCreated)
+                    enemyCount = data.EnemyPositions.Length;
+            }
 
             if (unitCount != _cachedUnitCount || enemyCount != _cachedEnemyCount)
             {
@@ -59,9 +65,8 @@ namespace Client
                         ComponentType.ReadOnly<GhostInstance>()
                     );
 
-                    _enemyQuery = _clientEntityManager.CreateEntityQuery(
-                        ComponentType.ReadOnly<EnemyTag>(),
-                        ComponentType.ReadOnly<GhostInstance>()
+                    _minimapDataQuery = _clientEntityManager.CreateEntityQuery(
+                        ComponentType.ReadOnly<MinimapDataState>()
                     );
 
                     _isInitialized = true;

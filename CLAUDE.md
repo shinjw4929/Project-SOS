@@ -101,6 +101,14 @@ Assets/Scripts/
 [7. 정리] SimulationSystemGroup (Server)
     HeroDeathDetectionSystem → ServerDeathSystem → NavMeshObstacleCleanupSystem, TechStateRecalculateSystem
 
+[7.5. 네트워크 최적화] SimulationSystemGroup (Server)
+    UpdateConnectionPositionSystem (CameraPositionRpc 수신) → GhostRelevancySystem (뷰포트 AABB × 1.3 밖 적 Ghost 전송 차단)
+    MinimapDataBroadcastSystem → MinimapBatchRpc 분산 전송 (적 위치 RPC)
+
+[7.6. 미니맵] SimulationSystemGroup (Client)
+    MinimapDataReceiveSystem → MinimapDataState (Double buffer 스왑)
+    MinimapRenderer (MonoBehaviour) → Texture2D 렌더링
+
 [8. 후처리] LateSimulationSystemGroup
     GridOccupancyEventSystem, PopulationApplySystem (인구수 변경 이벤트 소비)
 
@@ -116,6 +124,7 @@ Assets/Scripts/
 - `DamageApplySystem`: UpdateAfter `MeleeAttackSystem` (DamageEvent 버퍼 소비)
 - `PathfindingSystem`: ISystem(unmanaged), NavMeshQuery×8 병렬 IJob, `NavMeshPathUtils.FindStraightPath` (Funnel 알고리즘)
 - `SpatialMapBuildSystem`: Persistent 맵 + Job 기반 Clear → dependency chain으로 동기화 (CompleteDependency 불필요)
+- `GhostRelevancySystem`: UpdateAfter `UpdateConnectionPositionSystem` (Ghost Relevancy AABB 필터링, ViewHalfExtent × 1.3/1.15)
 
 ---
 
@@ -178,7 +187,7 @@ bool inRange = effectiveDistance <= attackRange;
 - **Catalog Patterns**: UnitCatalog/StructureCatalog(버퍼) vs EnemyPrefabCatalog(명시적 필드)
 
 ### 6. Network RPCs
-`MoveRequestRpc`, `AttackRequestRpc`, `BuildRequestRpc`, `BuildMoveRequestRpc`, `GatherRequestRpc`, `ReturnResourceRequestRpc`, `ProduceUnitRequestRpc`, `SelfDestructRequestRpc`, `NotificationRpc`, `HeroDeathRpc`, `GameOverRpc`
+`MoveRequestRpc`, `AttackRequestRpc`, `BuildRequestRpc`, `BuildMoveRequestRpc`, `GatherRequestRpc`, `ReturnResourceRequestRpc`, `ProduceUnitRequestRpc`, `SelfDestructRequestRpc`, `CameraPositionRpc`, `NotificationRpc`, `HeroDeathRpc`, `GameOverRpc`, `MinimapBatchRpc`
 
 ---
 
@@ -257,7 +266,10 @@ Docs/
 ├── 건설 시스템.md               # 건물 배치, BuildRequestRpc, 그리드 점유
 ├── 자원 채집 시스템.md           # 자원 수집, CarriedResource, 반납 로직
 ├── 유저 자원, 인구수.md          # UserEconomy, Population 시스템
-└── Project-SOS 상태 시스템 설계.md # UserContext 상태 머신, UI 상태
+├── Project-SOS 상태 시스템 설계.md # UserContext 상태 머신, UI 상태
+└── 성능 분석/
+    ├── 대량 엔티티 이동 끊김 분석.md  # PathfindingSystem 병렬화, Ghost 대역폭 최적화
+    └── Ghost Relevancy 및 미니맵 RPC 전환.md # Ghost Relevancy, 미니맵 RPC 시스템
 ```
 
 ### 문서 업데이트 규칙 (필수)

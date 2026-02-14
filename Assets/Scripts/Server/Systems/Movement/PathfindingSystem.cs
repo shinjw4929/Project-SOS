@@ -135,22 +135,23 @@ namespace Server
         const int MaxPathLength = 64;
         const int PathNodePoolSize = 256;
         const int WorkerCount = 8;
-        const int MaxRequestsPerFrame = 512;
+        const int InitialRequestCapacity = 1024;
 
         // 병렬 워커 리소스 (Persistent)
         NativeArray<NavMeshQuery> _queries;
         NativeArray<PolygonId> _polygonBuffers;       // WorkerCount * PathNodePoolSize
         NativeArray<float3> _tempWaypointBuffers;     // WorkerCount * MaxPathLength
 
-        // 요청/결과 버퍼 (Persistent, 프레임 간 재사용)
-        NativeArray<PathRequest> _requestArray;       // MaxRequestsPerFrame
-        NativeArray<PathOutput> _outputs;             // MaxRequestsPerFrame
-        NativeArray<float3> _outputWaypoints;         // MaxRequestsPerFrame * MaxPathLength
+        // 요청/결과 버퍼 (Persistent, 동적 확장)
+        NativeArray<PathRequest> _requestArray;
+        NativeArray<PathOutput> _outputs;
+        NativeArray<float3> _outputWaypoints;
 
         NativeHashMap<int, int> _agentIdCache;
         int _initialSkipFrames;
         bool _queriesCreated;
         int _requestCount;
+        int _requestCapacity;
 
         public void OnCreate(ref SystemState state)
         {
@@ -159,9 +160,10 @@ namespace Server
             _queries = new NativeArray<NavMeshQuery>(WorkerCount, Allocator.Persistent);
             _polygonBuffers = new NativeArray<PolygonId>(WorkerCount * PathNodePoolSize, Allocator.Persistent);
             _tempWaypointBuffers = new NativeArray<float3>(WorkerCount * MaxPathLength, Allocator.Persistent);
-            _requestArray = new NativeArray<PathRequest>(MaxRequestsPerFrame, Allocator.Persistent);
-            _outputs = new NativeArray<PathOutput>(MaxRequestsPerFrame, Allocator.Persistent);
-            _outputWaypoints = new NativeArray<float3>(MaxRequestsPerFrame * MaxPathLength, Allocator.Persistent);
+            _requestCapacity = InitialRequestCapacity;
+            _requestArray = new NativeArray<PathRequest>(_requestCapacity, Allocator.Persistent);
+            _outputs = new NativeArray<PathOutput>(_requestCapacity, Allocator.Persistent);
+            _outputWaypoints = new NativeArray<float3>(_requestCapacity * MaxPathLength, Allocator.Persistent);
             _agentIdCache = new NativeHashMap<int, int>(4, Allocator.Persistent);
 
             _initialSkipFrames = 10;
@@ -227,8 +229,8 @@ namespace Server
                 if (!goal.ValueRO.IsPathDirty)
                     continue;
 
-                if (_requestCount >= MaxRequestsPerFrame)
-                    break;
+                if (_requestCount >= _requestCapacity)
+                    GrowRequestBuffers();
 
                 float3 startPos = transform.ValueRO.Position;
                 float3 endPos = goal.ValueRO.Destination;
@@ -391,6 +393,24 @@ namespace Server
             }
 
             return false;
+        }
+
+        void GrowRequestBuffers()
+        {
+            int newCapacity = _requestCapacity * 2;
+
+            var newRequests = new NativeArray<PathRequest>(newCapacity, Allocator.Persistent);
+            NativeArray<PathRequest>.Copy(_requestArray, newRequests, _requestCount);
+            _requestArray.Dispose();
+            _requestArray = newRequests;
+
+            _outputs.Dispose();
+            _outputs = new NativeArray<PathOutput>(newCapacity, Allocator.Persistent);
+
+            _outputWaypoints.Dispose();
+            _outputWaypoints = new NativeArray<float3>(newCapacity * MaxPathLength, Allocator.Persistent);
+
+            _requestCapacity = newCapacity;
         }
 
         void CacheAgentIDs()

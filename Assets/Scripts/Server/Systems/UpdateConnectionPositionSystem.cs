@@ -1,15 +1,16 @@
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
+using Unity.Mathematics;
 using Unity.NetCode;
-using Unity.Transforms;
 using Shared;
 
 namespace Server
 {
     /// <summary>
-    /// Hero 위치를 Connection의 GhostConnectionPosition에 반영.
-    /// GhostDistanceImportance가 이 위치를 기준으로 Ghost 우선순위를 계산.
+    /// 클라이언트 카메라 위치 + 뷰포트 반크기(HalfExtent)를 Connection에 반영.
+    /// GhostDistanceImportance(우선순위) + GhostRelevancySystem(전송 여부) 모두 이 위치를 기준으로 계산.
+    /// 카메라 데이터는 CameraPositionRpc로 클라이언트에서 ~20Hz 주기로 수신.
     /// </summary>
     [BurstCompile]
     [UpdateInGroup(typeof(SimulationSystemGroup))]
@@ -19,24 +20,34 @@ namespace Server
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
-            var transformLookup = SystemAPI.GetComponentLookup<LocalTransform>(true);
+            var connectionPositionLookup = SystemAPI.GetComponentLookup<GhostConnectionPosition>();
+            var viewExtentLookup = SystemAPI.GetComponentLookup<ConnectionViewExtent>();
 
-            new UpdateJob
+            var ecb = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>()
+                .CreateCommandBuffer(state.WorldUnmanaged);
+
+            foreach (var (rpcReceive, rpc, rpcEntity) in
+                     SystemAPI.Query<RefRO<ReceiveRpcCommandRequest>, RefRO<CameraPositionRpc>>()
+                         .WithEntityAccess())
             {
-                TransformLookup = transformLookup
-            }.ScheduleParallel();
-        }
+                var sourceConnection = rpcReceive.ValueRO.SourceConnection;
+                if (connectionPositionLookup.HasComponent(sourceConnection))
+                {
+                    connectionPositionLookup[sourceConnection] = new GhostConnectionPosition
+                    {
+                        Position = rpc.ValueRO.Position
+                    };
+                }
 
-        [BurstCompile]
-        partial struct UpdateJob : IJobEntity
-        {
-            [ReadOnly] public ComponentLookup<LocalTransform> TransformLookup;
+                if (viewExtentLookup.HasComponent(sourceConnection))
+                {
+                    viewExtentLookup[sourceConnection] = new ConnectionViewExtent
+                    {
+                        HalfExtent = rpc.ValueRO.ViewHalfExtent
+                    };
+                }
 
-            public void Execute(ref GhostConnectionPosition conPos, in UserAliveState aliveState)
-            {
-                if (!aliveState.IsAlive) return;
-                if (!TransformLookup.HasComponent(aliveState.HeroEntity)) return;
-                conPos.Position = TransformLookup[aliveState.HeroEntity].Position;
+                ecb.DestroyEntity(rpcEntity);
             }
         }
     }

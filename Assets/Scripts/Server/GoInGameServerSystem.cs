@@ -35,6 +35,8 @@ partial struct GoInGameServerSystem : ISystem
           entityCommandBuffer.AddComponent<NetworkStreamInGame>(receiveRpcCommandRequest.ValueRO.SourceConnection);
           entityCommandBuffer.AddComponent(receiveRpcCommandRequest.ValueRO.SourceConnection,
               default(GhostConnectionPosition));
+          entityCommandBuffer.AddComponent(receiveRpcCommandRequest.ValueRO.SourceConnection,
+              new ConnectionViewExtent { HalfExtent = new float2(30f, 20f) });
 
           // 서버 연결 디버깅 시 사용
           // Debug.Log("Client Connected to Server!");

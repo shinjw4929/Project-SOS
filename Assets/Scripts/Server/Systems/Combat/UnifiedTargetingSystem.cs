@@ -128,6 +128,28 @@ namespace Server
             EnabledRefRW<MovementWaypoints> waypointsEnabled,
             in EnemyTag enemyTag)
         {
+            // Dormant 상태 처리 (모든 로직 전에)
+            if (enemyState.ValueRO.CurrentState == EnemyContext.Dormant)
+            {
+                // 깨어남 조건 1: 피격 (AggroReaction이 AggroLock 설정)
+                if (aggroLock.ValueRO.RemainingLockTime > 0f &&
+                    aggroLock.ValueRO.LockedTarget != Entity.Null)
+                {
+                    enemyState.ValueRW.CurrentState = EnemyContext.Idle;
+                    // fall through → 아래 어그로 고정 체크에서 처리
+                }
+                // 깨어남 조건 2: 타이머 만료
+                else if (ElapsedTime >= goal.ValueRO.DormantWakeTime)
+                {
+                    enemyState.ValueRW.CurrentState = EnemyContext.Idle;
+                    // fall through → 타겟 탐색 또는 배회 시작
+                }
+                else
+                {
+                    return; // 계속 휴면
+                }
+            }
+
             float3 myPos = myTransform.ValueRO.Position;
             bool needNewTarget = false;
             float loseDistSq = chaseDistance.ValueRO.LoseTargetDistance * chaseDistance.ValueRO.LoseTargetDistance;
@@ -252,21 +274,27 @@ namespace Server
                 {
                     target.ValueRW.TargetEntity = Entity.Null;
 
-                    bool forceRefresh = false;
                     if (enemyState.ValueRO.CurrentState == EnemyContext.Wandering)
                     {
                         if (WanderUtility.CheckStuck(in myPos, goal.ValueRO.LastPositionCheck,
                                 goal.ValueRO.LastPositionCheckTime, ElapsedTime, out bool isStuck))
                         {
-                            forceRefresh = isStuck;
+                            if (isStuck)
+                            {
+                                enemyState.ValueRW.CurrentState = EnemyContext.Dormant;
+                                waypointsEnabled.ValueRW = false;
+                                goal.ValueRW.IsPathDirty = false;
+                                goal.ValueRW.DormantWakeTime = WanderUtility.CalculateDormantWakeTime(
+                                    entity.Index, ElapsedTime);
+                                return;
+                            }
                             goal.ValueRW.LastPositionCheckTime = ElapsedTime;
                             goal.ValueRW.LastPositionCheck = myPos;
                         }
                     }
 
                     bool needNewWanderTarget = enemyState.ValueRO.CurrentState != EnemyContext.Wandering
-                                               || !waypointsEnabled.ValueRO
-                                               || forceRefresh;
+                                               || !waypointsEnabled.ValueRO;
                     if (needNewWanderTarget)
                     {
                         WanderUtility.GenerateWanderDestination(
@@ -356,21 +384,27 @@ namespace Server
                 // ---------------------------------------------------------
                 // 배회 로직
                 // ---------------------------------------------------------
-                bool forceRefresh = false;
                 if (enemyState.ValueRO.CurrentState == EnemyContext.Wandering)
                 {
                     if (WanderUtility.CheckStuck(in myPos, goal.ValueRO.LastPositionCheck,
                             goal.ValueRO.LastPositionCheckTime, ElapsedTime, out bool isStuck))
                     {
-                        forceRefresh = isStuck;
+                        if (isStuck)
+                        {
+                            enemyState.ValueRW.CurrentState = EnemyContext.Dormant;
+                            waypointsEnabled.ValueRW = false;
+                            goal.ValueRW.IsPathDirty = false;
+                            goal.ValueRW.DormantWakeTime = WanderUtility.CalculateDormantWakeTime(
+                                entity.Index, ElapsedTime);
+                            return;
+                        }
                         goal.ValueRW.LastPositionCheckTime = ElapsedTime;
                         goal.ValueRW.LastPositionCheck = myPos;
                     }
                 }
 
                 bool needNewWanderTarget = enemyState.ValueRO.CurrentState != EnemyContext.Wandering
-                                           || !waypointsEnabled.ValueRO
-                                           || forceRefresh;
+                                           || !waypointsEnabled.ValueRO;
 
                 if (needNewWanderTarget)
                 {
@@ -622,29 +656,54 @@ namespace Server
             Entity entity,
             RefRO<LocalTransform> myTransform,
             RefRW<AggroTarget> target,
+            RefRO<AggroLock> aggroLock,
             RefRW<EnemyState> enemyState,
             RefRW<MovementGoal> goal,
             EnabledRefRW<MovementWaypoints> waypointsEnabled,
             in EnemyTag enemyTag)
         {
+            // Dormant 상태 처리 (모든 로직 전에)
+            if (enemyState.ValueRO.CurrentState == EnemyContext.Dormant)
+            {
+                if (aggroLock.ValueRO.RemainingLockTime > 0f &&
+                    aggroLock.ValueRO.LockedTarget != Entity.Null)
+                {
+                    enemyState.ValueRW.CurrentState = EnemyContext.Idle;
+                }
+                else if (ElapsedTime >= goal.ValueRO.DormantWakeTime)
+                {
+                    enemyState.ValueRW.CurrentState = EnemyContext.Idle;
+                }
+                else
+                {
+                    return;
+                }
+            }
+
             target.ValueRW.TargetEntity = Entity.Null;
             float3 myPos = myTransform.ValueRO.Position;
 
-            bool forceRefresh = false;
             if (enemyState.ValueRO.CurrentState == EnemyContext.Wandering)
             {
                 if (WanderUtility.CheckStuck(in myPos, goal.ValueRO.LastPositionCheck,
                         goal.ValueRO.LastPositionCheckTime, ElapsedTime, out bool isStuck))
                 {
-                    forceRefresh = isStuck;
+                    if (isStuck)
+                    {
+                        enemyState.ValueRW.CurrentState = EnemyContext.Dormant;
+                        waypointsEnabled.ValueRW = false;
+                        goal.ValueRW.IsPathDirty = false;
+                        goal.ValueRW.DormantWakeTime = WanderUtility.CalculateDormantWakeTime(
+                            entity.Index, ElapsedTime);
+                        return;
+                    }
                     goal.ValueRW.LastPositionCheckTime = ElapsedTime;
                     goal.ValueRW.LastPositionCheck = myPos;
                 }
             }
 
             bool needNewWanderTarget = enemyState.ValueRO.CurrentState != EnemyContext.Wandering
-                                       || !waypointsEnabled.ValueRO
-                                       || forceRefresh;
+                                       || !waypointsEnabled.ValueRO;
 
             if (needNewWanderTarget)
             {

@@ -26,5 +26,7 @@ namespace Shared
         public float3 LastPositionCheck;
         // 마지막 위치 체크 시간 (stuck 감지용) [서버만 사용]
         public float LastPositionCheckTime;
+        // Dormant 상태 깨어남 시간 [서버만 사용]
+        public float DormantWakeTime;
     }
 }
