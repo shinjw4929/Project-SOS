@@ -249,6 +249,10 @@ namespace Server
                 if (pushLenSq > maxPush * maxPush)
                     hardPush *= maxPush / math.sqrt(pushLenSq);
 
+                // 벽 방향 성분 사전 제거 (벽 관통 방지)
+                if (!iAmFlying)
+                    hardPush = RemoveWallComponent(transform.Position, hardPush, obstacleRadius.Radius);
+
                 transform.Position += hardPush;
 
                 // Entity push가 벽 안으로 밀 수 있으므로 벽 관통 재검사
@@ -341,30 +345,59 @@ namespace Server
             return separation;
         }
 
+        private float3 RemoveWallComponent(float3 position, float3 push, float radius)
+        {
+            var pointInput = new PointDistanceInput
+            {
+                Position = position + new float3(0, 0.5f, 0),
+                MaxDistance = radius + 0.1f,
+                Filter = WallFilter
+            };
+
+            if (CollisionWorld.CalculateDistance(pointInput, out DistanceHit hit))
+            {
+                float3 wallNormal = math.normalizesafe(hit.SurfaceNormal);
+                wallNormal.y = 0;
+                if (math.lengthsq(wallNormal) > 0.001f)
+                {
+                    wallNormal = math.normalize(wallNormal);
+                    float dot = math.dot(push, wallNormal);
+                    if (dot < 0)
+                        push -= wallNormal * dot;
+                }
+            }
+
+            return push;
+        }
+
         private static void ClampToWall(
             ref float3 position, float radius,
             in CollisionWorld collisionWorld, CollisionFilter wallFilter)
         {
-            var clampInput = new PointDistanceInput
+            // 반복 처리: 코너(두 벽 교차)에서 첫 번째 벽으로 밀어낸 후 두 번째 벽 겹침 재검사
+            for (int i = 0; i < 3; i++)
             {
-                Position = position + new float3(0, 0.5f, 0),
-                MaxDistance = radius,
-                Filter = wallFilter
-            };
-
-            if (collisionWorld.CalculateDistance(clampInput, out DistanceHit clampHit))
-            {
-                float overlap = radius - clampHit.Distance;
-                if (overlap > 0.05f)
+                var clampInput = new PointDistanceInput
                 {
-                    float3 pushNormal = math.normalizesafe(clampHit.SurfaceNormal);
-                    pushNormal.y = 0;
-                    if (math.lengthsq(pushNormal) > 0.001f)
-                    {
-                        pushNormal = math.normalize(pushNormal);
-                        position += pushNormal * (overlap + 0.02f);
-                    }
-                }
+                    Position = position + new float3(0, 0.5f, 0),
+                    MaxDistance = radius,
+                    Filter = wallFilter
+                };
+
+                if (!collisionWorld.CalculateDistance(clampInput, out DistanceHit clampHit))
+                    break;
+
+                float overlap = radius - clampHit.Distance;
+                if (overlap <= 0.05f)
+                    break;
+
+                float3 pushNormal = math.normalizesafe(clampHit.SurfaceNormal);
+                pushNormal.y = 0;
+                if (math.lengthsq(pushNormal) <= 0.001f)
+                    break;
+
+                pushNormal = math.normalize(pushNormal);
+                position += pushNormal * (overlap + 0.02f);
             }
         }
 
