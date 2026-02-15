@@ -219,7 +219,11 @@ namespace Client
     
             foreach (var renderer in _currentPreview.GetComponentsInChildren<MeshRenderer>())
             {
-                renderer.material.SetColor(BaseColorId, tint);
+                var sharedMat = renderer.sharedMaterial;
+                if (sharedMat == null || !sharedMat.HasProperty(BaseColorId)) continue;
+
+                Color originalColor = sharedMat.GetColor(BaseColorId);
+                renderer.material.SetColor(BaseColorId, originalColor * tint);
             }
         }
     

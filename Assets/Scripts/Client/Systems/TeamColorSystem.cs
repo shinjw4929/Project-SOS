@@ -4,6 +4,7 @@ using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Rendering;
 using Unity.Transforms;
+using UnityEngine;
 using Shared;
 
 namespace Client
@@ -12,6 +13,8 @@ namespace Client
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
     public partial struct TeamColorSystem : ISystem
     {
+        private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<Team>();
@@ -19,10 +22,10 @@ namespace Client
 
         public void OnUpdate(ref SystemState state)
         {
-            // Phase 1: 새 메시 엔티티에 TeamColorTarget + URPMaterialPropertyBaseColor 부착
+            // Phase 1: 새 메시 엔티티에 TeamColorTarget + OriginalBaseColor + URPMaterialPropertyBaseColor 부착
             InitializeNewMeshEntities(ref state);
 
-            // Phase 2: 팀 색상 갱신
+            // Phase 2: 팀 색상 갱신 (원본 색상 * 팀 색상)
             var job = new TeamColorJob
             {
                 TeamLookup = SystemAPI.GetComponentLookup<Team>(true)
@@ -32,6 +35,7 @@ namespace Client
 
         private void InitializeNewMeshEntities(ref SystemState state)
         {
+            var em = state.EntityManager;
             var ecb = new EntityCommandBuffer(Allocator.Temp);
             bool hasNew = false;
 
@@ -43,14 +47,16 @@ namespace Client
             {
                 Entity rootEntity = FindTeamAncestor(parent.ValueRO.Value, ref state);
 
-                // TeamColorTarget 부착 (Entity.Null이면 팀 미소속 → 색상 갱신 스킵)
                 ecb.AddComponent(entity, new TeamColorTarget { RootEntity = rootEntity });
 
                 if (rootEntity != Entity.Null)
                 {
+                    float4 originalColor = ReadOriginalBaseColor(em, entity);
+
+                    ecb.AddComponent(entity, new OriginalBaseColor { Value = originalColor });
                     ecb.AddComponent(entity, new URPMaterialPropertyBaseColor
                     {
-                        Value = new float4(1, 1, 1, 1)
+                        Value = originalColor
                     });
                 }
 
@@ -59,9 +65,24 @@ namespace Client
 
             if (hasNew)
             {
-                ecb.Playback(state.EntityManager);
+                ecb.Playback(em);
             }
             ecb.Dispose();
+        }
+
+        private float4 ReadOriginalBaseColor(EntityManager em, Entity entity)
+        {
+            var renderMeshArray = em.GetSharedComponentManaged<RenderMeshArray>(entity);
+            var materialMeshInfo = em.GetComponentData<MaterialMeshInfo>(entity);
+            var material = renderMeshArray.GetMaterial(materialMeshInfo);
+
+            if (material != null && material.HasProperty(BaseColorId))
+            {
+                var color = material.GetColor(BaseColorId);
+                return new float4(color.r, color.g, color.b, color.a);
+            }
+
+            return new float4(1, 1, 1, 1);
         }
 
         private Entity FindTeamAncestor(Entity current, ref SystemState state)
@@ -83,12 +104,12 @@ namespace Client
     {
         [ReadOnly] public ComponentLookup<Team> TeamLookup;
 
-        void Execute(in TeamColorTarget target, ref URPMaterialPropertyBaseColor color)
+        void Execute(in TeamColorTarget target, in OriginalBaseColor original, ref URPMaterialPropertyBaseColor color)
         {
             if (target.RootEntity == Entity.Null) return;
             if (!TeamLookup.TryGetComponent(target.RootEntity, out Team team)) return;
 
-            color.Value = TeamColorPalette.GetTeamColor(team.teamId);
+            color.Value = original.Value * TeamColorPalette.GetTeamColor(team.teamId);
         }
     }
 }
