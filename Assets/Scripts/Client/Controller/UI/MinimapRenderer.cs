@@ -27,9 +27,6 @@ namespace Client
         [Header("Colors")]
         [SerializeField] private Color backgroundColor = new Color(0.05f, 0.15f, 0.05f, 0.85f);
         [SerializeField] private Color enemyColor = new Color(1f, 0.2f, 0.2f, 1f);
-        [SerializeField] private Color unitColor = new Color(0.2f, 1f, 0.2f, 1f);
-        [SerializeField] private Color structureColor = new Color(0.3f, 0.5f, 1f, 1f);
-        [SerializeField] private Color heroColor = Color.white;
         [SerializeField] private Color resourceColor = new Color(1f, 0.85f, 0.2f, 1f);
 
         [Header("Viewport Indicator")]
@@ -161,13 +158,13 @@ namespace Client
             DrawEntities(_resourceQuery, resourceColor, 2);
 
             // 아군 유닛
-            DrawEntities(_unitQuery, unitColor, 2);
+            DrawTeamEntities(_unitQuery, 2);
 
             // 건물
-            DrawEntities(_structureQuery, structureColor, 3);
+            DrawTeamEntities(_structureQuery, 3);
 
             // 히어로 (마지막 = 최상위)
-            DrawEntities(_heroQuery, heroColor, 4);
+            DrawTeamEntities(_heroQuery, 4);
 
             // 카메라 뷰포트 사각형 (최상위 레이어)
             DrawCameraViewport();
@@ -319,6 +316,22 @@ namespace Client
                 state.TargetEntity = Entity.Null;
                 em.SetComponentData(entity, state);
             }
+        }
+
+        private void DrawTeamEntities(EntityQuery query, int dotSize)
+        {
+            if (query == null || query.IsEmpty) return;
+
+            var em = _clientWorld.EntityManager;
+            var entities = query.ToEntityArray(Unity.Collections.Allocator.Temp);
+            for (int i = 0; i < entities.Length; i++)
+            {
+                var transform = em.GetComponentData<LocalTransform>(entities[i]);
+                var team = em.GetComponentData<Team>(entities[i]);
+                var teamColor = TeamColorPalette.GetTeamColor(team.teamId);
+                DrawDot(new float2(transform.Position.x, transform.Position.z), new Color(teamColor.x, teamColor.y, teamColor.z, teamColor.w), dotSize);
+            }
+            entities.Dispose();
         }
 
         private void DrawEntities(EntityQuery query, Color color, int dotSize)

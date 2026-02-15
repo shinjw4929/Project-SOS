@@ -1,6 +1,5 @@
 using Unity.Entities;
 using Unity.Mathematics;
-using Unity.Rendering;
 using UnityEngine;
 using Shared;
 
@@ -100,7 +99,7 @@ namespace Authoring
                     LoseTargetDistance = authoring.aggroRange
                 });
 
-                // 적 팀 ID (플레이어 teamId=0과 다른 값)
+                // 적 팀 ID (-1)
                 AddComponent(entity, new Team { teamId = -1 });
 
                 // =======================================================================
@@ -139,13 +138,7 @@ namespace Authoring
                 // 이동 관련 컴포넌트(MovementDynamics, MovementGoal, MovementWaypoints,
                 // PathWaypoint, NavMeshAgentConfig)는 MovementAuthoring에서 처리
 
-                // =======================================================================
-                // 5. [렌더링] - 적 시각적 구분
-                // =======================================================================
-                AddComponent(entity, new URPMaterialPropertyBaseColor
-                {
-                    Value = new float4(0, 0, 0, 1)  // 흑색
-                });
+                // URPMaterialPropertyBaseColor + TeamColorTarget은 런타임 TeamColorSystem에서 자식 메시 엔티티에 자동 부착
             }
         }
     }

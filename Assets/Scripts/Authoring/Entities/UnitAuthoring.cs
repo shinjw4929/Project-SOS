@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Unity.Entities;
 using Unity.Mathematics;
-using Unity.Rendering;
+
 using UnityEngine;
 using Shared;
 
@@ -236,15 +236,7 @@ namespace Authoring
                     });
                 }
                 
-                // =======================================================================
-                // 7. [렌더링]
-                // =======================================================================
-                // UnitState 제거됨 - UnitIntentState + UnitActionState로 대체 (UnitMovementAuthoring에서 추가)
-
-                AddComponent(entity, new URPMaterialPropertyBaseColor
-                {
-                    Value = new float4(1, 1, 1, 1)
-                });
+                // URPMaterialPropertyBaseColor + TeamColorTarget은 런타임 TeamColorSystem에서 자식 메시 엔티티에 자동 부착
             }
         }
     }

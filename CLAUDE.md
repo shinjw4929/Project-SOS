@@ -244,7 +244,7 @@ Assets/Scenes/
 ### 기본 원칙
 1. **Burst Compile 필수**: 모든 로직은 `[BurstCompile]` 적용 (예외: 입력 로직, managed 타입)
 2. **Job System 활용**: 연산 로직은 `IJobEntity`로 구현하여 멀티스레드 활용
-3. **네이밍**: "Player" 대신 **"User"** 사용 (Unity Player와 혼동 방지)
+3. **네이밍**: "Player" 대신 **"User"** 사용 (Unity Player와 혼동 방지). 변수명은 의미를 알 수 있도록 작성하며, 축약하지 않는다 (예: `var c` ✗ → `var teamColor` ✓). 단, DOTS 관용 약어(`ecb`, `em`, `job` 등)는 허용.
 4. **테스트**: EditMode(순수 함수) / PlayMode(ECS 시스템) 테스트 작성
 
 ### Burst 제약사항
@@ -281,6 +281,7 @@ Docs/
 ├── 자원 채집 시스템.md           # 자원 수집, CarriedResource, 반납 로직
 ├── 유저 자원, 인구수.md          # UserEconomy, Population 시스템
 ├── Project-SOS 상태 시스템 설계.md # UserContext 상태 머신, UI 상태
+├── 팀 색상 시스템.md               # TeamColorSystem, TeamColorPalette, 팀별 틴트
 └── 성능 분석/
     ├── 대량 엔티티 이동 끊김 분석.md  # PathfindingSystem 병렬화, Ghost 대역폭 최적화
     └── Ghost Relevancy 및 미니맵 RPC 전환.md # Ghost Relevancy, 미니맵 RPC 시스템

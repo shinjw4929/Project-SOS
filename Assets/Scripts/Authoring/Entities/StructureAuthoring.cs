@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Unity.Entities;
 using Unity.Mathematics;
-using Unity.Rendering;
+
 using UnityEngine;
 using Shared;
 
@@ -244,7 +244,7 @@ namespace Authoring
                 });
                 
                 // =======================================================================
-                // 4. [상태 및 렌더링]
+                // 4. [상태]
                 // =======================================================================
                 // 건물 상태 (Idle, Constructing, Destroyed 등)
                 AddComponent(entity, new StructureState
@@ -252,16 +252,11 @@ namespace Authoring
                     CurrentState = StructureContext.Idle
                 });
                 
-                // 팀 컬러링
-                AddComponent(entity, new URPMaterialPropertyBaseColor
-                {
-                    Value = new float4(1, 1, 1, 1)
-                });
+                // URPMaterialPropertyBaseColor + TeamColorTarget은 런타임 TeamColorSystem에서 자식 메시 엔티티에 자동 부착
 
                 // =======================================================================
                 // 5. [NavMesh Obstacle] 경로 탐색 장애물 (서버 전용)
                 // =======================================================================
-                // NavMesh Obstacle 경로 탐색 장애물 (서버 전용)
                 // Managed Component는 Runtime에서 추가됨
                 AddComponent(entity, new NeedsNavMeshObstacle());
                 SetComponentEnabled<NeedsNavMeshObstacle>(entity, false); // 초기 비활성화
