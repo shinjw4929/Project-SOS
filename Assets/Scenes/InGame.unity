@@ -5477,9 +5477,6 @@ MonoBehaviour:
   updateInterval: 0.1
   backgroundColor: {r: 0.05, g: 0.15, b: 0.05, a: 1}
   enemyColor: {r: 1, g: 0.2, b: 0.2, a: 1}
-  unitColor: {r: 0.2, g: 1, b: 0.2, a: 1}
-  structureColor: {r: 0.3, g: 0.5, b: 1, a: 1}
-  heroColor: {r: 1, g: 1, b: 1, a: 1}
   resourceColor: {r: 1, g: 0.85, b: 0.2, a: 1}
   viewportColor: {r: 1, g: 1, b: 1, a: 0.7}
   viewportLineWidth: 1
