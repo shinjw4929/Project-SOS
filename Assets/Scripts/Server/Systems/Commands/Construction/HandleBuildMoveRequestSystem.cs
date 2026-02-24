@@ -77,6 +77,8 @@ namespace Server
             // GhostIdMap 싱글톤 재사용 (GhostIdLookupSystem이 매 프레임 갱신)
             var ghostMap = SystemAPI.GetSingleton<GhostIdMap>().Map;
 
+            float elapsedTime = (float)SystemAPI.Time.ElapsedTime;
+
             // RPC 처리
             foreach (var (rpcReceive, rpc, rpcEntity) in
                 SystemAPI.Query<RefRO<ReceiveRpcCommandRequest>, RefRO<BuildMoveRequestRpc>>()
@@ -88,7 +90,8 @@ namespace Server
                         ecb,
                         builderEntity,
                         rpcReceive.ValueRO.SourceConnection,
-                        rpc.ValueRO
+                        rpc.ValueRO,
+                        elapsedTime
                     );
                 }
 
@@ -100,7 +103,8 @@ namespace Server
             EntityCommandBuffer ecb,
             Entity builderEntity,
             Entity sourceConnection,
-            BuildMoveRequestRpc rpc)
+            BuildMoveRequestRpc rpc,
+            float elapsedTime)
         {
             // 1. 빌더 유효성 검증
             if (!_builderTagLookup.HasComponent(builderEntity) ||
@@ -119,7 +123,10 @@ namespace Server
                 return;
             }
 
-            // 3. MovementGoal 설정: 건물 가장자리로 이동 (중심이 아닌 빌더 방향 가장자리)
+            // 3. MovementGoal 설정: 건물 가장자리에서 workRange 오프셋만큼 바깥으로 이동
+            float workRange = _workRangeLookup.TryGetComponent(builderEntity, out var wr)
+                ? wr.Value : 1.0f;
+
             if (_movementGoalLookup.HasComponent(builderEntity) &&
                 _transformLookup.HasComponent(builderEntity))
             {
@@ -129,25 +136,25 @@ namespace Server
                 float3 toBuilder = builderPos - rpc.BuildSiteCenter;
                 toBuilder.y = 0;
                 float dirLen = math.length(toBuilder);
+                float destinationOffset = rpc.StructureRadius + workRange * 0.5f;
 
                 if (dirLen > 0.01f)
                 {
-                    goalRW.ValueRW.Destination = rpc.BuildSiteCenter + (toBuilder / dirLen) * rpc.StructureRadius;
+                    goalRW.ValueRW.Destination = rpc.BuildSiteCenter + (toBuilder / dirLen) * destinationOffset;
                 }
                 else
                 {
-                    goalRW.ValueRW.Destination = rpc.BuildSiteCenter + new float3(rpc.StructureRadius, 0, 0);
+                    goalRW.ValueRW.Destination = rpc.BuildSiteCenter + new float3(destinationOffset, 0, 0);
                 }
 
                 goalRW.ValueRW.IsPathDirty = true;
                 goalRW.ValueRW.CurrentWaypointIndex = 0;
+                goalRW.ValueRW.DestinationSetTime = elapsedTime;
             }
 
             // ArrivalRadius 설정 (Dead Zone 방지: ArrivalRadius * 2 <= workRange)
             if (_movementWaypointsLookup.HasComponent(builderEntity))
             {
-                float workRange = _workRangeLookup.TryGetComponent(builderEntity, out var wr)
-                    ? wr.Value : 1.0f;
                 _movementWaypointsLookup.GetRefRW(builderEntity).ValueRW.ArrivalRadius =
                     ArrivalUtility.GetSafeArrivalRadius(workRange, 0f);
             }

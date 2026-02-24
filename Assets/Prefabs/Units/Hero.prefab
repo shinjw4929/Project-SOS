@@ -121,7 +121,7 @@ MonoBehaviour:
   maxHealth: 50
   defense: 0
   visionRange: 12
-  workRange: 1.2
+  workRange: 0.7
   radius: 0.5
   attackPower: 1
   attackSpeed: 1
@@ -168,12 +168,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 7c79d771cedb4794bf100ce60df5f764, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  DefaultGhostMode: 2
-  SupportedGhostModes: 3
-  OptimizationMode: 0
-  Importance: 1
-  MaxSendRate: 0
-  prefabId: 047b80508dffac04ab41dd3cad0eead3
   HasOwner: 1
   SupportAutoCommandTarget: 1
   TrackInterpolationDelay: 0
@@ -182,6 +176,12 @@ MonoBehaviour:
   UseSingleBaseline: 0
   RollbackPredictedSpawnedGhostState: 0
   RollbackPredictionOnStructuralChanges: 1
+  DefaultGhostMode: 2
+  SupportedGhostModes: 3
+  OptimizationMode: 0
+  Importance: 1
+  MaxSendRate: 0
+  prefabId: 047b80508dffac04ab41dd3cad0eead3
 --- !u!114 &843709809492544232
 MonoBehaviour:
   m_ObjectHideFlags: 0

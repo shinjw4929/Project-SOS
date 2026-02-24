@@ -12,9 +12,9 @@ namespace Server
     /// <summary>
     /// 건설 도착 시스템
     /// - PendingBuildServerData가 있는 유닛의 도착 감지 (이동 완료 OR 사거리 내 저속)
-    /// - 건물 생성 (BuildingUtility.CreateBuilding 사용)
-    /// - PendingBuildServerData 제거
-    /// - UnitIntentState를 Idle로 복원
+    /// - 사거리 내: 건물 생성 (BuildingUtility.CreateBuilding 사용)
+    /// - 사거리 밖: 목적지 재계산 후 재시도 (최대 3회), 초과 시 포기
+    /// - PendingBuildServerData 제거 + UnitIntentState를 Idle로 복원
     /// </summary>
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     [UpdateAfter(typeof(MovementArrivalSystem))]
@@ -22,6 +22,8 @@ namespace Server
     [BurstCompile]
     public partial struct BuildArrivalSystem : ISystem
     {
+        private const int MaxBuildRetryCount = 3;
+
         [ReadOnly] private ComponentLookup<ProductionCost> _productionCostLookup;
         [ReadOnly] private ComponentLookup<StructureFootprint> _footprintLookup;
         [ReadOnly] private ComponentLookup<LocalTransform> _transformLookup;
@@ -34,6 +36,7 @@ namespace Server
 
         private ComponentLookup<UserCurrency> _userCurrencyLookup;
         private ComponentLookup<UserTechState> _userTechStateLookup;
+        private ComponentLookup<MovementGoal> _movementGoalLookup;
 
         public void OnCreate(ref SystemState state)
         {
@@ -53,6 +56,7 @@ namespace Server
 
             _userCurrencyLookup = state.GetComponentLookup<UserCurrency>(false);
             _userTechStateLookup = state.GetComponentLookup<UserTechState>(false);
+            _movementGoalLookup = state.GetComponentLookup<MovementGoal>(false);
         }
 
         [BurstCompile]
@@ -72,6 +76,7 @@ namespace Server
             _velocityLookup.Update(ref state);
             _userCurrencyLookup.Update(ref state);
             _userTechStateLookup.Update(ref state);
+            _movementGoalLookup.Update(ref state);
 
             var ecb = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>()
                 .CreateCommandBuffer(state.WorldUnmanaged);
@@ -90,7 +95,7 @@ namespace Server
 
             foreach (var (pendingData, transform, intentState, waypoints, waypointsEnabled, entity) in
                      SystemAPI.Query<
-                         RefRO<PendingBuildServerData>,
+                         RefRW<PendingBuildServerData>,
                          RefRO<LocalTransform>,
                          RefRW<UnitIntentState>,
                          RefRW<MovementWaypoints>,
@@ -125,7 +130,44 @@ namespace Server
                     continue;
 
                 if (!isInRange)
+                {
+                    // 이동 완료인데 사거리 밖 → 재시도 또는 포기
+                    if (pendingData.ValueRO.RetryCount < MaxBuildRetryCount)
+                    {
+                        pendingData.ValueRW.RetryCount += 1;
+
+                        float3 toBuilder = unitPos - pending.BuildSiteCenter;
+                        toBuilder.y = 0;
+                        float dirLen = math.length(toBuilder);
+                        float destinationOffset = pending.StructureRadius + workRange * 0.5f;
+
+                        float3 newDest = dirLen > 0.01f
+                            ? pending.BuildSiteCenter + (toBuilder / dirLen) * destinationOffset
+                            : pending.BuildSiteCenter + new float3(destinationOffset, 0, 0);
+
+                        if (_movementGoalLookup.HasComponent(entity))
+                        {
+                            var goal = _movementGoalLookup.GetRefRW(entity);
+                            goal.ValueRW.Destination = newDest;
+                            goal.ValueRW.IsPathDirty = true;
+                            goal.ValueRW.CurrentWaypointIndex = 0;
+                        }
+
+                        waypoints.ValueRW.ArrivalRadius =
+                            ArrivalUtility.GetSafeArrivalRadius(workRange, 0f);
+                        ecb.SetComponentEnabled<MovementWaypoints>(entity, true);
+                    }
+                    else
+                    {
+                        // 포기: PendingBuildServerData 제거 + Intent 복원
+                        ecb.RemoveComponent<PendingBuildServerData>(entity);
+                        waypoints.ValueRW.ArrivalRadius = 0f;
+                        ecb.SetComponentEnabled<MovementWaypoints>(entity, false);
+                        intentState.ValueRW.State = Intent.Idle;
+                        intentState.ValueRW.TargetEntity = Entity.Null;
+                    }
                     continue;
+                }
 
                 // 건물 생성 시도
                 bool buildSuccess = TryBuild(

@@ -16,5 +16,6 @@ namespace Server
         public float StructureRadius;   // 건물 반지름 (도착 판정용)
         public int OwnerNetworkId;      // 소유자 네트워크 ID
         public Entity SourceConnection; // 소스 연결 (알림용)
+        public byte RetryCount;         // 이동 재시도 횟수 (기본 0, 최대 3)
     }
 }
