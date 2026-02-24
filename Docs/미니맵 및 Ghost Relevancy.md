@@ -3,8 +3,8 @@
 ## 개요
 
 2400+ Ghost 스냅샷 대역폭 포화 문제를 해결하기 위해 두 시스템을 도입:
-1. **Ghost Relevancy**: 카메라에서 먼 적 Ghost를 전송하지 않아 대역폭 절감
-2. **UI 미니맵**: Relevancy로 제외된 적의 위치를 별도 RPC로 전달, Texture2D에 점으로 렌더링
+1. **Ghost Relevancy**: 카메라에서 먼 적/다른 유저 유닛 Ghost를 전송하지 않아 대역폭 절감
+2. **UI 미니맵**: Relevancy로 제외된 적/유닛의 위치를 별도 RPC로 전달, Texture2D에 점으로 렌더링
 
 ---
 
@@ -20,14 +20,25 @@
     │ RPC 수신 → GhostConnectionPosition에 카메라 위치 반영
     ↓
 [Server] GhostRelevancySystem (UpdateAfter: UpdateConnectionPositionSystem)
-    │ 카메라 기준 거리로 적 Ghost 전송 여부 결정
+    │ 카메라 기준 AABB로 적/다른 유저 유닛 Ghost 전송 여부 결정
     │ SetIsIrrelevant 모드 (blacklist 방식)
+    │ 자기 유닛(GhostOwner == Connection)은 항상 relevant 유지
     ↓
 [Netcode] GhostSendSystem
     │ irrelevant Ghost → 스냅샷에서 제외 → 클라이언트에 전송 안 함
     ↓
-[Client] 해당 적 엔티티 despawn (파괴)
+[Client] 해당 엔티티 despawn (파괴)
 ```
+
+### 필터링 대상
+
+| 대상 | ownerId | 자기 소유 처리 |
+|------|---------|---------------|
+| 적 (EnemyTag) | -1 (고정) | 해당 없음 (모든 Connection에 대해 필터링) |
+| 유닛 (UnitTag, Hero 포함) | GhostOwner.NetworkId | 자기 유닛 skip (항상 relevant) |
+
+- `UpdateRelevancy` 메서드로 공통 AABB Hysteresis 로직 추출
+- `[MethodImpl(AggressiveInlining)]` 적용 (struct 파라미터가 있으므로 `[BurstCompile]` 불가)
 
 ### AABB 기반 Relevancy + Hysteresis
 
@@ -51,7 +62,7 @@
 | 엔티티 존재 | 정상 존재 | **despawn (파괴)** |
 | 이동/충돌 | 정상 시뮬레이션 | 불가 (엔티티 없음) |
 | 전투 | 정상 (데미지, 타겟팅) | 불가 |
-| 미니맵 표시 | - | MinimapBatchRpc로 표시 |
+| 미니맵 표시 | - | MinimapBatchRpc (적/유닛 통합, teamId 기반 분기) |
 
 ### relevant 복원 시
 
@@ -67,53 +78,59 @@
 
 ```
 [Server] MinimapDataBroadcastSystem
-    │ 전체 적 위치 수집 (EnemyTag + LocalTransform)
-    │ 32개씩 MinimapBatchRpc로 분할
-    │ 매 틱 2배치 전송 (~60틱에 걸쳐 분산)
+    │ 전체 적/유닛 위치를 단일 float3(xz+teamId)로 수집
+    │ .WithAny<EnemyTag, UnitTag>() 쿼리로 한 번에 수집
+    │ 32개씩 MinimapBatchRpc로 분할, 매 틱 2배치 전송
     ↓
 [Client] MinimapDataReceiveSystem
-    │ RPC 수신 → PendingPositions 버퍼에 복사
-    │ 전체 수신 완료 시 EnemyPositions ↔ PendingPositions 스왑
+    │ RPC 수신 → PendingBuffer에 복사
+    │ 전체 수신 완료 시 Buffer ↔ PendingBuffer 스왑 + 적/유닛 수 카운트
     ↓
 [Client] MinimapRenderer (MonoBehaviour)
     │ 100ms마다 Texture2D(256x256) 렌더링
+    │ teamId=-1: 적(빨강), teamId>0: 유저 유닛(팀 색상, 자기 teamId skip)
 ```
 
 ### 렌더링 계층 (아래에서 위 순서)
 
 | 순서 | 대상 | 데이터 소스 | 색상 | 점 크기 |
 |------|------|-----------|------|---------|
-| 1 | 적 | MinimapDataState (RPC) | 빨강 | 1px |
+| 1 | 적/다른 유저 유닛 | MinimapDataState (RPC, teamId 기반 분기) | 적=빨강, 유닛=팀 색상 | 적 1px, 유닛 2px |
 | 2 | 자원 노드 | Ghost 쿼리 (ResourceNodeTag) | 노랑 | 2px |
-| 3 | 아군 유닛 | Ghost 쿼리 (UnitTag + GhostInstance) | 초록 | 2px |
-| 4 | 건물 | Ghost 쿼리 (StructureTag) | 파랑 | 3px |
-| 5 | 히어로 | Ghost 쿼리 (HeroTag) | 흰색 | 4px |
+| 3 | 자기 유닛 | Ghost 쿼리 (UnitTag + GhostOwnerIsLocal) | 팀 색상 | 2px |
+| 4 | 건물 | Ghost 쿼리 (StructureTag) | 팀 색상 | 3px |
+| 5 | 자기 히어로 | Ghost 쿼리 (HeroTag + GhostOwnerIsLocal) | 팀 색상 | 4px |
 | 6 | 카메라 뷰포트 | CameraState.ViewHalfExtent + Camera.main | 흰색 70% | 테두리 1px |
 
-- 적: **RPC 데이터** 사용 (irrelevant 적도 포함)
-- 나머지: **Ghost 엔티티 직접 쿼리** (항상 클라이언트에 존재)
+- 적/다른 유저 유닛: **MinimapBatchRpc** 단일 데이터 사용, teamId로 분기 (자기 teamId skip)
+- 자기 유닛/히어로: **Ghost 쿼리 + GhostOwnerIsLocal** (항상 클라이언트에 존재)
+- 건물: Ghost 쿼리 (Relevancy 미적용, 항상 존재)
 - 맵 범위: `CameraSettings.MapBoundsMin/Max` 기반 UV 좌표 변환
 
 ### MinimapBatchRpc 구조
 
+적과 유닛을 단일 RPC로 통합. float3(x=worldX, y=worldZ, z=teamId)로 인코딩.
+
 | 필드 | 타입 | 용도 |
 |------|------|------|
 | FrameId | uint | 프레임 식별 (배치 그룹핑) |
-| StartIndex | ushort | 전체 적 목록 내 시작 인덱스 |
-| TotalCount | ushort | 전체 적 수 |
+| StartIndex | ushort | 전체 목록 내 시작 인덱스 |
+| TotalCount | ushort | 전체 수 (적+유닛) |
 | ValidCount | byte | 이 배치의 유효 엔트리 수 (0~32) |
-| P00~P31 | float2 x32 | xz 좌표 |
+| P00~P31 | float3 x32 | x=worldX, y=worldZ, z=teamId (-1=적, 1~8=유저) |
 
-### Double Buffer 패턴 (MinimapDataState)
+### Double Buffer 패턴
+
+MinimapDataState 싱글톤 (적/유닛 통합):
 
 ```
-수신 중:  PendingPositions에 배치 데이터 복사
-완료 시:  EnemyPositions ↔ PendingPositions 스왑
-렌더링:   EnemyPositions에서 읽기 (수신과 독립)
+수신 중:  PendingBuffer에 배치 데이터 복사
+완료 시:  Buffer ↔ PendingBuffer 스왑
+렌더링:   Buffer에서 읽기 (수신과 독립)
 ```
 
-- 적 0마리: `TotalCount=0` RPC 1회 전송 → 클라이언트 미니맵 클리어
-- 새 FrameId 감지: PendingPositions Resize + ReceivedCount 리셋
+- 0마리: `TotalCount=0` RPC 1회 전송 → 클라이언트 미니맵 클리어
+- 새 FrameId 감지: PendingBuffer Resize + ReceivedCount 리셋
 
 ### 카메라 뷰포트 인디케이터
 
@@ -150,9 +167,9 @@
 
 | 항목 | 값 |
 |------|-----|
-| MinimapBatchRpc 크기 | 헤더 9B + 32×8B = 265B |
-| 2400적 기준 RPC 수 | 75 RPCs/초 |
-| 대역폭 | ~20KB/s per connection |
+| MinimapBatchRpc 크기 | 헤더 9B + 32×12B = 393B |
+| 2600엔티티(적+유닛) 기준 RPC 수 | ~82 RPCs/초 |
+| 통합 대역폭 | ~23KB/s per connection |
 | CameraPositionRpc | 20B × 20Hz = ~400B/s per connection |
 
 ### DefaultSnapshotPacketSize
@@ -162,26 +179,34 @@
 
 ---
 
-## 4. 관련 파일
+## 4. EntityCountRenderer
+
+유닛 수 표시가 Relevancy 적용 후 부정확해지는 문제 해결:
+- **우선**: `MinimapDataState.UnitCount` / `MinimapDataState.EnemyCount` (RPC 기반 전체 카운트)
+- **Fallback**: Ghost 쿼리 `UnitTag + GhostInstance` (RPC 데이터 미수신 시)
+
+---
+
+## 5. 관련 파일
 
 | 파일 | 역할 |
 |------|------|
-| `Shared/RPCs/MinimapBatchRpc.cs` | 미니맵 배치 RPC |
+| `Shared/RPCs/MinimapBatchRpc.cs` | 미니맵 적/유닛 통합 배치 RPC (float3: xz+teamId) |
 | `Shared/RPCs/CameraPositionRpc.cs` | 카메라 위치 + 뷰포트 반크기 전송 RPC |
 | `Shared/Components/ConnectionViewExtent.cs` | Connection별 뷰포트 반크기 컴포넌트 |
-| `Client/Component/Singleton/MinimapDataState.cs` | 미니맵 데이터 싱글톤 |
-| `Client/Systems/MinimapDataReceiveSystem.cs` | RPC 수신 → 싱글톤 갱신 |
+| `Client/Component/Singleton/MinimapDataState.cs` | 미니맵 적/유닛 데이터 싱글톤 (EnemyCount/UnitCount 포함) |
+| `Client/Systems/MinimapDataReceiveSystem.cs` | RPC 수신 → 싱글톤 갱신 + 적/유닛 수 카운트 |
 | `Client/Controller/UI/MinimapRenderer.cs` | Texture2D 렌더링 + 뷰포트 표시 + 클릭 카메라 이동 |
 | `Client/Component/Singleton/CameraState.cs` | 카메라 모드/타겟 + ViewHalfExtent 캐싱 |
 | `Client/Controller/Camera/CameraSystem.cs` | 카메라 위치 + 뷰포트 반크기 RPC 전송 (~20Hz) |
-| `Client/Controller/UI/Info/EntityCountRenderer.cs` | 적 수 표시 (MinimapDataState 사용) |
-| `Server/Systems/MinimapDataBroadcastSystem.cs` | 적 위치 수집 + 배치 전송 |
-| `Server/Systems/GhostRelevancySystem.cs` | Ghost Relevancy AABB 필터링 (ViewHalfExtent × 배율) |
+| `Client/Controller/UI/Info/EntityCountRenderer.cs` | 유닛/적 수 표시 (RPC 데이터 우선, Ghost fallback) |
+| `Server/Systems/MinimapDataBroadcastSystem.cs` | 적/유닛 위치 통합 수집 + 배치 전송 |
+| `Server/Systems/GhostRelevancySystem.cs` | Ghost Relevancy AABB 필터링 (적 + 유닛) |
 | `Server/Systems/UpdateConnectionPositionSystem.cs` | 카메라 위치 → GhostConnectionPosition + ConnectionViewExtent |
 
 ---
 
-## 5. 씬 설정
+## 6. 씬 설정
 
 InGame.unity Canvas 하위:
 - `RawImage` → MinimapRenderer.minimapImage에 할당

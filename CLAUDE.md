@@ -102,11 +102,11 @@ Assets/Scripts/
     HeroDeathDetectionSystem → ServerDeathSystem → NavMeshObstacleCleanupSystem, TechStateRecalculateSystem
 
 [7.5. 네트워크 최적화] SimulationSystemGroup (Server)
-    UpdateConnectionPositionSystem (CameraPositionRpc 수신) → GhostRelevancySystem (뷰포트 AABB × 1.3 밖 적 Ghost 전송 차단)
-    MinimapDataBroadcastSystem → MinimapBatchRpc 분산 전송 (적 위치 RPC)
+    UpdateConnectionPositionSystem (CameraPositionRpc 수신) → GhostRelevancySystem (뷰포트 AABB × 1.3 밖 적/다른 유저 유닛 Ghost 전송 제외, 자기 유닛 항상 relevant)
+    MinimapDataBroadcastSystem → MinimapBatchRpc 분산 전송 (적/유닛 위치+teamId, 단일 float3 파이프라인)
 
 [7.6. 미니맵] SimulationSystemGroup (Client)
-    MinimapDataReceiveSystem → MinimapDataState (Double buffer 스왑)
+    MinimapDataReceiveSystem → MinimapDataState (Double buffer 스왑, 적/유닛 수 카운트)
     MinimapRenderer (MonoBehaviour) → Texture2D 렌더링
 
 [8. 후처리] LateSimulationSystemGroup
@@ -128,7 +128,7 @@ Assets/Scripts/
 - `DamageApplySystem`: UpdateAfter `MeleeAttackSystem` (DamageEvent 버퍼 소비)
 - `PathfindingSystem`: ISystem(unmanaged), NavMeshQuery×8 병렬 IJob, `NavMeshPathUtils.FindStraightPath` (Funnel 알고리즘)
 - `SpatialMapBuildSystem`: Persistent 맵 + Job 기반 Clear → dependency chain으로 동기화 (CompleteDependency 불필요)
-- `GhostRelevancySystem`: UpdateAfter `UpdateConnectionPositionSystem` (Ghost Relevancy AABB 필터링, ViewHalfExtent × 1.3/1.15)
+- `GhostRelevancySystem`: UpdateAfter `UpdateConnectionPositionSystem` (Ghost Relevancy AABB 필터링, 적+다른 유저 유닛, 자기 유닛 skip, ViewHalfExtent × 1.3/1.15)
 
 ---
 
@@ -282,9 +282,11 @@ Docs/
 ├── 유저 자원, 인구수.md          # UserEconomy, Population 시스템
 ├── Project-SOS 상태 시스템 설계.md # UserContext 상태 머신, UI 상태
 ├── 팀 색상 시스템.md               # TeamColorSystem, TeamColorPalette, 팀별 틴트
-└── 성능 분석/
+├── 미니맵 및 Ghost Relevancy.md   # Ghost Relevancy, 미니맵 RPC 시스템, 대역폭
+└── 문제 분석/
     ├── 대량 엔티티 이동 끊김 분석.md  # PathfindingSystem 병렬화, Ghost 대역폭 최적화
-    └── Ghost Relevancy 및 미니맵 RPC 전환.md # Ghost Relevancy, 미니맵 RPC 시스템
+    ├── Ghost Relevancy 및 미니맵 RPC 전환.md # Ghost Relevancy 도입 배경, 의사결정 기록
+    └── 도착 거리 Dead Zone 및 로직 통합.md  # ArrivalUtility 통합 배경
 ```
 
 ### 문서 업데이트 규칙 (필수)

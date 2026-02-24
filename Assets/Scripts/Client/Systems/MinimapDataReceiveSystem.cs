@@ -8,9 +8,9 @@ using Shared;
 namespace Client
 {
     /// <summary>
-    /// MinimapBatchRpc 수신 → MinimapDataState 싱글톤 갱신.
+    /// MinimapBatchRpc 수신 -> MinimapDataState 싱글톤 갱신.
     /// 새 FrameId 감지 시 Pending 버퍼를 Resize, 배치 데이터를 복사.
-    /// 전체 수신 완료 시 EnemyPositions ↔ PendingPositions 스왑.
+    /// 전체 수신 완료 시 Data <-> PendingData 스왑 + 적/유닛 수 카운트.
     /// </summary>
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     [WorldSystemFilter(WorldSystemFilterFlags.ClientSimulation)]
@@ -24,11 +24,13 @@ namespace Client
             var entity = state.EntityManager.CreateEntity();
             state.EntityManager.AddComponentData(entity, new MinimapDataState
             {
-                EnemyPositions = new NativeList<float2>(256, Allocator.Persistent),
-                PendingPositions = new NativeList<float2>(256, Allocator.Persistent),
+                Data = new NativeList<float3>(256, Allocator.Persistent),
+                PendingData = new NativeList<float3>(256, Allocator.Persistent),
                 PendingFrameId = 0,
                 ReceivedCount = 0,
                 ExpectedTotalCount = 0,
+                EnemyCount = 0,
+                UnitCount = 0,
             });
 #if UNITY_EDITOR
             state.EntityManager.SetName(entity, "Singleton_MinimapDataState");
@@ -39,8 +41,8 @@ namespace Client
         {
             if (SystemAPI.TryGetSingleton<MinimapDataState>(out var data))
             {
-                if (data.EnemyPositions.IsCreated) data.EnemyPositions.Dispose();
-                if (data.PendingPositions.IsCreated) data.PendingPositions.Dispose();
+                if (data.Data.IsCreated) data.Data.Dispose();
+                if (data.PendingData.IsCreated) data.PendingData.Dispose();
             }
         }
 
@@ -61,14 +63,15 @@ namespace Client
                 ref var s = ref minimapState.ValueRW;
                 var batch = rpc.ValueRO;
 
-                // TotalCount == 0: 적 없음 → 클리어
                 if (batch.TotalCount == 0)
                 {
-                    s.EnemyPositions.Clear();
-                    s.PendingPositions.Clear();
+                    s.Data.Clear();
+                    s.PendingData.Clear();
                     s.PendingFrameId = batch.FrameId;
                     s.ReceivedCount = 0;
                     s.ExpectedTotalCount = 0;
+                    s.EnemyCount = 0;
+                    s.UnitCount = 0;
                     ecb.DestroyEntity(rpcEntity);
                     continue;
                 }
@@ -79,7 +82,7 @@ namespace Client
                     s.PendingFrameId = batch.FrameId;
                     s.ReceivedCount = 0;
                     s.ExpectedTotalCount = batch.TotalCount;
-                    s.PendingPositions.Resize(batch.TotalCount, NativeArrayOptions.ClearMemory);
+                    s.PendingData.Resize(batch.TotalCount, NativeArrayOptions.ClearMemory);
                 }
 
                 // 배치 데이터 복사
@@ -88,9 +91,9 @@ namespace Client
                 for (int i = 0; i < count; i++)
                 {
                     int idx = start + i;
-                    if (idx < s.PendingPositions.Length)
+                    if (idx < s.PendingData.Length)
                     {
-                        s.PendingPositions[idx] = batch.GetPosition(i);
+                        s.PendingData[idx] = batch.GetData(i);
                     }
                 }
 
@@ -98,8 +101,17 @@ namespace Client
 
                 if (s.ReceivedCount >= s.ExpectedTotalCount)
                 {
-                    (s.EnemyPositions, s.PendingPositions) = (s.PendingPositions, s.EnemyPositions);
+                    (s.Data, s.PendingData) = (s.PendingData, s.Data);
                     s.ReceivedCount = 0;
+
+                    // 적/유닛 수 카운트
+                    int enemies = 0;
+                    for (int i = 0; i < s.Data.Length; i++)
+                    {
+                        if ((int)s.Data[i].z == -1) enemies++;
+                    }
+                    s.EnemyCount = (ushort)enemies;
+                    s.UnitCount = (ushort)(s.Data.Length - enemies);
                 }
 
                 ecb.DestroyEntity(rpcEntity);

@@ -7,12 +7,11 @@ using Unity.NetCode;
 using UnityEngine.InputSystem;
 using Shared;
 
-
 namespace Client
 {
     /// <summary>
     /// UI 기반 미니맵 렌더러. Texture2D에 적/아군/건물/히어로 위치를 점으로 렌더링.
-    /// 적: MinimapDataState(RPC), 아군/건물: Ghost 엔티티 직접 쿼리.
+    /// 적+다른 유저 유닛: MinimapDataState(RPC, teamId 기반 분기), 자기 유닛/건물: Ghost 엔티티 직접 쿼리.
     /// 카메라 뷰포트 사각형 표시 + 좌클릭 드래그로 카메라 이동 (건설 모드 시 차단).
     /// </summary>
     public class MinimapRenderer : MonoBehaviour
@@ -46,6 +45,7 @@ namespace Client
         private EntityQuery _cameraSettingsQuery;
         private EntityQuery _cameraStateQuery;
         private EntityQuery _userStateQuery;
+        private EntityQuery _localTeamQuery;
 
         private float2 _mapMin;
         private float2 _mapMax;
@@ -100,18 +100,22 @@ namespace Client
 
                     _minimapDataQuery = em.CreateEntityQuery(typeof(MinimapDataState));
 
+                    // 자기 유닛만 Ghost 쿼리 (GhostOwnerIsLocal 필터)
                     _unitQuery = em.CreateEntityQuery(
                         typeof(UnitTag),
                         typeof(LocalTransform),
-                        typeof(GhostInstance));
+                        typeof(GhostInstance),
+                        typeof(GhostOwnerIsLocal));
 
                     _structureQuery = em.CreateEntityQuery(
                         typeof(StructureTag),
                         typeof(LocalTransform));
 
+                    // 자기 히어로만 표시
                     _heroQuery = em.CreateEntityQuery(
                         typeof(HeroTag),
-                        typeof(LocalTransform));
+                        typeof(LocalTransform),
+                        typeof(GhostOwnerIsLocal));
 
                     _resourceQuery = em.CreateEntityQuery(
                         typeof(ResourceNodeTag),
@@ -120,6 +124,12 @@ namespace Client
                     _cameraSettingsQuery = em.CreateEntityQuery(typeof(CameraSettings));
                     _cameraStateQuery = em.CreateEntityQuery(typeof(CameraState));
                     _userStateQuery = em.CreateEntityQuery(typeof(UserState));
+
+                    _localTeamQuery = em.CreateEntityQuery(
+                        ComponentType.ReadOnly<HeroTag>(),
+                        ComponentType.ReadOnly<GhostOwnerIsLocal>(),
+                        ComponentType.ReadOnly<Team>());
+
                     break;
                 }
             }
@@ -142,22 +152,13 @@ namespace Client
             for (int i = 0; i < _pixels.Length; i++)
                 _pixels[i] = bg;
 
-            // 적 (MinimapDataState RPC 데이터)
-            if (_minimapDataQuery != null && !_minimapDataQuery.IsEmpty)
-            {
-                var data = _minimapDataQuery.GetSingleton<MinimapDataState>();
-                if (data.EnemyPositions.IsCreated)
-                {
-                    var positions = data.EnemyPositions;
-                    for (int i = 0; i < positions.Length; i++)
-                        DrawDot(positions[i], enemyColor, 1);
-                }
-            }
+            // 적 + 다른 유저 유닛 (MinimapDataState RPC 데이터, teamId 기반 분기)
+            DrawRpcEntities();
 
             // 자원 노드
             DrawEntities(_resourceQuery, resourceColor, 2);
 
-            // 아군 유닛
+            // 자기 유닛 (Ghost 쿼리 - GhostOwnerIsLocal)
             DrawTeamEntities(_unitQuery, 2);
 
             // 건물
@@ -171,6 +172,50 @@ namespace Client
 
             _texture.SetPixels32(_pixels);
             _texture.Apply();
+        }
+
+        private void DrawRpcEntities()
+        {
+            if (_minimapDataQuery == null || _minimapDataQuery.IsEmpty) return;
+
+            var state = _minimapDataQuery.GetSingleton<MinimapDataState>();
+            if (!state.Data.IsCreated || state.Data.Length == 0) return;
+
+            int localTeamId = GetLocalTeamId();
+
+            var data = state.Data;
+            for (int i = 0; i < data.Length; i++)
+            {
+                var entry = data[i];
+                int teamId = (int)entry.z;
+
+                // 자기 유닛은 Ghost 쿼리로 표시
+                if (teamId == localTeamId) continue;
+
+                if (teamId == -1)
+                {
+                    DrawDot(new float2(entry.x, entry.y), enemyColor, 1);
+                }
+                else
+                {
+                    var teamColor = TeamColorPalette.GetTeamColor(teamId);
+                    DrawDot(new float2(entry.x, entry.y),
+                        new Color(teamColor.x, teamColor.y, teamColor.z, teamColor.w), 2);
+                }
+            }
+        }
+
+        private int GetLocalTeamId()
+        {
+            if (_localTeamQuery == null || _localTeamQuery.IsEmpty) return -99;
+
+            var em = _clientWorld.EntityManager;
+            var entities = _localTeamQuery.ToEntityArray(Unity.Collections.Allocator.Temp);
+            int teamId = -99;
+            if (entities.Length > 0)
+                teamId = em.GetComponentData<Team>(entities[0]).teamId;
+            entities.Dispose();
+            return teamId;
         }
 
         private void DrawCameraViewport()
@@ -188,7 +233,6 @@ namespace Client
             float2 mapSize = _mapMax - _mapMin;
             if (mapSize.x <= 0 || mapSize.y <= 0) return;
 
-            // 카메라 중심 → 텍스처 좌표
             float uMin = (camPos.x - viewHalf.x - _mapMin.x) / mapSize.x;
             float uMax = (camPos.x + viewHalf.x - _mapMin.x) / mapSize.x;
             float vMin = (camPos.z - viewHalf.y - _mapMin.y) / mapSize.y;
@@ -201,11 +245,8 @@ namespace Client
 
             var c32 = (Color32)viewportColor;
 
-            // 상하 수평선
             DrawHLine(x0, x1, y0, c32, viewportLineWidth);
             DrawHLine(x0, x1, y1, c32, viewportLineWidth);
-
-            // 좌우 수직선
             DrawVLine(x0, y0, y1, c32, viewportLineWidth);
             DrawVLine(x1, y0, y1, c32, viewportLineWidth);
         }
@@ -258,7 +299,6 @@ namespace Client
 
             var leftButton = mouse.leftButton;
 
-            // 드래그 시작: 좌클릭 누른 순간 + 미니맵 영역 내
             if (leftButton.wasPressedThisFrame)
             {
                 Vector2 pressPos = mouse.position.ReadValue();
@@ -269,17 +309,14 @@ namespace Client
                 }
             }
 
-            // 드래그 종료: 좌클릭 해제
             if (!leftButton.isPressed)
             {
                 _isDraggingMinimap = false;
                 return;
             }
 
-            // 드래그 중이 아니면 무시
             if (!_isDraggingMinimap) return;
 
-            // 현재 마우스 위치 → UV → 월드 좌표 → 카메라 이동
             Vector2 screenPos = mouse.position.ReadValue();
             var rectTransform = minimapImage.rectTransform;
 
@@ -308,13 +345,13 @@ namespace Client
 
             var em = _clientWorld.EntityManager;
             var entity = _cameraStateQuery.GetSingletonEntity();
-            var state = em.GetComponentData<CameraState>(entity);
+            var camState = em.GetComponentData<CameraState>(entity);
 
-            if (state.CurrentMode == CameraMode.HeroFollow)
+            if (camState.CurrentMode == CameraMode.HeroFollow)
             {
-                state.CurrentMode = CameraMode.EdgePan;
-                state.TargetEntity = Entity.Null;
-                em.SetComponentData(entity, state);
+                camState.CurrentMode = CameraMode.EdgePan;
+                camState.TargetEntity = Entity.Null;
+                em.SetComponentData(entity, camState);
             }
         }
 

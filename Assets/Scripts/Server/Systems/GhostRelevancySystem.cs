@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
@@ -9,9 +10,9 @@ using Shared;
 namespace Server
 {
     /// <summary>
-    /// Ghost Relevancy: 카메라 뷰포트 AABB 기반으로 적 Ghost 전송 여부 결정.
-    /// Outer(HalfExtent × 1.3) 밖 → irrelevant, Inner(HalfExtent × 1.15) 안 → relevant.
-    /// HalfExtent는 CameraPositionRpc로 클라이언트에서 수신한 실제 뷰포트 지면 투영 반크기.
+    /// Ghost Relevancy: 카메라 뷰포트 AABB 기반으로 적/다른 유저 유닛 Ghost 전송 여부 결정.
+    /// Outer(HalfExtent x 1.3) 밖 -> irrelevant, Inner(HalfExtent x 1.15) 안 -> relevant.
+    /// 자기 유닛(GhostOwner == Connection)은 항상 relevant 유지.
     /// </summary>
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     [UpdateAfter(typeof(UpdateConnectionPositionSystem))]
@@ -55,33 +56,55 @@ namespace Server
                 return;
             }
 
+            // 적: ownerId = -1 (어떤 Connection과도 매칭 불가 -> 모든 Connection에 대해 필터링)
             foreach (var (ghost, transform) in
                      SystemAPI.Query<RefRO<GhostInstance>, RefRO<LocalTransform>>()
                          .WithAll<EnemyTag>())
             {
-                int ghostId = ghost.ValueRO.ghostId;
-                float3 enemyPos = transform.ValueRO.Position;
+                UpdateRelevancy(ref relevancySet, in connections,
+                    ghost.ValueRO.ghostId, transform.ValueRO.Position, -1);
+            }
 
-                for (int c = 0; c < connections.Length; c++)
-                {
-                    var conn = connections[c];
-                    var pair = new RelevantGhostForConnection(conn.NetworkIdValue, ghostId);
-
-                    float dx = math.abs(enemyPos.x - conn.Position.x);
-                    float dz = math.abs(enemyPos.z - conn.Position.z);
-
-                    bool currentlyIrrelevant = relevancySet.ContainsKey(pair);
-
-                    // AABB 밖: X 또는 Z 중 하나라도 Outer 초과 → irrelevant
-                    if (!currentlyIrrelevant && (dx > conn.OuterHalf.x || dz > conn.OuterHalf.y))
-                        relevancySet.TryAdd(pair, 1);
-                    // AABB 안: X와 Z 모두 Inner 이내 → relevant 복원
-                    else if (currentlyIrrelevant && dx < conn.InnerHalf.x && dz < conn.InnerHalf.y)
-                        relevancySet.Remove(pair);
-                }
+            // 유닛: GhostOwner.NetworkId로 자기 유닛 skip
+            foreach (var (ghost, transform, owner) in
+                     SystemAPI.Query<RefRO<GhostInstance>, RefRO<LocalTransform>, RefRO<GhostOwner>>()
+                         .WithAll<UnitTag>())
+            {
+                UpdateRelevancy(ref relevancySet, in connections,
+                    ghost.ValueRO.ghostId, transform.ValueRO.Position, owner.ValueRO.NetworkId);
             }
 
             connections.Dispose();
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static void UpdateRelevancy(
+            ref NativeParallelHashMap<RelevantGhostForConnection, int> relevancySet,
+            in NativeList<ConnectionInfo> connections,
+            int ghostId, float3 pos, int ownerId)
+        {
+            for (int c = 0; c < connections.Length; c++)
+            {
+                var conn = connections[c];
+
+                // 자기 소유 = 항상 relevant
+                if (ownerId == conn.NetworkIdValue)
+                    continue;
+
+                var pair = new RelevantGhostForConnection(conn.NetworkIdValue, ghostId);
+
+                float dx = math.abs(pos.x - conn.Position.x);
+                float dz = math.abs(pos.z - conn.Position.z);
+
+                bool currentlyIrrelevant = relevancySet.ContainsKey(pair);
+
+                // AABB 밖: X 또는 Z 중 하나라도 Outer 초과 -> irrelevant
+                if (!currentlyIrrelevant && (dx > conn.OuterHalf.x || dz > conn.OuterHalf.y))
+                    relevancySet.TryAdd(pair, 1);
+                // AABB 안: X와 Z 모두 Inner 이내 -> relevant 복원
+                else if (currentlyIrrelevant && dx < conn.InnerHalf.x && dz < conn.InnerHalf.y)
+                    relevancySet.Remove(pair);
+            }
         }
 
         private struct ConnectionInfo

@@ -4,9 +4,8 @@ using Unity.NetCode;
 namespace Shared
 {
     /// <summary>
-    /// 미니맵용 적 위치 배치 RPC. 32개 float2(xz) 좌표를 한 번에 전송.
-    /// 서버가 1초 주기로 전체 적 위치를 수집, 32개씩 분할하여 브로드캐스트.
-    /// 대역폭: 헤더 9B + 32×8B = 265B/RPC, 2400적 → ~20KB/s per connection.
+    /// 미니맵용 적/유닛 위치 배치 RPC. 32개 float3(x=worldX, y=worldZ, z=teamId) 좌표를 한 번에 전송.
+    /// teamId=-1은 적, teamId>0은 유닛. 서버가 전체 위치를 수집, 32개씩 분할하여 브로드캐스트.
     /// </summary>
     public struct MinimapBatchRpc : IRpcCommand
     {
@@ -15,12 +14,12 @@ namespace Shared
         public ushort TotalCount;
         public byte ValidCount;
 
-        public float2 P00, P01, P02, P03, P04, P05, P06, P07;
-        public float2 P08, P09, P10, P11, P12, P13, P14, P15;
-        public float2 P16, P17, P18, P19, P20, P21, P22, P23;
-        public float2 P24, P25, P26, P27, P28, P29, P30, P31;
+        public float3 P00, P01, P02, P03, P04, P05, P06, P07;
+        public float3 P08, P09, P10, P11, P12, P13, P14, P15;
+        public float3 P16, P17, P18, P19, P20, P21, P22, P23;
+        public float3 P24, P25, P26, P27, P28, P29, P30, P31;
 
-        public float2 GetPosition(int index)
+        public float3 GetData(int index)
         {
             return index switch
             {
@@ -36,7 +35,7 @@ namespace Shared
             };
         }
 
-        public void SetPosition(int index, float2 value)
+        public void SetData(int index, float3 value)
         {
             switch (index)
             {

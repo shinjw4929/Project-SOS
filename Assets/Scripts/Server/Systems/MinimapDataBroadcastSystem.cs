@@ -9,9 +9,9 @@ using Shared;
 namespace Server
 {
     /// <summary>
-    /// 서버에서 전체 적 위치를 수집하여 MinimapBatchRpc로 분산 브로드캐스트.
-    /// 전체 전송 완료 후 적 위치를 재수집, 매 틱 2배치(64적)씩 전송하여 분산.
-    /// 대역폭: 2400적 기준 ~20KB/s per connection.
+    /// 서버에서 전체 적/유닛 위치를 수집하여 MinimapBatchRpc로 분산 브로드캐스트.
+    /// 전체 전송 완료 후 위치를 재수집, 매 틱 2배치(64개)씩 전송하여 분산.
+    /// float3(x=posX, y=posZ, z=teamId)로 적(teamId=-1)과 유닛(teamId>0)을 단일 경로로 처리.
     /// </summary>
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
@@ -21,30 +21,29 @@ namespace Server
         private const int BatchSize = 32;
         private const int BatchesPerTick = 2;
 
-        private NativeList<float2> _enemyPositions;
+        private NativeList<float3> _positions;
         private int _currentIndex;
         private uint _frameId;
 
         public void OnCreate(ref SystemState state)
         {
-            state.RequireForUpdate<EnemyTag>();
-            _enemyPositions = new NativeList<float2>(256, Allocator.Persistent);
+            _positions = new NativeList<float3>(256, Allocator.Persistent);
             _currentIndex = 0;
             _frameId = 0;
         }
 
         public void OnDestroy(ref SystemState state)
         {
-            if (_enemyPositions.IsCreated) _enemyPositions.Dispose();
+            if (_positions.IsCreated) _positions.Dispose();
         }
 
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
-            // 전체 전송 완료 → 새 프레임 수집
-            if (_currentIndex >= _enemyPositions.Length)
+            // 전체 전송 완료 -> 새 프레임 수집
+            if (_currentIndex >= _positions.Length)
             {
-                CollectEnemyPositions(ref state);
+                CollectPositions(ref state);
                 _currentIndex = 0;
                 _frameId++;
             }
@@ -52,9 +51,9 @@ namespace Server
             var ecb = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>()
                 .CreateCommandBuffer(state.WorldUnmanaged);
 
-            int totalCount = _enemyPositions.Length;
+            int totalCount = _positions.Length;
 
-            // 적 0마리: TotalCount=0 RPC 1회 전송 → 클라이언트 미니맵 클리어
+            // 0마리: TotalCount=0 RPC 1회 전송 -> 클라이언트 미니맵 클리어
             if (totalCount == 0)
             {
                 var rpcEntity = ecb.CreateEntity();
@@ -66,10 +65,10 @@ namespace Server
                     ValidCount = 0,
                 });
                 ecb.AddComponent<SendRpcCommandRequest>(rpcEntity);
+                _currentIndex = 1;
                 return;
             }
 
-            // 이번 틱에 최대 BatchesPerTick개 배치 전송
             for (int b = 0; b < BatchesPerTick && _currentIndex < totalCount; b++)
             {
                 int remaining = totalCount - _currentIndex;
@@ -84,7 +83,7 @@ namespace Server
                 };
 
                 for (int i = 0; i < validCount; i++)
-                    rpc.SetPosition(i, _enemyPositions[_currentIndex + i]);
+                    rpc.SetData(i, _positions[_currentIndex + i]);
 
                 var rpcEntity = ecb.CreateEntity();
                 ecb.AddComponent(rpcEntity, rpc);
@@ -94,17 +93,18 @@ namespace Server
             }
         }
 
-        private void CollectEnemyPositions(ref SystemState state)
+        private void CollectPositions(ref SystemState state)
         {
-            _enemyPositions.Clear();
+            _positions.Clear();
 
-            foreach (var transform in
-                     SystemAPI.Query<RefRO<LocalTransform>>()
-                         .WithAll<EnemyTag>())
+            foreach (var (transform, team) in
+                     SystemAPI.Query<RefRO<LocalTransform>, RefRO<Team>>()
+                         .WithAny<EnemyTag, UnitTag>())
             {
-                _enemyPositions.Add(new float2(
+                _positions.Add(new float3(
                     transform.ValueRO.Position.x,
-                    transform.ValueRO.Position.z));
+                    transform.ValueRO.Position.z,
+                    team.ValueRO.teamId));
             }
         }
     }

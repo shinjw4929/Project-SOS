@@ -198,7 +198,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!4 &143929466
 Transform:
   m_ObjectHideFlags: 0
@@ -252,7 +252,7 @@ MonoBehaviour:
   wave1TriggerKillCount: 1
   wave2TriggerTime: 5
   wave2TriggerKillCount: 2
-  maxEnemyCount: 5000
+  maxEnemyCount: 4000
   wave1SpawnInterval: 0.5
   wave1SpawnCount: 15
   wave2SpawnInterval: 0.5
@@ -2613,7 +2613,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &1956711774
 Transform:
   m_ObjectHideFlags: 0
@@ -2641,7 +2641,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: dc5414274d42d0c4cb2f6f07ea5b57f9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  initialWallDecayTime: 50
+  initialWallDecayTime: 100
   wave0InitialSpawnCount: 5
   wave1TriggerTime: 100
   wave1TriggerKillCount: 3

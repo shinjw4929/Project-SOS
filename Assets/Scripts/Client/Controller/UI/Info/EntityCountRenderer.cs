@@ -29,13 +29,25 @@ namespace Client
                 return;
             }
 
-            int unitCount = _unitQuery.CalculateEntityCount();
+            int unitCount;
             int enemyCount = 0;
+
             if (!_minimapDataQuery.IsEmpty)
             {
                 var data = _minimapDataQuery.GetSingleton<MinimapDataState>();
-                if (data.EnemyPositions.IsCreated)
-                    enemyCount = data.EnemyPositions.Length;
+                if (data.Data.IsCreated)
+                {
+                    unitCount = data.UnitCount;
+                    enemyCount = data.EnemyCount;
+                }
+                else
+                {
+                    unitCount = _unitQuery.CalculateEntityCount();
+                }
+            }
+            else
+            {
+                unitCount = _unitQuery.CalculateEntityCount();
             }
 
             if (unitCount != _cachedUnitCount || enemyCount != _cachedEnemyCount)
