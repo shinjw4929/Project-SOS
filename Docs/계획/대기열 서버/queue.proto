@@ -1,0 +1,118 @@
+// queue.proto — 매칭/대기열 서버 프로토콜 정의 (Single Source of Truth)
+//
+// 이 파일은 C++ 큐 서버와 Unity 클라이언트/게임 서버 양쪽에서 공유한다.
+// 최종적으로 Project-SOS-Protocol 저장소에 위치하며, 양쪽 프로젝트에서 git submodule로 참조.
+//
+// 코드젠:
+//   C++:  protoc --cpp_out=src/protocol/generated proto/queue.proto
+//   C#:   protoc --csharp_out=Assets/Scripts/Client/Network/Generated proto/queue.proto
+//
+// TCP 프레이밍:
+//   [4 bytes: payload length (little-endian)] [N bytes: Envelope protobuf binary]
+//   Envelope의 oneof로 메시지 타입을 구분하므로 별도 타입 바이트 불필요.
+
+syntax = "proto3";
+package sos.queue;
+
+// ============================================================
+// 클라이언트 → 큐 서버
+// ============================================================
+
+// 매칭 대기열 진입 요청
+message MatchRequest {
+    string player_id = 1;
+}
+
+// 연결 유지 확인 (10초 간격)
+message Heartbeat {}
+
+// 매칭 대기 취소
+message CancelMatchRequest {}
+
+// ============================================================
+// 큐 서버 → 클라이언트
+// ============================================================
+
+// 대기열 상태 알림 (2초 간격 브로드캐스트)
+message QueueStatusUpdate {
+    uint32 position = 1;        // 현재 순번 (1-based)
+    uint32 total_waiting = 2;   // 전체 대기 인원
+    float estimated_wait = 3;   // 예상 대기 시간(초)
+}
+
+// 매칭 성립 → 게임 서버 접속 정보 + 토큰
+message MatchFound {
+    string session_id = 1;
+    string auth_token = 2;      // 게임 서버 입장 토큰 (UUID, TTL 60초)
+    string game_server_host = 3;
+    uint32 game_server_port = 4;
+    uint32 team_id = 5;         // 배정된 팀 번호 (1, 2, ...)
+}
+
+// 요청 거부
+message RejectResponse {
+    RejectReason reason = 1;
+
+    enum RejectReason {
+        UNKNOWN = 0;
+        SERVER_FULL = 1;
+        RATE_LIMITED = 2;
+        TOKEN_EXPIRED = 3;
+        INVALID_TOKEN = 4;
+        DUPLICATE_PLAYER = 5;   // 동일 player_id 중복 진입
+    }
+}
+
+// ============================================================
+// 게임 서버 → 큐 서버 (내부 TCP 채널 :8081)
+// ============================================================
+
+// 토큰 유효성 검증 요청
+message TokenValidateRequest {
+    string auth_token = 1;
+}
+
+// 토큰 유효성 검증 응답
+message TokenValidateResponse {
+    bool valid = 1;
+    string player_id = 2;
+    string session_id = 3;
+}
+
+// 슬롯 반환 (클라이언트 퇴장/게임 종료)
+message SlotReleased {
+    string player_id = 1;
+    string session_id = 2;
+}
+
+// 게임 서버 → 큐 서버 주기적 하트비트 (30초 간격)
+// 큐 서버는 이 하트비트가 끊기면 해당 게임 서버의 모든 세션을 TTL 만료 처리
+message GameServerHeartbeat {
+    uint32 active_player_count = 1;
+}
+
+// ============================================================
+// 래퍼 메시지 (모든 TCP 통신에 사용)
+// ============================================================
+
+// 단일 Envelope로 모든 메시지 타입을 감싸서 전송.
+// oneof로 타입 디스패치 — 별도 MessageType enum이나 타입 헤더 불필요.
+message Envelope {
+    oneof payload {
+        // 클라이언트 → 큐 서버
+        MatchRequest match_request = 1;
+        Heartbeat heartbeat = 2;
+        CancelMatchRequest cancel_match = 3;
+
+        // 큐 서버 → 클라이언트
+        QueueStatusUpdate queue_status = 10;
+        MatchFound match_found = 11;
+        RejectResponse reject = 12;
+
+        // 게임 서버 ↔ 큐 서버 (내부 채널)
+        TokenValidateRequest token_validate_req = 20;
+        TokenValidateResponse token_validate_res = 21;
+        SlotReleased slot_released = 22;
+        GameServerHeartbeat game_server_heartbeat = 23;
+    }
+}
