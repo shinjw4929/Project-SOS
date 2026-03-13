@@ -1,4 +1,5 @@
 using Unity.Burst;
+using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.NetCode;
@@ -38,8 +39,9 @@ partial struct GoInGameServerSystem : ISystem
           entityCommandBuffer.AddComponent(receiveRpcCommandRequest.ValueRO.SourceConnection,
               new ConnectionViewExtent { HalfExtent = new float2(30f, 20f) });
 
-          // 서버 연결 디버깅 시 사용
-          // Debug.Log("Client Connected to Server!");
+          FixedString128Bytes connectMsg = "Client connected, networkId=";
+          connectMsg.Append(SystemAPI.GetComponent<NetworkId>(receiveRpcCommandRequest.ValueRO.SourceConnection).Value);
+          GameLogger.Info(LogWorld.Server, LogCategory.Network, in connectMsg);
           
           // 1. 영웅 유닛 생성
           Entity heroEntity = entityCommandBuffer.Instantiate(unitBuffer[0].PrefabEntity);

@@ -403,6 +403,15 @@ namespace Server
                     request.GridPosition, request.SourceNetworkId,
                     in TransformLookup, in ProductionInfoLookup, in NeedsNavMeshLookup);
 
+                FixedString128Bytes buildMsg = "Build succeeded, networkId=";
+                buildMsg.Append(request.SourceNetworkId);
+                buildMsg.Append((FixedString32Bytes)", grid=(");
+                buildMsg.Append(request.GridPosition.x);
+                buildMsg.Append((FixedString32Bytes)",");
+                buildMsg.Append(request.GridPosition.y);
+                buildMsg.Append((FixedString32Bytes)")");
+                GameLogger.Info(LogWorld.Server, LogCategory.Economy, in buildMsg);
+
                 // 5. ResourceCenter 건설 시 테크 상태 업데이트
                 if (ResourceCenterTagLookup.HasComponent(request.PrefabEntity))
                 {

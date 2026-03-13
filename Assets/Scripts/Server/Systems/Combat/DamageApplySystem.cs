@@ -1,5 +1,6 @@
 using Shared;
 using Unity.Burst;
+using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
 
@@ -67,6 +68,13 @@ namespace Server
                     var phaseState = SystemAPI.GetSingleton<GamePhaseState>();
                     phaseState.TotalKillCount += killCount;
                     SystemAPI.SetComponent(phaseStateEntity, phaseState);
+
+                    FixedString128Bytes killMsg = "Kills: ";
+                    killMsg.Append(killCount);
+                    killMsg.Append((FixedString32Bytes)" (total: ");
+                    killMsg.Append(phaseState.TotalKillCount);
+                    killMsg.Append((FixedString32Bytes)")");
+                    GameLogger.Info(LogWorld.Server, LogCategory.Combat, in killMsg);
                 }
             }
         }

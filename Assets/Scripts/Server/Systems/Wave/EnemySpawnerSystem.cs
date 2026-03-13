@@ -164,6 +164,12 @@ namespace Server
             }
 
             phaseState.Wave0SpawnedCount += toSpawn;
+
+            FixedString128Bytes spawnMsg = "Wave0: spawned ";
+            spawnMsg.Append(toSpawn);
+            spawnMsg.Append((FixedString32Bytes)" EnemyBig");
+            GameLogger.Debug(LogWorld.Server, LogCategory.Wave, in spawnMsg);
+
             return true;
         }
 
@@ -237,6 +243,13 @@ namespace Server
                 Entity enemy = ecb.Instantiate(prefab);
                 ecb.SetComponent(enemy, LocalTransform.FromPosition(finalSpawnPos));
             }
+
+            FixedString128Bytes spawnMsg = "Spawned ";
+            spawnMsg.Append(spawnCount);
+            spawnMsg.Append((FixedString32Bytes)" enemies (Wave");
+            spawnMsg.Append((int)phaseState.CurrentWave);
+            spawnMsg.Append((FixedString32Bytes)")");
+            GameLogger.Debug(LogWorld.Server, LogCategory.Wave, in spawnMsg);
 
             return true;
         }
