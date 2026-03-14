@@ -69,5 +69,37 @@ namespace Shared
             combined.Append(value);
             Info(world, category, in combined);
         }
+
+        // ── 메시지 조립 헬퍼 ──
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void Field(ref FixedString128Bytes msg, in FixedString32Bytes key, int value)
+        {
+            msg.Append((FixedString32Bytes)", ");
+            msg.Append(key);
+            msg.Append((FixedString32Bytes)"=");
+            msg.Append(value);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void Field(ref FixedString128Bytes msg, in FixedString32Bytes key, in FixedString32Bytes value)
+        {
+            msg.Append((FixedString32Bytes)", ");
+            msg.Append(key);
+            msg.Append((FixedString32Bytes)"=");
+            msg.Append(value);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void Pos(ref FixedString128Bytes msg, in FixedString32Bytes key, in Unity.Mathematics.float3 pos)
+        {
+            msg.Append((FixedString32Bytes)", ");
+            msg.Append(key);
+            msg.Append((FixedString32Bytes)"=(");
+            msg.Append((int)pos.x);
+            msg.Append((FixedString32Bytes)",");
+            msg.Append((int)pos.z);
+            msg.Append((FixedString32Bytes)")");
+        }
     }
 }

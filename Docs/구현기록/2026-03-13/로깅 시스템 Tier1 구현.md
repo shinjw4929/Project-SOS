@@ -21,7 +21,7 @@
 
 | 파일 | 변경 내용 |
 |------|----------|
-| `Packages/manifest.json` | `"com.unity.logging": "1.3.4"` 패키지 추가 |
+| `Packages/manifest.json` | `"com.unity.logging": "1.3.10"` 패키지 추가 |
 | `Assets/Scripts/Shared/Shared.asmdef` | `"Unity.Logging"` 어셈블리 참조 추가 |
 | `Assets/Scripts/GameBootStrap.cs` | LoggerConfig 초기화 (FileSink 10MB x 5롤링 + UnityDebugLog Warning 이상), `using Unity.Logging.Sinks` 추가, `Unity.Logging.Logger` 정규화 |
 | `Assets/Scripts/Server/Systems/Wave/WaveManagerSystem.cs` | Wave0→Wave1, Wave1→Wave2 전환 시 Info 로그 (시간/킬수 포함) |
@@ -32,7 +32,9 @@
 | `Assets/Scripts/Server/Systems/Commands/Construction/HandleBuildRequestSystem.cs` | 건설 성공 Info (networkId, grid 좌표), ExecuteBuildRequestJob 내부 |
 | `Assets/Scripts/Server/Systems/Commands/Production/HandleProduceUnitRequestSystem.cs` | 생산 시작 Info (unitIdx, networkId) |
 | `Assets/Scripts/Server/Systems/Movement/PathfindingSystem.cs` | 경로 실패 Warning (5초 윈도우 집계: failCount/requestCount) |
-| `Assets/Scripts/Server/Systems/Wave/EnemySpawnerSystem.cs` | Wave0 초기 스폰 Info + 주기적 스폰 Info (spawnCount, wave phase) |
+| `Assets/Scripts/Server/Systems/Wave/EnemySpawnerSystem.cs` | Wave0 초기 스폰 Debug + 주기적 스폰 Debug (spawnCount, wave phase) |
+| `Assets/Scripts/Server/Systems/Combat/UnifiedTargetingSystem.cs` | 적 stuck 감지 Debug (위치, 목적지, 원인: noPath/partial/collision) |
+| `Assets/Scripts/Server/Systems/Commands/Construction/BuildArrivalSystem.cs` | 건설 이동 포기 Debug (유닛 위치, 건설 목표 위치) |
 | `Docs/코드베이스 구조.md` | `Shared/Logging/` 폴더 항목 추가 |
 
 ---
@@ -51,8 +53,9 @@
 - `GameLogger` 클래스: `[BurstCompile]` (클래스 레벨)
 - 개별 메서드: `[MethodImpl(AggressiveInlining)]` (BC1064 방지)
   - `GetPrefix()`: FixedString32Bytes 반환 (struct by value → `[BurstCompile]` 불가)
-  - `Info/Warning/Error()`: FixedString128Bytes를 `in` (readonly ref)으로 수신
+  - `Debug/Info/Warning/Error()`: FixedString128Bytes를 `in` (readonly ref)으로 수신
 - 모든 로그 메시지는 `FixedString128Bytes`로 구축 → `FixedString512Bytes`에 prefix 결합 → `Log.Info()` 호출
+- **메시지 조립 헬퍼**: `Field(ref msg, key, value)`, `Pos(ref msg, key, float3)` — 수동 Append 반복 제거
 
 ### 3. 로그 성능 원칙
 
@@ -64,27 +67,30 @@
 ### 4. 로그 출력 형식
 
 ```
-[S:Wave] Wave0 -> Wave1 (time=60s, kills=15)
+[S:Wave] Wave0 -> Wave1, time=60, kills=15
 [S:Combat] Hero died, networkId=1
 [S:Combat] GameOver - all heroes dead
 [S:Network] Client connected, networkId=1
 [C:Network] Connected to server
-[S:Combat] Kills: 5 (total: 30)
-[S:Economy] Build succeeded, networkId=1, grid=(3,5)
+[S:Combat] Kills, frame=5, total=30
+[S:Economy] Build succeeded, networkId=1, gridX=3, gridY=5
 [S:Economy] Production started, unitIdx=2, networkId=1
-[S:Movement] Path failures: 12/200 (5s window)
-[S:Wave] Wave0: spawned 30 EnemyBig
-[S:Wave] Spawned 4 enemies (Wave2)
+[S:Movement] Path failures (5s), failed=12, total=200
+[S:Wave] Wave0 spawned, count=30
+[S:Wave] Periodic spawned, count=4, wave=2
+[S:Movement] Enemy stuck, idx=42, pos=(15,23), dest=(30,10), cause=partial
+[S:Economy] Build giveup, idx=12, pos=(8,15), site=(10,18)
 ```
 
 - 접두사: `[S:카테고리]` (서버) / `[C:카테고리]` (클라이언트)
-- 동적 값은 FixedString.Append로 인라인 구축
+- `GameLogger.Field(ref msg, key, value)` / `GameLogger.Pos(ref msg, key, float3)` 헬퍼로 구조화
 
 ### 5. 파일 경로 및 로테이션
 
-- **경로**: `Application.persistentDataPath/Logs/game_{yyyyMMdd_HHmmss}.log`
-  - Windows: `%APPDATA%/LocalLow/{CompanyName}/Project-SOS/Logs/`
-- **로테이션**: 파일당 10MB, 최대 5개 롤링 (총 50MB 상한)
+- **경로**: `Application.persistentDataPath/Logs/{yyyy-MM-dd}/game_{HHmmss}.log` (일자별 폴더)
+  - Windows: `%APPDATA%/LocalLow/{CompanyName}/Project-SOS/Logs/2026-03-14/game_120000.log`
+- **로테이션**: 파일당 10MB, 최대 5개 롤링 (세션당 50MB 상한)
+- **일자별 정리**: 게임 시작 시 30일 초과 폴더 자동 삭제 (`CleanOldLogs`)
 - **콘솔 출력**: Warning 이상만 Unity Console에 표시
 
 ---

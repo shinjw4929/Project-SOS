@@ -8,6 +8,8 @@ using Shared;
 
 [UnityEngine.Scripting.Preserve]
 public class GameBootStrap : ClientServerBootstrap {
+    const int LogRetentionDays = 30;
+
     public override bool Initialize(string defaultWorldName)
     {
         // 백그라운드에서 멈추지 않도록 설정
@@ -19,9 +21,11 @@ public class GameBootStrap : ClientServerBootstrap {
         QualitySettings.vSyncCount = 0;
 
         // --- 로깅 초기화 ---
-        string logDir = Path.Combine(Application.persistentDataPath, "Logs");
-        Directory.CreateDirectory(logDir);
-        string logPath = Path.Combine(logDir, $"game_{DateTime.UtcNow:yyyyMMdd_HHmmss}.log");
+        string logRoot = Path.Combine(Application.persistentDataPath, "Logs");
+        string todayDir = Path.Combine(logRoot, DateTime.UtcNow.ToString("yyyy-MM-dd"));
+        Directory.CreateDirectory(todayDir);
+
+        string logPath = Path.Combine(todayDir, $"game_{DateTime.UtcNow:HHmmss}.log");
 
         var config = new LoggerConfig()
             .MinimumLevel.Set(LogLevel.Info)
@@ -29,6 +33,8 @@ public class GameBootStrap : ClientServerBootstrap {
             .WriteTo.UnityDebugLog(minLevel: LogLevel.Warning);
 
         Log.Logger = new Unity.Logging.Logger(config);
+
+        CleanOldLogs(logRoot);
 
         Application.quitting += () =>
         {
@@ -38,5 +44,25 @@ public class GameBootStrap : ClientServerBootstrap {
         // --- 로깅 초기화 끝 ---
 
         return base.Initialize(defaultWorldName);
+    }
+
+    static void CleanOldLogs(string logRoot)
+    {
+        try
+        {
+            var cutoff = DateTime.UtcNow.AddDays(-LogRetentionDays);
+            foreach (var dir in Directory.GetDirectories(logRoot))
+            {
+                string folderName = Path.GetFileName(dir);
+                if (DateTime.TryParse(folderName, out DateTime folderDate) && folderDate < cutoff)
+                {
+                    Directory.Delete(dir, recursive: true);
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            Debug.LogWarning($"Failed to clean old logs: {e.Message}");
+        }
     }
 }

@@ -165,9 +165,8 @@ namespace Server
 
             phaseState.Wave0SpawnedCount += toSpawn;
 
-            FixedString128Bytes spawnMsg = "Wave0: spawned ";
-            spawnMsg.Append(toSpawn);
-            spawnMsg.Append((FixedString32Bytes)" EnemyBig");
+            FixedString128Bytes spawnMsg = "Wave0 spawned";
+            GameLogger.Field(ref spawnMsg, "count", toSpawn);
             GameLogger.Debug(LogWorld.Server, LogCategory.Wave, in spawnMsg);
 
             return true;
@@ -244,11 +243,9 @@ namespace Server
                 ecb.SetComponent(enemy, LocalTransform.FromPosition(finalSpawnPos));
             }
 
-            FixedString128Bytes spawnMsg = "Spawned ";
-            spawnMsg.Append(spawnCount);
-            spawnMsg.Append((FixedString32Bytes)" enemies (Wave");
-            spawnMsg.Append((int)phaseState.CurrentWave);
-            spawnMsg.Append((FixedString32Bytes)")");
+            FixedString128Bytes spawnMsg = "Periodic spawned";
+            GameLogger.Field(ref spawnMsg, "count", spawnCount);
+            GameLogger.Field(ref spawnMsg, "wave", (int)phaseState.CurrentWave);
             GameLogger.Debug(LogWorld.Server, LogCategory.Wave, in spawnMsg);
 
             return true;

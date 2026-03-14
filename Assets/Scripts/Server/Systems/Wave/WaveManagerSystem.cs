@@ -48,11 +48,9 @@ namespace Server
                             // Wave1 시작 시 스폰 타이머 리셋 (현재 ElapsedTime으로)
                             phaseState.ValueRW.LastSpawnTime = elapsed;
 
-                            FixedString128Bytes waveMsg = "Wave0 -> Wave1 (time=";
-                            waveMsg.Append((int)elapsed);
-                            waveMsg.Append((FixedString32Bytes)"s, kills=");
-                            waveMsg.Append(kills);
-                            waveMsg.Append((FixedString32Bytes)")");
+                            FixedString128Bytes waveMsg = "Wave0 -> Wave1";
+                            GameLogger.Field(ref waveMsg, "time", (int)elapsed);
+                            GameLogger.Field(ref waveMsg, "kills", kills);
                             GameLogger.Info(LogWorld.Server, LogCategory.Wave, in waveMsg);
                         }
                         break;
@@ -65,11 +63,9 @@ namespace Server
                             // Wave2 시작 시 스폰 타이머 리셋 (현재 ElapsedTime으로)
                             phaseState.ValueRW.LastSpawnTime = elapsed;
 
-                            FixedString128Bytes waveMsg = "Wave1 -> Wave2 (time=";
-                            waveMsg.Append((int)elapsed);
-                            waveMsg.Append((FixedString32Bytes)"s, kills=");
-                            waveMsg.Append(kills);
-                            waveMsg.Append((FixedString32Bytes)")");
+                            FixedString128Bytes waveMsg = "Wave1 -> Wave2";
+                            GameLogger.Field(ref waveMsg, "time", (int)elapsed);
+                            GameLogger.Field(ref waveMsg, "kills", kills);
                             GameLogger.Info(LogWorld.Server, LogCategory.Wave, in waveMsg);
                         }
                         break;

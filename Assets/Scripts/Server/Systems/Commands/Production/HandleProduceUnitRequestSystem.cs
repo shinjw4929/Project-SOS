@@ -182,10 +182,9 @@ namespace Server
             queueRW.ValueRW.Duration = duration;
             queueRW.ValueRW.IsActive = true;
 
-            FixedString128Bytes prodMsg = "Production started, unitIdx=";
-            prodMsg.Append(rpc.UnitIndex);
-            prodMsg.Append((FixedString32Bytes)", networkId=");
-            prodMsg.Append(ownerId);
+            FixedString128Bytes prodMsg = "Production started";
+            GameLogger.Field(ref prodMsg, "unitIdx", rpc.UnitIndex);
+            GameLogger.Field(ref prodMsg, "networkId", ownerId);
             GameLogger.Info(LogWorld.Server, LogCategory.Economy, in prodMsg);
 
             // ComponentLookup.GetRefRW를 사용했으므로 ecb.SetComponent 불필요!

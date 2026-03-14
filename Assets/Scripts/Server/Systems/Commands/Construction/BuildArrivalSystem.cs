@@ -160,6 +160,12 @@ namespace Server
                     else
                     {
                         // 포기: PendingBuildServerData 제거 + Intent 복원
+                        FixedString128Bytes giveUpMsg = "Build giveup";
+                        GameLogger.Field(ref giveUpMsg, "idx", entity.Index);
+                        GameLogger.Pos(ref giveUpMsg, "pos", unitPos);
+                        GameLogger.Pos(ref giveUpMsg, "site", pending.BuildSiteCenter);
+                        GameLogger.Debug(LogWorld.Server, LogCategory.Economy, in giveUpMsg);
+
                         ecb.RemoveComponent<PendingBuildServerData>(entity);
                         waypoints.ValueRW.ArrivalRadius = 0f;
                         ecb.SetComponentEnabled<MovementWaypoints>(entity, false);

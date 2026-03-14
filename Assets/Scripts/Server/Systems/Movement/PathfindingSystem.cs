@@ -354,11 +354,9 @@ namespace Server
                 double elapsed = SystemAPI.Time.ElapsedTime;
                 if (elapsed - _lastFailLogTime >= 5.0)
                 {
-                    FixedString128Bytes failMsg = "Path failures: ";
-                    failMsg.Append(_accumulatedFailCount);
-                    failMsg.Append((FixedString32Bytes)"/");
-                    failMsg.Append(_accumulatedRequestCount);
-                    failMsg.Append((FixedString32Bytes)" (5s window)");
+                    FixedString128Bytes failMsg = "Path failures (5s)";
+                    GameLogger.Field(ref failMsg, "failed", _accumulatedFailCount);
+                    GameLogger.Field(ref failMsg, "total", _accumulatedRequestCount);
                     GameLogger.Warning(LogWorld.Server, LogCategory.Movement, in failMsg);
 
                     _accumulatedFailCount = 0;

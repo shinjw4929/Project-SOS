@@ -69,11 +69,9 @@ namespace Server
                     phaseState.TotalKillCount += killCount;
                     SystemAPI.SetComponent(phaseStateEntity, phaseState);
 
-                    FixedString128Bytes killMsg = "Kills: ";
-                    killMsg.Append(killCount);
-                    killMsg.Append((FixedString32Bytes)" (total: ");
-                    killMsg.Append(phaseState.TotalKillCount);
-                    killMsg.Append((FixedString32Bytes)")");
+                    FixedString128Bytes killMsg = "Kills";
+                    GameLogger.Field(ref killMsg, "frame", killCount);
+                    GameLogger.Field(ref killMsg, "total", phaseState.TotalKillCount);
                     GameLogger.Info(LogWorld.Server, LogCategory.Combat, in killMsg);
                 }
             }
