@@ -64,22 +64,31 @@
 - **집계 이벤트**: 프레임당 또는 시간 윈도우 기반 집계 후 로깅 (킬 수, 경로 실패)
 - **PathfindingSystem 특별 처리**: 5초 윈도우 집계로 로그 스팸 방지
 
-### 4. 로그 출력 형식
+### 4. 로그 레벨 기준
+
+| 레벨 | 기준 | 이벤트 |
+|------|------|--------|
+| **Warning** | 이상 징후 | Enemy stuck, Build retry, Build giveup, Path failures (5s) |
+| **Info** | 상태 변화 | Wave 전환, 접속, 건설 성공, 생산 시작, Hero died, GameOver |
+| **Debug** | 반복 이벤트 | Kills, Spawns |
+
+### 5. 로그 출력 형식
 
 ```
-[S:Wave] Wave0 -> Wave1, time=60, kills=15
-[S:Combat] Hero died, networkId=1
-[S:Combat] GameOver - all heroes dead
-[S:Network] Client connected, networkId=1
-[C:Network] Connected to server
-[S:Combat] Kills, frame=5, total=30
-[S:Economy] Build succeeded, networkId=1, gridX=3, gridY=5
-[S:Economy] Production started, unitIdx=2, networkId=1
-[S:Movement] Path failures (5s), failed=12, total=200
-[S:Wave] Wave0 spawned, count=30
-[S:Wave] Periodic spawned, count=4, wave=2
-[S:Movement] Enemy stuck, idx=42, pos=(15,23), dest=(30,10), cause=partial
-[S:Economy] Build giveup, idx=12, pos=(8,15), site=(10,18)
+WARNING [S:Movement] Enemy stuck, idx=42, pos=(15,23), dest=(30,10), cause=partial
+WARNING [S:Economy] Build retry, idx=12, try=1, pos=(8,15), site=(10,18)
+WARNING [S:Economy] Build giveup, idx=12, pos=(8,15), site=(10,18)
+WARNING [S:Movement] Path failures (5s), failed=12, total=200
+INFO    [S:Wave] Wave0 -> Wave1, time=60, kills=15
+INFO    [S:Combat] Hero died, networkId=1
+INFO    [S:Combat] GameOver - all heroes dead
+INFO    [S:Network] Client connected, networkId=1
+INFO    [C:Network] Connected to server
+INFO    [S:Economy] Build succeeded, networkId=1, gridX=3, gridY=5
+INFO    [S:Economy] Production started, unitIdx=2, networkId=1
+DEBUG   [S:Combat] Kills, frame=5, total=30
+DEBUG   [S:Wave] Wave0 spawned, count=30
+DEBUG   [S:Wave] Periodic spawned, count=4, wave=2
 ```
 
 - 접두사: `[S:카테고리]` (서버) / `[C:카테고리]` (클라이언트)

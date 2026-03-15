@@ -72,7 +72,7 @@ namespace Server
                     FixedString128Bytes killMsg = "Kills";
                     GameLogger.Field(ref killMsg, "frame", killCount);
                     GameLogger.Field(ref killMsg, "total", phaseState.TotalKillCount);
-                    GameLogger.Info(LogWorld.Server, LogCategory.Combat, in killMsg);
+                    GameLogger.Debug(LogWorld.Server, LogCategory.Combat, in killMsg);
                 }
             }
         }

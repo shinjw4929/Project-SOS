@@ -745,7 +745,7 @@ namespace Server
             GameLogger.Pos(ref msg, "pos", in pos);
             GameLogger.Pos(ref msg, "dest", in dest);
             GameLogger.Field(ref msg, "cause", in cause);
-            GameLogger.Debug(LogWorld.Server, LogCategory.Movement, in msg);
+            GameLogger.Warning(LogWorld.Server, LogCategory.Movement, in msg);
         }
     }
 }

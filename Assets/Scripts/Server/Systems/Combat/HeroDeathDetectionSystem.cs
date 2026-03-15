@@ -64,7 +64,7 @@ public partial struct HeroDeathDetectionSystem : ISystem
 
                             FixedString128Bytes deathMsg = "Hero died, networkId=";
                             deathMsg.Append(networkId);
-                            GameLogger.Warning(LogWorld.Server, LogCategory.Combat, in deathMsg);
+                            GameLogger.Info(LogWorld.Server, LogCategory.Combat, in deathMsg);
 
                             // HeroDeathRpc 전송 (해당 유저에게)
                             var rpcEntity = ecb.CreateEntity();
@@ -102,7 +102,7 @@ public partial struct HeroDeathDetectionSystem : ISystem
             {
                 _gameOverSent = true;
 
-                GameLogger.Warning(LogWorld.Server, LogCategory.Combat,
+                GameLogger.Info(LogWorld.Server, LogCategory.Combat,
                     (FixedString128Bytes)"GameOver - all heroes dead");
 
                 // GameOverRpc 브로드캐스트 (모든 클라이언트에게)
