@@ -22,6 +22,12 @@ Before implementing any request, ask yourself: "Is this the most efficient way t
 2. **Validate User Instructions**: Critically evaluate whether the user's instruction aligns with actual facts in the codebase. If the user's assumption is incorrect or outdated, inform them of the discrepancy.
 3. **Assess Efficiency**: Determine if the user's proposed approach is the most efficient solution. If a more performant or maintainable alternative exists, suggest it proactively.
 
+## Post-Implementation Checklist
+구현이 완료되면 반드시 아래 항목을 점검한다.
+1. **문서 업데이트**: 변경된 시스템/컴포넌트/RPC/패턴에 대응하는 `Docs/` 문서를 찾아 실제 코드와 일치하도록 수정한다. 해당하는 문서가 없으면 생략한다.
+2. **주석 정합성 점검**: 변경된 파일 내 기존 주석이 수정된 코드 동작과 일치하는지 확인하고, 불일치하는 주석을 수정 또는 제거한다. 새 주석은 로직이 자명하지 않은 경우에만 추가한다.
+3. **CLAUDE.md 동기화**: 주요 패턴, 시스템 플로우, 네이밍 규칙 등 CLAUDE.md에 기재된 내용이 변경되었다면 함께 업데이트한다.
+
 ---
 
 ## Project Overview
