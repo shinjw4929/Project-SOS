@@ -196,7 +196,7 @@ namespace Server
             if (IntentLookup.TryGetComponent(entity, out UnitIntentState intent) && intent.State == Intent.Gather)
                 iAmGathering = true;
 
-            float3 separationForce = CalculateSeparation(currentPos, obstacleRadius.Radius, entity, iAmEnemy, iAmFlying, iAmGathering, out float3 hardPush);
+            float3 separationForce = CalculateSeparation(currentPos, obstacleRadius.Radius, entity, iAmEnemy, iAmFlying, iAmGathering);
             float3 finalVelocity = desiredVelocity + (separationForce * SeparationStrength);
 
             // Cap Velocity
@@ -241,27 +241,6 @@ namespace Server
                 ClampToWall(ref transform.Position, obstacleRadius.Radius, in CollisionWorld, WallFilter);
             }
 
-            // Entity 겹침 위치 보정 (Hard Constraint)
-            if (math.lengthsq(hardPush) > 0.0001f)
-            {
-                float maxPush = obstacleRadius.Radius;
-                float pushLenSq = math.lengthsq(hardPush);
-                if (pushLenSq > maxPush * maxPush)
-                    hardPush *= maxPush / math.sqrt(pushLenSq);
-
-                // 벽 방향 성분 사전 제거 (벽 관통 방지)
-                if (!iAmFlying)
-                    hardPush = RemoveWallComponent(transform.Position, hardPush, obstacleRadius.Radius);
-
-                transform.Position += hardPush;
-
-                // Entity push가 벽 안으로 밀 수 있으므로 벽 관통 재검사
-                if (!iAmFlying)
-                {
-                    ClampToWall(ref transform.Position, obstacleRadius.Radius, in CollisionWorld, WallFilter);
-                }
-            }
-
             velocity.Linear = finalVelocity;
             velocity.Angular = float3.zero;
 
@@ -274,11 +253,9 @@ namespace Server
 
         private float3 CalculateSeparation(
             float3 myPos, float myRadius, Entity myEntity,
-            bool iAmEnemy, bool iAmFlying, bool iAmGathering,
-            out float3 hardPush)
+            bool iAmEnemy, bool iAmFlying, bool iAmGathering)
         {
             float3 separation = float3.zero;
-            hardPush = float3.zero;
 
             for (int x = -1; x <= 1; x++)
             {
@@ -328,14 +305,6 @@ namespace Server
                                 float overlapRatio = overlap / combinedRadius;
                                 float forceMag = overlap * (1.0f + overlapRatio * 3.0f);
                                 separation += (toOther / dist) * forceMag;
-
-                                // Hard constraint: 실제 반경(마진 제외) 기준 겹침 위치 보정
-                                float hardCombinedR = myRadius + otherRadius;
-                                if (dist < hardCombinedR)
-                                {
-                                    float hardOverlap = hardCombinedR - dist;
-                                    hardPush += (toOther / dist) * (hardOverlap * 0.5f);
-                                }
                             }
 
                         } while (SpatialMap.TryGetNextValue(out neighbor, ref it));
@@ -343,31 +312,6 @@ namespace Server
                 }
             }
             return separation;
-        }
-
-        private float3 RemoveWallComponent(float3 position, float3 push, float radius)
-        {
-            var pointInput = new PointDistanceInput
-            {
-                Position = position + new float3(0, 0.5f, 0),
-                MaxDistance = radius + 0.1f,
-                Filter = WallFilter
-            };
-
-            if (CollisionWorld.CalculateDistance(pointInput, out DistanceHit hit))
-            {
-                float3 wallNormal = math.normalizesafe(hit.SurfaceNormal);
-                wallNormal.y = 0;
-                if (math.lengthsq(wallNormal) > 0.001f)
-                {
-                    wallNormal = math.normalize(wallNormal);
-                    float dot = math.dot(push, wallNormal);
-                    if (dot < 0)
-                        push -= wallNormal * dot;
-                }
-            }
-
-            return push;
         }
 
         private static void ClampToWall(

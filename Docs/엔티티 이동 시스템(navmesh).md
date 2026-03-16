@@ -113,10 +113,8 @@ MovementArrivalSystem → 도착 판정 → 이동 정지 + Intent.Idle 전환
   - 유닛-유닛 간 충돌 회피: 둘 다 Gather 상태면 무시
 - **공격 중 Separation 유지**: `IgnoreComponentEnabledState` + `EnabledRefRW<MovementWaypoints>`로 MovementWaypoints 비활성화 엔티티도 쿼리에 포함. 이동만 스킵하고 Separation은 계속 적용.
 - **비선형 Separation Force**: `forceMag = overlap * (1 + overlapRatio * 3)` — 깊이 침투 시 기하급수적 반발
-- **Entity Hard Constraint**: 실제 반경(마진 0.3f 제외) 기준 겹침 시 위치 직접 보정 (hardPush, obstacleRadius.Radius로 크기 제한)
 - 벽 충돌 미끄러짐 처리 (Raycast + PointDistance)
-- **RemoveWallComponent**: hardPush 적용 전 벽 방향 성분 사전 제거 (velocity 기반 충돌 검사를 우회하는 hardPush의 벽 관통 방지)
-- 벽 충돌 안전망: `ClampToWall` static 메서드로 이동 후 + Entity push 후 벽 관통 재검사 (반복 최대 3회, 코너 대응)
+- 벽 충돌 안전망: `ClampToWall` static 메서드로 이동 후 벽 관통 재검사 (반복 최대 3회, 코너 대응)
 - Separation 진동 감지: 최종 목적지 확장 반경(2배) 내에서 밀려나는 경우 즉시 정지
 ---
 파일: MovementArrivalSystem.cs
@@ -282,26 +280,16 @@ MeleeAttackSystem 등에서 ECB로 MovementWaypoints를 비활성화하면, 기�
 float overlapRatio = overlap / combinedRadius; // 0~1
 float forceMag = overlap * (1.0f + overlapRatio * 3.0f);
 
-// Hard constraint: 실제 반경(마진 0.3f 제외) 기준 겹침 위치 보정
-float hardCombinedR = myRadius + otherRadius;
-if (dist < hardCombinedR)
-    hardPush += (toOther / dist) * (hardOverlap * 0.5f);
-
-// hardPush 크기 제한: 밀집 시 순간이동 방지
-float maxPush = obstacleRadius.Radius;
-if (lengthsq(hardPush) > maxPush * maxPush)
-    hardPush = normalize(hardPush) * maxPush;
 ```
 
 ### 벽 충돌 처리
 
 1. **ResolveWallCollision (velocity 기반)**: 이동 방향 Raycast + 전방향 PointDistance → 속도 벡터에서 법선 성분 제거 (미끄러짐)
-2. **RemoveWallComponent (hardPush 사전 필터)**: Entity 겹침 보정(hardPush) 적용 전, 벽 근처(radius + 0.1f)에서 벽 방향 성분을 제거. hardPush는 velocity 기반 충돌 검사를 우회하므로 별도 처리 필요.
-3. **ClampToWall (안전망, 반복)**: `transform.Position` 업데이트 후 + Entity hardPush 후, 벽과 겹침(overlap > 0.05f)이면 SurfaceNormal 방향으로 밀어내기. **최대 3회 반복**하여 코너(두 벽 교차) 관통 방지. 조기 종료 조건: 벽 미검출, 오차 이내, 무효 법선.
+2. **ClampToWall (안전망, 반복)**: `transform.Position` 업데이트 후, 벽과 겹침(overlap > 0.05f)이면 SurfaceNormal 방향으로 밀어내기. **최대 3회 반복**하여 코너(두 벽 교차) 관통 방지. 조기 종료 조건: 벽 미검출, 오차 이내, 무효 법선.
 
 ```
 실행 흐름:
-  position += velocity*dt → ClampToWall(반복) → RemoveWallComponent(hardPush) → position += hardPush → ClampToWall(반복)
+  position += velocity*dt → ClampToWall(반복)
 ```
 
 ```csharp
