@@ -20,6 +20,7 @@ namespace Shared
                 case LogCategory.Network:  prefix.Append((FixedString32Bytes)"Network] "); break;
                 case LogCategory.Economy:  prefix.Append((FixedString32Bytes)"Economy] "); break;
                 case LogCategory.Wave:     prefix.Append((FixedString32Bytes)"Wave] "); break;
+                case LogCategory.Construction: prefix.Append((FixedString32Bytes)"Construction] "); break;
                 default:                   prefix.Append((FixedString32Bytes)"System] "); break;
             }
             return prefix;

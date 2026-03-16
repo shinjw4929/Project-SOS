@@ -7,7 +7,8 @@ namespace Shared
         Network = 2,
         Economy = 3,
         Wave = 4,
-        System = 5
+        System = 5,
+        Construction = 6
     }
 
     public enum LogWorld : byte

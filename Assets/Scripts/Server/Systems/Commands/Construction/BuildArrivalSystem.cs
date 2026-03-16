@@ -141,7 +141,7 @@ namespace Server
                         GameLogger.Field(ref retryMsg, "try", pendingData.ValueRO.RetryCount);
                         GameLogger.Pos(ref retryMsg, "pos", unitPos);
                         GameLogger.Pos(ref retryMsg, "site", pending.BuildSiteCenter);
-                        GameLogger.Warning(LogWorld.Server, LogCategory.Economy, in retryMsg);
+                        GameLogger.Warning(LogWorld.Server, LogCategory.Construction, in retryMsg);
 
                         float3 toBuilder = unitPos - pending.BuildSiteCenter;
                         toBuilder.y = 0;
@@ -171,7 +171,7 @@ namespace Server
                         GameLogger.Field(ref giveUpMsg, "idx", entity.Index);
                         GameLogger.Pos(ref giveUpMsg, "pos", unitPos);
                         GameLogger.Pos(ref giveUpMsg, "site", pending.BuildSiteCenter);
-                        GameLogger.Warning(LogWorld.Server, LogCategory.Economy, in giveUpMsg);
+                        GameLogger.Warning(LogWorld.Server, LogCategory.Construction, in giveUpMsg);
 
                         ecb.RemoveComponent<PendingBuildServerData>(entity);
                         waypoints.ValueRW.ArrivalRadius = 0f;
@@ -190,6 +190,23 @@ namespace Server
                     gridSettings,
                     networkIdToCurrencyMap
                 );
+
+                if (buildSuccess)
+                {
+                    FixedString128Bytes successMsg = "Build succeeded (arrival)";
+                    GameLogger.Field(ref successMsg, "networkId", pending.OwnerNetworkId);
+                    GameLogger.Field(ref successMsg, "gridX", pending.GridPosition.x);
+                    GameLogger.Field(ref successMsg, "gridY", pending.GridPosition.y);
+                    GameLogger.Info(LogWorld.Server, LogCategory.Construction, in successMsg);
+                }
+                else
+                {
+                    FixedString128Bytes failMsg = "Build failed (arrival)";
+                    GameLogger.Field(ref failMsg, "idx", entity.Index);
+                    GameLogger.Pos(ref failMsg, "pos", unitPos);
+                    GameLogger.Pos(ref failMsg, "site", pending.BuildSiteCenter);
+                    GameLogger.Info(LogWorld.Server, LogCategory.Construction, in failMsg);
+                }
 
                 // PendingBuildServerData 제거
                 ecb.RemoveComponent<PendingBuildServerData>(entity);

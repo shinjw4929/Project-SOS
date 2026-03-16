@@ -251,11 +251,6 @@ namespace Server
             {
                 float3 halfExtents = new float3(width * GridSettings.CellSize * 0.5f, 1f, length * GridSettings.CellSize * 0.5f);
                 
-                // 높이 보정된 buildingCenter는 생성용이고, 물리 검사용은 Y축을 다시 0 근처로 잡거나 
-                // AABB 센터를 조정해야 할 수 있습니다. 여기서는 XZ 평면 중심이 중요하므로 그대로 씁니다.
-                // (단, 물리 체크 시 Y축 높이가 너무 높으면 안 맞을 수 있으니 원래 로직대로 GridToWorld 직후 값 사용이 안전할 수 있음.
-                //  여기서는 편의상 생성 위치를 넘기고 물리 체크는 내부적으로 처리한다고 가정)
-
                 // 물리 체크용 센터 (바닥 기준)
                 float3 physicsCenter = buildingCenter; 
                 physicsCenter.y = 0f; // 물리 체크는 보통 바닥 평면에서 수행
@@ -373,6 +368,14 @@ namespace Server
                 // 1. 검증 실패 건 제거
                 if (!request.IsValidPhysics)
                 {
+                    if (request.SourceNetworkId != 0)
+                    {
+                        FixedString128Bytes rejectMsg = "Build rejected";
+                        GameLogger.Field(ref rejectMsg, "networkId", request.SourceNetworkId);
+                        GameLogger.Field(ref rejectMsg, "gridX", request.GridPosition.x);
+                        GameLogger.Field(ref rejectMsg, "gridY", request.GridPosition.y);
+                        GameLogger.Info(LogWorld.Server, LogCategory.Construction, in rejectMsg);
+                    }
                     Ecb.DestroyEntity(request.RpcEntity);
                     continue;
                 }
@@ -380,6 +383,9 @@ namespace Server
                 // 2. 유저 자원 엔티티 확인
                 if (!NetworkIdToCurrencyMap.TryGetValue(request.SourceNetworkId, out Entity userCurrencyEntity))
                 {
+                    FixedString128Bytes noEconMsg = "Build rejected (no economy)";
+                    GameLogger.Field(ref noEconMsg, "networkId", request.SourceNetworkId);
+                    GameLogger.Warning(LogWorld.Server, LogCategory.Construction, in noEconMsg);
                     Ecb.DestroyEntity(request.RpcEntity);
                     continue;
                 }
@@ -389,6 +395,9 @@ namespace Server
 
                 if (currency.Amount < request.StructureCost)
                 {
+                    FixedString128Bytes fundsMsg = "Build rejected (funds)";
+                    GameLogger.Field(ref fundsMsg, "networkId", request.SourceNetworkId);
+                    GameLogger.Info(LogWorld.Server, LogCategory.Construction, in fundsMsg);
                     EconomyUtility.SendNotification(ref Ecb, request.SourceConnection, NotificationType.InsufficientFunds);
                     Ecb.DestroyEntity(request.RpcEntity);
                     continue;
@@ -407,7 +416,7 @@ namespace Server
                 GameLogger.Field(ref buildMsg, "networkId", request.SourceNetworkId);
                 GameLogger.Field(ref buildMsg, "gridX", request.GridPosition.x);
                 GameLogger.Field(ref buildMsg, "gridY", request.GridPosition.y);
-                GameLogger.Info(LogWorld.Server, LogCategory.Economy, in buildMsg);
+                GameLogger.Info(LogWorld.Server, LogCategory.Construction, in buildMsg);
 
                 // 5. ResourceCenter 건설 시 테크 상태 업데이트
                 if (ResourceCenterTagLookup.HasComponent(request.PrefabEntity))
