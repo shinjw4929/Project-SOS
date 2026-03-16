@@ -134,3 +134,7 @@ tmpclaude-*-cwd
 
 # Unity DOTS SubScene baking cache
 /[Aa]ssets/SceneDependencyCache/
+/Assets/SceneDependencyCache.meta
+
+# Internal docs (not for sharing)
+/Docs/Internal/
