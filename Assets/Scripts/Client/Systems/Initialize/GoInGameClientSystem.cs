@@ -1,4 +1,5 @@
 using Unity.Burst;
+using Unity.Collections;
 using Unity.Entities;
 using Unity.NetCode;
 using UnityEngine;
@@ -27,8 +28,8 @@ namespace Client
             {
                 entityCommandBuffer.AddComponent<NetworkStreamInGame>(entity);
             
-                // 서버 연결 디버깅 시 사용
-                // Debug.Log("Setting Client as InGame");
+                GameLogger.Info(LogWorld.Client, LogCategory.Network,
+                    (FixedString128Bytes)"Connected to server");
             
                 Entity rpcEntity = entityCommandBuffer.CreateEntity();
                 entityCommandBuffer.AddComponent(rpcEntity, new GoInGameRequestRpc());

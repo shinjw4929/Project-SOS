@@ -181,7 +181,12 @@ namespace Server
             queueRW.ValueRW.Progress = 0;
             queueRW.ValueRW.Duration = duration;
             queueRW.ValueRW.IsActive = true;
-            
+
+            FixedString128Bytes prodMsg = "Production started";
+            GameLogger.Field(ref prodMsg, "unitIdx", rpc.UnitIndex);
+            GameLogger.Field(ref prodMsg, "networkId", ownerId);
+            GameLogger.Info(LogWorld.Server, LogCategory.Economy, in prodMsg);
+
             // ComponentLookup.GetRefRW를 사용했으므로 ecb.SetComponent 불필요!
             // 이미 메인 스레드(혹은 잡)에서 컴포넌트 데이터 원본을 수정했습니다.
             // *주의*: 만약 이 시스템이 병렬 Job이라면 RefRW 사용 시 경합이 발생할 수 있으나, 

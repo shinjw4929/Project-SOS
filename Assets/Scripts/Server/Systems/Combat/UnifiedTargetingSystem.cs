@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
@@ -281,6 +282,8 @@ namespace Server
                         {
                             if (isStuck)
                             {
+                                EnemyStuckLogger.LogEnemyStuck(entity.Index, in myPos, in goal);
+
                                 enemyState.ValueRW.CurrentState = EnemyContext.Dormant;
                                 waypointsEnabled.ValueRW = false;
                                 goal.ValueRW.IsPathDirty = false;
@@ -391,6 +394,8 @@ namespace Server
                     {
                         if (isStuck)
                         {
+                            EnemyStuckLogger.LogEnemyStuck(entity.Index, in myPos, in goal);
+
                             enemyState.ValueRW.CurrentState = EnemyContext.Dormant;
                             waypointsEnabled.ValueRW = false;
                             goal.ValueRW.IsPathDirty = false;
@@ -690,6 +695,8 @@ namespace Server
                 {
                     if (isStuck)
                     {
+                        EnemyStuckLogger.LogEnemyStuck(entity.Index, in myPos, in goal);
+
                         enemyState.ValueRW.CurrentState = EnemyContext.Dormant;
                         waypointsEnabled.ValueRW = false;
                         goal.ValueRW.IsPathDirty = false;
@@ -719,6 +726,26 @@ namespace Server
             }
 
             enemyState.ValueRW.CurrentState = EnemyContext.Wandering;
+        }
+    }
+
+    [BurstCompile]
+    static class EnemyStuckLogger
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static void LogEnemyStuck(int entityIndex, in float3 pos, in RefRW<MovementGoal> goal)
+        {
+            var dest = goal.ValueRO.Destination;
+            FixedString32Bytes cause = goal.ValueRO.IsPathDirty ? (FixedString32Bytes)"noPath"
+                : goal.ValueRO.IsPathPartial ? (FixedString32Bytes)"partial"
+                : (FixedString32Bytes)"collision";
+
+            FixedString128Bytes msg = "Enemy stuck";
+            GameLogger.Field(ref msg, "idx", entityIndex);
+            GameLogger.Pos(ref msg, "pos", in pos);
+            GameLogger.Pos(ref msg, "dest", in dest);
+            GameLogger.Field(ref msg, "cause", in cause);
+            GameLogger.Warning(LogWorld.Server, LogCategory.Movement, in msg);
         }
     }
 }

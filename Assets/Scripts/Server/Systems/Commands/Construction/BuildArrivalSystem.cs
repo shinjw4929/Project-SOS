@@ -136,6 +136,13 @@ namespace Server
                     {
                         pendingData.ValueRW.RetryCount += 1;
 
+                        FixedString128Bytes retryMsg = "Build retry";
+                        GameLogger.Field(ref retryMsg, "idx", entity.Index);
+                        GameLogger.Field(ref retryMsg, "try", pendingData.ValueRO.RetryCount);
+                        GameLogger.Pos(ref retryMsg, "pos", unitPos);
+                        GameLogger.Pos(ref retryMsg, "site", pending.BuildSiteCenter);
+                        GameLogger.Warning(LogWorld.Server, LogCategory.Economy, in retryMsg);
+
                         float3 toBuilder = unitPos - pending.BuildSiteCenter;
                         toBuilder.y = 0;
                         float dirLen = math.length(toBuilder);
@@ -160,6 +167,12 @@ namespace Server
                     else
                     {
                         // 포기: PendingBuildServerData 제거 + Intent 복원
+                        FixedString128Bytes giveUpMsg = "Build giveup";
+                        GameLogger.Field(ref giveUpMsg, "idx", entity.Index);
+                        GameLogger.Pos(ref giveUpMsg, "pos", unitPos);
+                        GameLogger.Pos(ref giveUpMsg, "site", pending.BuildSiteCenter);
+                        GameLogger.Warning(LogWorld.Server, LogCategory.Economy, in giveUpMsg);
+
                         ecb.RemoveComponent<PendingBuildServerData>(entity);
                         waypoints.ValueRW.ArrivalRadius = 0f;
                         ecb.SetComponentEnabled<MovementWaypoints>(entity, false);

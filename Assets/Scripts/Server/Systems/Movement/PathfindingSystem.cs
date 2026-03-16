@@ -153,6 +153,11 @@ namespace Server
         int _requestCount;
         int _requestCapacity;
 
+        // 경로 실패 로그 쿨다운 (5초 간격 집계)
+        double _lastFailLogTime;
+        int _accumulatedFailCount;
+        int _accumulatedRequestCount;
+
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<MovementGoal>();
@@ -301,6 +306,8 @@ namespace Server
             var waypointsLookup = SystemAPI.GetComponentLookup<MovementWaypoints>();
             var transformLookup = SystemAPI.GetComponentLookup<LocalTransform>(true);
 
+            int pathFailCount = 0;
+
             for (int i = 0; i < _requestCount; i++)
             {
                 Entity entity = _requestArray[i].Entity;
@@ -311,6 +318,7 @@ namespace Server
 
                 if (output.WaypointCount <= 0 || _requestArray[i].AgentTypeID < 0)
                 {
+                    pathFailCount++;
                     pathBufferLookup[entity].Clear();
                     waypointsLookup.SetComponentEnabled(entity, false);
                     var failGoal = goalLookup[entity];
@@ -336,6 +344,25 @@ namespace Server
                 goalLookup[entity] = goal;
                 waypointsLookup[entity] = waypoints;
                 waypointsLookup.SetComponentEnabled(entity, enabled);
+            }
+
+            if (pathFailCount > 0)
+            {
+                _accumulatedFailCount += pathFailCount;
+                _accumulatedRequestCount += _requestCount;
+
+                double elapsed = SystemAPI.Time.ElapsedTime;
+                if (elapsed - _lastFailLogTime >= 5.0)
+                {
+                    FixedString128Bytes failMsg = "Path failures (5s)";
+                    GameLogger.Field(ref failMsg, "failed", _accumulatedFailCount);
+                    GameLogger.Field(ref failMsg, "total", _accumulatedRequestCount);
+                    GameLogger.Warning(LogWorld.Server, LogCategory.Movement, in failMsg);
+
+                    _accumulatedFailCount = 0;
+                    _accumulatedRequestCount = 0;
+                    _lastFailLogTime = elapsed;
+                }
             }
         }
 

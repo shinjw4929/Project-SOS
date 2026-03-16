@@ -1,4 +1,5 @@
 using Unity.Burst;
+using Unity.Collections;
 using Unity.Entities;
 using Unity.NetCode;
 using Shared;
@@ -46,6 +47,11 @@ namespace Server
                             phaseState.ValueRW.CurrentWave = WavePhase.Wave1;
                             // Wave1 시작 시 스폰 타이머 리셋 (현재 ElapsedTime으로)
                             phaseState.ValueRW.LastSpawnTime = elapsed;
+
+                            FixedString128Bytes waveMsg = "Wave0 -> Wave1";
+                            GameLogger.Field(ref waveMsg, "time", (int)elapsed);
+                            GameLogger.Field(ref waveMsg, "kills", kills);
+                            GameLogger.Info(LogWorld.Server, LogCategory.Wave, in waveMsg);
                         }
                         break;
 
@@ -56,6 +62,11 @@ namespace Server
                             phaseState.ValueRW.CurrentWave = WavePhase.Wave2;
                             // Wave2 시작 시 스폰 타이머 리셋 (현재 ElapsedTime으로)
                             phaseState.ValueRW.LastSpawnTime = elapsed;
+
+                            FixedString128Bytes waveMsg = "Wave1 -> Wave2";
+                            GameLogger.Field(ref waveMsg, "time", (int)elapsed);
+                            GameLogger.Field(ref waveMsg, "kills", kills);
+                            GameLogger.Info(LogWorld.Server, LogCategory.Wave, in waveMsg);
                         }
                         break;
 

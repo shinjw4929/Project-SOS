@@ -9,7 +9,8 @@
         "Unity.Mathematics",
         "Unity.Transforms",
         "Unity.Physics",
-        "Unity.AI.Navigation"
+        "Unity.AI.Navigation",
+        "Unity.Logging"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

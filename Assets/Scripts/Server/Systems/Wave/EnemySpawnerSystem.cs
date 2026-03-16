@@ -164,6 +164,11 @@ namespace Server
             }
 
             phaseState.Wave0SpawnedCount += toSpawn;
+
+            FixedString128Bytes spawnMsg = "Wave0 spawned";
+            GameLogger.Field(ref spawnMsg, "count", toSpawn);
+            GameLogger.Debug(LogWorld.Server, LogCategory.Wave, in spawnMsg);
+
             return true;
         }
 
@@ -237,6 +242,11 @@ namespace Server
                 Entity enemy = ecb.Instantiate(prefab);
                 ecb.SetComponent(enemy, LocalTransform.FromPosition(finalSpawnPos));
             }
+
+            FixedString128Bytes spawnMsg = "Periodic spawned";
+            GameLogger.Field(ref spawnMsg, "count", spawnCount);
+            GameLogger.Field(ref spawnMsg, "wave", (int)phaseState.CurrentWave);
+            GameLogger.Debug(LogWorld.Server, LogCategory.Wave, in spawnMsg);
 
             return true;
         }
