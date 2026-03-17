@@ -11,8 +11,8 @@
 //   [4 bytes: payload length (little-endian)] [N bytes: ChatEnvelope protobuf binary]
 //   ChatEnvelope의 oneof로 메시지 타입을 구분하므로 별도 타입 바이트 불필요.
 //
-// queue.proto의 Envelope와 독립적인 ChatEnvelope를 사용한다.
-// 이유: 서버 간 프로토콜 결합 방지. 큐 서버와 채팅 서버가 독립적으로 진화 가능.
+// room.proto의 Envelope와 독립적인 ChatEnvelope를 사용한다.
+// 이유: 서버 간 프로토콜 결합 방지. 룸 서버와 채팅 서버가 독립적으로 진화 가능.
 
 syntax = "proto3";
 package sos.chat;
@@ -35,7 +35,7 @@ enum ChatChannel {
 
 // 인증 요청
 // 로비: player_id + player_name만 (session_id="", team_id=0)
-// 인게임: 매칭 후 session_id + team_id 포함하여 재전송
+// 인게임: 게임 시작 후 session_id + team_id 포함하여 재전송
 message ChatAuth {
     string player_id = 1;
     string session_id = 2;
@@ -107,10 +107,10 @@ message ChatError {
 }
 
 // ============================================================
-// 내부 서버 간 (큐 서버 → 채팅 서버, TCP :8083)
+// 내부 서버 간 (룸 서버 → 채팅 서버, TCP :8083)
 // ============================================================
 
-// 매칭 성립 → 세션 채널 생성 요청
+// 게임 시작 → 세션 채널 생성 요청
 message SessionCreated {
     string session_id = 1;
     repeated PlayerInfo players = 2;
@@ -133,7 +133,7 @@ message SessionEnded {
 
 // 단일 ChatEnvelope로 모든 메시지 타입을 감싸서 전송.
 // oneof로 타입 디스패치 — 별도 MessageType enum이나 타입 헤더 불필요.
-// queue.proto의 Envelope와 독립적.
+// room.proto의 Envelope와 독립적.
 message ChatEnvelope {
     oneof payload {
         // 클라이언트 → 채팅 서버
@@ -149,7 +149,7 @@ message ChatEnvelope {
         SystemMessage system_message = 12;
         ChatError error = 13;
 
-        // 내부 서버 간 (큐 서버 → 채팅 서버)
+        // 내부 서버 간 (룸 서버 → 채팅 서버)
         SessionCreated session_created = 20;
         SessionEnded session_ended = 21;
     }
