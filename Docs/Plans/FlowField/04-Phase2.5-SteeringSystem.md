@@ -19,8 +19,26 @@
 
 - 시스템 전체 `[BurstCompile]` 적용 가능 (모든 의존성이 unmanaged)
 - IJobEntity 병렬화 가능:
-  - ReadOnly: `FlowFieldCacheData`의 NativeArray, `GridSettings`
+  - ReadOnly: `GridSettings`
   - ReadWrite: `MovementWaypoints` (엔티티당 독립), `MovementGoal` (캐시 미스 시 IsPathDirty 설정)
+
+### NativeContainer Job 전달 패턴
+
+`FlowFieldCacheData` 싱글톤 내부의 NativeContainer는 **OnUpdate에서 꺼내 Job struct 필드로 전달**한다. 싱글톤을 Job 내부에서 직접 읽지 않음.
+
+```csharp
+var cacheData = SystemAPI.GetSingleton<FlowFieldCacheData>();
+
+var job = new FlowFieldSteeringJob
+{
+    SmallFieldPool = cacheData.SmallFieldPool,         // [ReadOnly]
+    LargeFieldPool = cacheData.LargeFieldPool,         // [ReadOnly]
+    SmallKeyToPoolIndex = cacheData.SmallKeyToPoolIndex, // [ReadOnly]
+    LargeKeyToPoolIndex = cacheData.LargeKeyToPoolIndex, // [ReadOnly]
+    GridCellCount = cacheData.GridCellCount,
+    // ... GridSettings, MovementWaypoints 등
+};
+```
 
 ---
 
@@ -56,8 +74,11 @@ state.RequireForUpdate<FlowFieldCacheData>();
 2. GridPathfindingSize.CellPadding → Small/Large 캐시 선택
 3. FlowFieldRef.Key로 해당 캐시에서 Flow Field 조회
 4. 현재 셀의 방향(byte) → 다음 셀 좌표(currentCell + dirOffset) 계산
-5. 분기:
-   ├─ [목적지 셀]:
+5. **목적지 셀 판정**: 좌표 비교 방식 사용
+   - `int2 destCell = GridUtility.WorldToGrid(goal.Destination, gridSettings)`
+   - `currentCell == destCell`이면 목적지 셀 (방향=255 판정과 혼동 방지 — 255는 도달 불가 셀에도 사용됨)
+6. 분기:
+   ├─ [목적지 셀] (currentCell == destCell):
    │     Current = MovementGoal.Destination (실제 월드 좌표)
    │     HasNext = false → MovementArrivalSystem이 도착 판정
    ├─ [방향=None(255), 목적지 셀 아님]:
@@ -65,11 +86,16 @@ state.RequireForUpdate<FlowFieldCacheData>();
    │     (장애물 동적 생성으로 현재 셀이 도달 불가가 된 경우)
    └─ [중간 셀]:
          Current = 다음 셀 중심 월드 좌표 (GridUtility.CellCenterToWorld)
-         Next = 그 다음 셀 중심 (2단계 look-ahead, 코너링 지원)
-         HasNext = true → MovementArrivalSystem 도착 판정 차단
+         2단계 look-ahead:
+           ├─ look-ahead 셀이 목적지(== destCell) → Next = Destination, HasNext = true
+           ├─ look-ahead 셀 방향이 None(255) → HasNext = false (look-ahead 중단)
+           ├─ **look-ahead 캐시 미스** (FlowFieldRef.Key로 조회 실패) → HasNext = false, IsPathDirty = true
+           └─ 그 외 → Next = look-ahead 셀 중심, HasNext = true
 ```
 
 **전제 조건**: FlowFieldSystem이 이미 FlowFieldRef를 할당한 유닛만 처리. FlowFieldRef.Key == -1인 경우 스킵.
+
+> **참고**: CellCenterToWorld는 GridSettings.CellSize(0.5m)를 사용하므로 셀 크기 변경에 자동 대응.
 
 ---
 
@@ -116,8 +142,8 @@ FlowFieldRef.Key로 캐시 조회 실패 시 (전체 캐시 무효화 후 발생
 - [ ] 쿼리에 `WithNone<FlyingTag>` 필터 추가
 - [ ] `FlowFieldRef.Key == -1` 스킵 로직
 - [ ] Flow Field 방향 조회 → 다음 셀 좌표 변환
-- [ ] 목적지 셀 판정: `Current = Destination`, `HasNext = false`
-- [ ] 중간 셀: `Current = 셀 중심`, `HasNext = true`, `Next = 2단계 look-ahead`
+- [ ] 목적지 셀 판정: **좌표 비교** (`currentCell == destCell`), `Current = Destination`, `HasNext = false`
+- [ ] 중간 셀: `Current = 셀 중심`, `HasNext = true`, `Next = 2단계 look-ahead` (look-ahead 캐시 미스 시 `HasNext=false` + `IsPathDirty=true`)
 - [ ] 캐시 미스 시 `IsPathDirty=true` (lazy re-pathing)
 - [ ] 시스템 attribute: `UpdateInGroup`, `WorldSystemFilter`, `UpdateAfter`, `UpdateBefore`
 - [ ] `RequireForUpdate<GridSettings>()`, `RequireForUpdate<FlowFieldCacheData>()`

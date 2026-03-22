@@ -14,7 +14,8 @@ struct FlowFieldCore
 {
     // BFS 기반 Flow Field 계산
     // struct 파라미터(int2, NativeArray)로 인해 메서드 레벨 [BurstCompile] 불가 (BC1064)
-    // IJob 내부에서 호출되므로 Job 레벨 Burst에 의해 자동 인라인됨
+    // IJob 내부에서 호출되므로 Job 레벨 Burst에 의해 자동 컴파일됨
+    // CLAUDE.md 규칙에 따라 [MethodImpl(AggressiveInlining)] 적용 (루프 포함 시 컴파일러가 자동 무시)
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     static void ComputeField(
         NativeArray<byte> passabilityMap,
@@ -40,6 +41,11 @@ struct FlowFieldCore
 4. 각 셀에 방향(byte) 기록 — **셀 B가 셀 A에서 확산된 경우, B에 기록되는 방향은 "B에서 A로 가는 방향"(확산 방향의 역방향)**
    - 예: 목적지에서 N(위쪽)으로 확산하여 셀 X에 도달 → 셀 X의 방향은 S(4) (X에서 S로 가면 목적지에 가까워짐)
 5. 도달 불가 셀은 255(None)
+
+### 호출자 책임 (전제 조건)
+
+- **outputField 초기화**: `ComputeField` 호출 전, 호출자(FlowFieldSystem)가 `outputField`를 `MemSet(255)`로 초기화해야 한다. BFS에서 방문하지 않은 셀은 255(None)으로 유지되어야 하므로, 0이 아닌 255로 채워야 한다.
+- **목적지 유효성**: 목적지 셀이 passabilityMap에서 blocked인 경우, BFS는 목적지에서 확산을 시작할 수 없으므로 outputField 전체가 255로 남는다. 이 경우 Phase 2 Apply에서 Partial Path로 처리한다. 범위 밖 목적지(`x < 0 || x >= gridSize.x || y < 0 || y >= gridSize.y`)는 FlowFieldSystem Collect Phase에서 사전 검증하여 ComputeField를 호출하지 않는다.
 
 ### 대각 이동 코너 차단
 대각 확산 시 인접 직교 셀이 막혀있으면 확산 불가:
@@ -72,13 +78,13 @@ SE로 이동하려면 → S와 E 모두 passable이어야 함
 BFS 실행마다 할당/해제하지 않고 Persistent로 유지.
 **소유권**: FlowFieldSystem이 `OnCreate`에서 8세트 할당, `FlowFieldComputeJob`에 전달. FlowFieldCore는 stateless 유틸리티 struct.
 
-| 버퍼 | 타입 | 크기 (100x100 기준) |
+| 버퍼 | 타입 | 크기 (200x200 기준) |
 |------|------|-------------------|
-| BFS queue | `NativeQueue<int2>` | 최대 10,000 |
-| visited | `NativeArray<byte>` | 10,000 bytes (byte 배열, 단순성 우선) |
-| cost map | `NativeArray<ushort>` | 20,000 bytes |
+| BFS queue | `NativeQueue<int2>` | 최대 40,000 |
+| visited | `NativeArray<byte>` | 40,000 bytes (byte 배열, 단순성 우선) |
+| cost map | `NativeArray<ushort>` | 80,000 bytes |
 
-cost map은 BFS 거리를 저장하여 방향 결정에 사용.
+cost map은 BFS 거리를 저장한다. BFS 확산 시 `cost[neighbor] = cost[current] + 1`로 거리를 기록하고, 이미 방문된 셀(`cost != ushort.MaxValue`)은 스킵한다. visited 배열 대신 cost map이 방문 여부 판정을 겸할 수 있으나, 현재 설계에서는 visited 배열을 별도로 두어 명시적 방문 체크를 수행한다. cost map은 Partial Path 판정(Phase 2 Apply)에서 사용하지 않는다 (워커 메모리가 Compute Phase에서 덮어씌워지므로).
 
 ---
 
@@ -88,5 +94,5 @@ cost map은 BFS 거리를 저장하여 방향 결정에 사용.
 - [ ] `ComputeField` BFS 구현 (방향 = 확산 역방향 기록)
 - [ ] 8방향 확산 + 대각 코너 차단 로직
 - [ ] 방향 인코딩 상수 + 방향→오프셋 변환 테이블 정의
-- [ ] `ComputeField`에 `[MethodImpl(AggressiveInlining)]` 적용 (struct 파라미터로 개별 `[BurstCompile]` 불가)
+- [ ] `ComputeField`에 `[MethodImpl(AggressiveInlining)]` **적용** (CLAUDE.md 규칙: struct 파라미터 → [BurstCompile] 불가 시 [MethodImpl] 적용. 루프 포함 시 컴파일러가 인라이닝을 자동 무시하므로 부작용 없음)
 - [ ] 워커 메모리 Persistent 할당 (FlowFieldSystem.OnCreate에서 8세트)
