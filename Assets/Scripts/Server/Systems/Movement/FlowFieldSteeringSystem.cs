@@ -29,12 +29,13 @@ namespace Server
             int gridSizeY = gridSettings.GridSize.y;
             int gridCellCount = cache.GridCellCount;
 
-            foreach (var (goal, waypoints, flowFieldRef, pathSize, transform, entity) in
+            foreach (var (goal, waypoints, flowFieldRef, pathSize, obstacle, transform, entity) in
                 SystemAPI.Query<
                     RefRW<MovementGoal>,
                     RefRW<MovementWaypoints>,
                     RefRO<FlowFieldRef>,
                     RefRO<GridPathfindingSize>,
+                    RefRO<ObstacleRadius>,
                     RefRO<LocalTransform>>()
                     .WithNone<FlyingTag>()
                     .WithAny<UnitTag, EnemyTag>()
@@ -79,10 +80,28 @@ namespace Server
 
                 if (currentCell.x == destCell.x && currentCell.y == destCell.y)
                 {
-                    // 목적지 셀 도착
-                    waypoints.ValueRW.Current = goal.ValueRO.Destination;
+                    // 목적지 셀 도착 — 현재 위치로 설정하여 즉시 도착 판정 트리거
+                    // (정확한 Destination 좌표로 유도하면 다수 유닛이 동일 지점으로 수렴 → 진동)
+                    waypoints.ValueRW.Current = transform.ValueRO.Position;
                     waypoints.ValueRW.HasNext = false;
                     continue;
+                }
+
+                // 인접 셀(Chebyshev 거리 1)에서 월드 거리 기준 충분히 가까운 경우 도착 처리
+                // Separation에 의해 목적지 셀에서 밀린 유닛의 재수렴 진동 방지
+                int2 cellDiff = math.abs(currentCell - destCell);
+                if (cellDiff.x <= 1 && cellDiff.y <= 1)
+                {
+                    float3 destPos = goal.ValueRO.Destination;
+                    destPos.y = transform.ValueRO.Position.y;
+                    float distToDestSq = math.lengthsq(transform.ValueRO.Position - destPos);
+                    float nearR = obstacle.ValueRO.Radius + gridSettings.CellSize;
+                    if (distToDestSq < nearR * nearR)
+                    {
+                        waypoints.ValueRW.Current = transform.ValueRO.Position;
+                        waypoints.ValueRW.HasNext = false;
+                        continue;
+                    }
                 }
 
                 int currentIndex = currentCell.y * gridSizeX + currentCell.x;

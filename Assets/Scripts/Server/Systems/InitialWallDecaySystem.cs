@@ -1,6 +1,6 @@
 using Unity.Burst;
 using Unity.Entities;
-using Unity.NetCode;
+using Unity.Mathematics;
 using Shared;
 
 namespace Server
@@ -8,6 +8,7 @@ namespace Server
     /// <summary>
     /// 초기 배치 벽 자동 파괴 시스템.
     /// InitialWallTag가 있는 벽에 타이머를 추가하고, 시간이 지나면 파괴.
+    /// 파괴 전 Grid 점유(IsOccupied, IsPathBlocked)를 직접 해제.
     /// </summary>
     [BurstCompile]
     [UpdateInGroup(typeof(SimulationSystemGroup))]
@@ -18,6 +19,7 @@ namespace Server
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<GameSettings>();
+            state.RequireForUpdate<GridSettings>();
             state.RequireForUpdate<EndSimulationEntityCommandBufferSystem.Singleton>();
         }
 
@@ -42,16 +44,41 @@ namespace Server
             }
 
             // Phase 2: 타이머 업데이트 및 파괴
-            foreach (var (timer, entity) in
-                SystemAPI.Query<RefRW<InitialWallDecayTimer>>()
+            var gridSettings = SystemAPI.GetSingleton<GridSettings>();
+            var gridEntity = SystemAPI.GetSingletonEntity<GridSettings>();
+            var gridBuffer = SystemAPI.GetBuffer<GridCell>(gridEntity);
+            int gridSizeX = gridSettings.GridSize.x;
+            bool anyDecayed = false;
+
+            foreach (var (timer, gridPos, footprint, entity) in
+                SystemAPI.Query<RefRW<InitialWallDecayTimer>, RefRO<GridPosition>, RefRO<StructureFootprint>>()
                     .WithEntityAccess())
             {
                 timer.ValueRW.RemainingTime -= deltaTime;
 
                 if (timer.ValueRO.RemainingTime <= 0)
                 {
+                    int2 pos = gridPos.ValueRO.Position;
+                    int w = footprint.ValueRO.Width;
+                    int l = footprint.ValueRO.Length;
+
+                    // Grid 점유 직접 해제 (Cleanup 시스템에 의존하지 않음)
+                    GridUtility.UnmarkOccupied(gridBuffer, pos.x, pos.y, w, l, gridSizeX);
+                    GridUtility.UnmarkPathBlocked(gridBuffer,
+                        pos.x, pos.y, w, l,
+                        footprint.ValueRO.PathWidth, footprint.ValueRO.PathLength,
+                        gridSizeX);
+
+                    anyDecayed = true;
                     ecb.DestroyEntity(entity);
                 }
+            }
+
+            // Flow Field 캐시 무효화
+            if (anyDecayed && SystemAPI.TryGetSingleton<FlowFieldCacheData>(out var cache))
+            {
+                cache.IsGridStale = true;
+                SystemAPI.SetSingleton(cache);
             }
         }
     }

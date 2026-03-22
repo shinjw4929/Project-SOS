@@ -10,7 +10,7 @@ namespace Server
 {
     /// <summary>
     /// Wave별 적 스폰 시스템.
-    /// Wave0: 초기 30마리 (EnemyBig)
+    /// Wave0: 초기 5마리 (EnemyBig)
     /// Wave1: 주기적 스폰 (EnemySmall + EnemyBig)
     /// Wave2: 주기적 스폰 (EnemySmall + EnemyBig + EnemyFlying)
     /// </summary>
@@ -134,7 +134,7 @@ namespace Server
             _spawnCounter++;
 
             // 그리드 기반 분산 스폰: 적들이 겹치지 않도록 간격 보장
-            const float gridSpacing = 2.5f; // 적 간 최소 거리
+            const float gridSpacing = 1f; // 적 간 최소 거리
             int gridSize = (int)math.ceil(math.sqrt(toSpawn)); // 그리드 한 변 크기
 
             // 프리팹의 y 오프셋 미리 캐싱 (루프 내 반복 조회 방지)

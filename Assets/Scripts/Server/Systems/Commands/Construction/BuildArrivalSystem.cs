@@ -137,26 +137,25 @@ namespace Server
                     {
                         pendingData.ValueRW.RetryCount += 1;
 
+                        float actualDist = math.distance(
+                            new float3(unitPos.x, 0, unitPos.z),
+                            new float3(pending.BuildSiteCenter.x, 0, pending.BuildSiteCenter.z));
+
                         FixedString128Bytes retryMsg = "Build retry";
                         GameLogger.Field(ref retryMsg, "idx", entity.Index);
                         GameLogger.Field(ref retryMsg, "try", pendingData.ValueRO.RetryCount);
                         GameLogger.Pos(ref retryMsg, "pos", unitPos);
                         GameLogger.Pos(ref retryMsg, "site", pending.BuildSiteCenter);
+                        GameLogger.Field(ref retryMsg, "dist", (int)(actualDist * 100));
+                        GameLogger.Field(ref retryMsg, "need", (int)(arrivalDist * 100));
                         GameLogger.Warning(LogWorld.Server, LogCategory.Construction, in retryMsg);
 
-                        float3 toBuilder = unitPos - pending.BuildSiteCenter;
-                        toBuilder.y = 0;
-                        float dirLen = math.length(toBuilder);
-                        float destinationOffset = pending.StructureRadius + workRange * 0.5f;
-
-                        float3 newDest = dirLen > 0.01f
-                            ? pending.BuildSiteCenter + (toBuilder / dirLen) * destinationOffset
-                            : pending.BuildSiteCenter + new float3(destinationOffset, 0, 0);
-
+                        // 재시도: BuildSiteCenter 직접 목표 (건물 미배치 상태이므로 통과 가능)
+                        // offset 목적지가 도달 불가 셀에 배치되는 문제 방지
                         if (_movementGoalLookup.HasComponent(entity))
                         {
                             var goal = _movementGoalLookup.GetRefRW(entity);
-                            goal.ValueRW.Destination = newDest;
+                            goal.ValueRW.Destination = pending.BuildSiteCenter;
                             goal.ValueRW.IsPathDirty = true;
                         }
 
@@ -167,10 +166,16 @@ namespace Server
                     else
                     {
                         // 포기: PendingBuildServerData 제거 + Intent 복원
+                        float giveUpDist = math.distance(
+                            new float3(unitPos.x, 0, unitPos.z),
+                            new float3(pending.BuildSiteCenter.x, 0, pending.BuildSiteCenter.z));
+
                         FixedString128Bytes giveUpMsg = "Build giveup";
                         GameLogger.Field(ref giveUpMsg, "idx", entity.Index);
                         GameLogger.Pos(ref giveUpMsg, "pos", unitPos);
                         GameLogger.Pos(ref giveUpMsg, "site", pending.BuildSiteCenter);
+                        GameLogger.Field(ref giveUpMsg, "dist", (int)(giveUpDist * 100));
+                        GameLogger.Field(ref giveUpMsg, "need", (int)(arrivalDist * 100));
                         GameLogger.Warning(LogWorld.Server, LogCategory.Construction, in giveUpMsg);
 
                         ecb.RemoveComponent<PendingBuildServerData>(entity);

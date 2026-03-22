@@ -14,6 +14,7 @@ namespace Server
         public Entity Entity;
         public int DestinationKey;
         public int2 CurrentCell;
+        public byte IsDestAdjusted; // 1: 목적지가 blocked → 인근 passable 셀로 조정됨
     }
 
     [BurstCompile]
@@ -177,14 +178,33 @@ namespace Server
                 int destKey = destCell.y * gridSizeX + destCell.x;
                 int2 currentCell = GridUtility.WorldToGrid(transform.ValueRO.Position, gridSettings);
 
+                byte cellPadding = pathSize.ValueRO.CellPadding;
+                byte isDestAdjusted = 0;
+
+                // 목적지 passability 체크: blocked이면 인근 passable 셀로 조정
+                NativeArray<byte> passMap = cellPadding == 0
+                    ? cache.SmallPassabilityMap
+                    : cache.LargePassabilityMap;
+
+                if (passMap[destKey] != 0)
+                {
+                    int2 nearest = FindNearestPassableCell(destCell, passMap, gridSizeX, gridSizeY);
+                    if (nearest.x >= 0)
+                    {
+                        destCell = nearest;
+                        destKey = destCell.y * gridSizeX + destCell.x;
+                        isDestAdjusted = 1;
+                    }
+                }
+
                 var pending = new PendingFlowFieldUnit
                 {
                     Entity = entity,
                     DestinationKey = destKey,
                     CurrentCell = currentCell,
+                    IsDestAdjusted = isDestAdjusted,
                 };
 
-                byte cellPadding = pathSize.ValueRO.CellPadding;
                 if (cellPadding == 0)
                 {
                     smallUnits.Add(pending);
@@ -377,6 +397,43 @@ namespace Server
             return oldestIndex;
         }
 
+        /// <summary>
+        /// 목적지 셀이 blocked일 때 인근 passable 셀을 탐색 (링 방식, 최대 반경 10)
+        /// 찾지 못하면 (-1, -1) 반환
+        /// </summary>
+        static int2 FindNearestPassableCell(int2 center, NativeArray<byte> passMap, int gridSizeX, int gridSizeY)
+        {
+            for (int radius = 1; radius <= 10; radius++)
+            {
+                // 링의 네 변을 순회 (중복 없이)
+                for (int d = -radius; d <= radius; d++)
+                {
+                    // 상변: (center.x + d, center.y + radius)
+                    if (CheckPassable(center.x + d, center.y + radius, passMap, gridSizeX, gridSizeY))
+                        return new int2(center.x + d, center.y + radius);
+                    // 하변: (center.x + d, center.y - radius)
+                    if (CheckPassable(center.x + d, center.y - radius, passMap, gridSizeX, gridSizeY))
+                        return new int2(center.x + d, center.y - radius);
+                }
+                for (int d = -radius + 1; d < radius; d++)
+                {
+                    // 우변: (center.x + radius, center.y + d)
+                    if (CheckPassable(center.x + radius, center.y + d, passMap, gridSizeX, gridSizeY))
+                        return new int2(center.x + radius, center.y + d);
+                    // 좌변: (center.x - radius, center.y + d)
+                    if (CheckPassable(center.x - radius, center.y + d, passMap, gridSizeX, gridSizeY))
+                        return new int2(center.x - radius, center.y + d);
+                }
+            }
+            return new int2(-1, -1);
+        }
+
+        static bool CheckPassable(int x, int y, NativeArray<byte> passMap, int gridSizeX, int gridSizeY)
+        {
+            if (x < 0 || y < 0 || x >= gridSizeX || y >= gridSizeY) return false;
+            return passMap[y * gridSizeX + x] == 0;
+        }
+
         JobHandle ScheduleComputeJobs(
             NativeArray<int2> destinations,
             NativeArray<int> poolIndices,
@@ -442,6 +499,16 @@ namespace Server
 
                 var goal = goalLookup[entity];
                 goal.IsPathDirty = false;
+
+                // 목적지 조정 시 MovementGoal.Destination 갱신
+                if (pending.IsDestAdjusted == 1)
+                {
+                    int2 adjustedCell = new int2(
+                        pending.DestinationKey % gridSizeX,
+                        pending.DestinationKey / gridSizeX);
+                    goal.Destination = GridUtility.CellCenterToWorld(adjustedCell, gridSettings);
+                    goal.IsPathPartial = true;
+                }
 
                 // FlowFieldRef 할당
                 if (flowFieldRefLookup.HasComponent(entity))
