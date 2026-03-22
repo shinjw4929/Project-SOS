@@ -386,7 +386,7 @@ namespace Tests.EditMode.Utilities
         public void ResourceNodeExclusionDistance_HasExpectedValue()
         {
             // Assert
-            Assert.AreEqual(9, GridUtility.ResourceNodeExclusionDistance);
+            Assert.AreEqual(18, GridUtility.ResourceNodeExclusionDistance);
         }
 
         #endregion

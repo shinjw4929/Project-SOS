@@ -215,7 +215,7 @@ namespace Authoring
                     Radius = authoring.radius
                 });
 
-                // NavMeshAgentConfig는 MovementAuthoring에서 처리
+                // GridPathfindingSize, FlowFieldRef는 MovementAuthoring에서 처리
 
                 // =======================================================================
                 // 5. [전투 능력]

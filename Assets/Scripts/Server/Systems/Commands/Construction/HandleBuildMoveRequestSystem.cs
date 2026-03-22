@@ -148,7 +148,6 @@ namespace Server
                 }
 
                 goalRW.ValueRW.IsPathDirty = true;
-                goalRW.ValueRW.CurrentWaypointIndex = 0;
                 goalRW.ValueRW.DestinationSetTime = elapsedTime;
             }
 

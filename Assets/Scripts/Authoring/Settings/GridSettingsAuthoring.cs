@@ -8,8 +8,10 @@ namespace Authoring
 {
     public class GridSettingsAuthoring : MonoBehaviour
     {
-        public float cellSize = 1.0f;
+        public float cellSize = 0.5f;
         public int2 gridSize = new int2(100, 100);
+        [Tooltip("건설 스냅 단위 (셀 수). CellSize=0.5 + BuildSnapCells=2 → 1m 단위 스냅")]
+        [Min(1)] public int buildSnapCells = 2;
         public Transform groundTransform;
 
         public class Baker : Baker<GridSettingsAuthoring>
@@ -56,6 +58,7 @@ namespace Authoring
                     CellSize = authoring.cellSize,
                     GridOrigin = gridOrigin,
                     GridSize = new int2(gridX, gridZ),
+                    BuildSnapCells = authoring.buildSnapCells,
                 });
 
                 var buffer = AddBuffer<GridCell>(entity);
@@ -63,10 +66,11 @@ namespace Authoring
 
                 buffer.Length = totalCells;
 
-                var rawData = buffer.Reinterpret<byte>().AsNativeArray();
+                // GridCell = 2 byte (IsOccupied + IsPathBlocked), Reinterpret<byte> 불가
+                var rawData = buffer.AsNativeArray();
                 unsafe
                 {
-                    UnsafeUtility.MemSet(rawData.GetUnsafePtr(), 0, rawData.Length);
+                    UnsafeUtility.MemSet(rawData.GetUnsafePtr(), 0, totalCells * UnsafeUtility.SizeOf<GridCell>());
                 }
             }
         }

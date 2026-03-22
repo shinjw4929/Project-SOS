@@ -30,9 +30,9 @@ namespace Authoring
         [Tooltip("도착 판정 반경")]
         public float ArrivalRadius = 0.5f;
 
-        [Header("NavMesh Settings")]
-        [Tooltip("Unity Navigation Agents 탭에서의 순서 (0=첫번째, 1=두번째, ...)")]
-        public int AgentTypeIndex = 0;
+        [Header("Pathfinding Size")]
+        [Tooltip("Small(0): 좁은 통로 통과 가능, Large(1): 벽 사이 갭 차단")]
+        public byte PathfindingSize = 0;
 
         public class Baker : Baker<MovementAuthoring>
         {
@@ -59,7 +59,6 @@ namespace Authoring
                 {
                     Destination = default,
                     IsPathDirty = false,
-                    CurrentWaypointIndex = 0
                 });
 
                 // ==========================================================
@@ -76,19 +75,13 @@ namespace Authoring
                 SetComponentEnabled<MovementWaypoints>(entity, false);
 
                 // ==========================================================
-                // 4. Buffers (경로 저장소)
+                // 4. Flow Field 경로탐색
                 // ==========================================================
-                // 경로 탐색 결과 버퍼 (Server Only)
-                AddBuffer<PathWaypoint>(entity);
-
-                // ==========================================================
-                // 5. NavMesh
-                // ==========================================================
-                // NavMesh Agent 설정 (유닛 크기별 경로 계산용)
-                AddComponent(entity, new NavMeshAgentConfig
+                AddComponent(entity, new GridPathfindingSize
                 {
-                    AgentTypeIndex = authoring.AgentTypeIndex
+                    CellPadding = authoring.PathfindingSize
                 });
+                AddComponent(entity, new FlowFieldRef { Key = -1 });
 
                 // ==========================================================
                 // 6. Kinematic Mass (LocalTransform 직접 제어)

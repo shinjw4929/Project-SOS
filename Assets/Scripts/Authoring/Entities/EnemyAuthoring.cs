@@ -136,7 +136,7 @@ namespace Authoring
                 });
 
                 // 이동 관련 컴포넌트(MovementDynamics, MovementGoal, MovementWaypoints,
-                // PathWaypoint, NavMeshAgentConfig)는 MovementAuthoring에서 처리
+                // GridPathfindingSize, FlowFieldRef)는 MovementAuthoring에서 처리
 
                 // URPMaterialPropertyBaseColor + TeamColorTarget은 런타임 TeamColorSystem에서 자식 메시 엔티티에 자동 부착
             }

@@ -16,7 +16,7 @@ namespace Server
     /// <para>- 충돌 회피 및 벽 충돌 처리</para>
     /// </summary>
     [UpdateInGroup(typeof(SimulationSystemGroup))]
-    [UpdateAfter(typeof(PathfindingSystem))]
+    [UpdateAfter(typeof(FlowFieldSteeringSystem))]
     [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
     public partial struct PredictedMovementSystem : ISystem
     {

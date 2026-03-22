@@ -109,8 +109,9 @@ namespace Server
                 float3 unitPos = transform.ValueRO.Position;
                 float workRange = _workRangeLookup.TryGetComponent(entity, out var wr)
                     ? wr.Value : 1.0f;
+                // FlowField 셀 기반 이동 오차 보상 (셀 대각선 반 ≈ CellSize * 0.7)
                 float arrivalDist = ArrivalUtility.GetInteractionArrivalDistance(
-                    pending.StructureRadius, workRange);
+                    pending.StructureRadius, workRange) + 0.5f;
                 bool isInRange = ArrivalUtility.IsWithinInteractionRangeXZ(
                     unitPos, pending.BuildSiteCenter, arrivalDist);
 
@@ -157,7 +158,6 @@ namespace Server
                             var goal = _movementGoalLookup.GetRefRW(entity);
                             goal.ValueRW.Destination = newDest;
                             goal.ValueRW.IsPathDirty = true;
-                            goal.ValueRW.CurrentWaypointIndex = 0;
                         }
 
                         waypoints.ValueRW.ArrivalRadius =

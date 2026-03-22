@@ -143,7 +143,6 @@ namespace Server
                 RefRW<MovementGoal> goalRW = _movementGoalLookup.GetRefRW(unitEntity);
                 goalRW.ValueRW.Destination = rpc.TargetPosition;
                 goalRW.ValueRW.IsPathDirty = true;
-                goalRW.ValueRW.CurrentWaypointIndex = 0;
             }
 
             // 7. MovementWaypoints 활성화

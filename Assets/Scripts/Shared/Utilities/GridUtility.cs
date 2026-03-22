@@ -74,7 +74,7 @@ namespace Shared
                     int index = rowIndex + (startX + x);
                     
                     // 버퍼 범위 안전 장치 (위의 경계 검사가 통과했다면 사실상 불필요하지만 안전을 위해 유지 가능)
-                    if (buffer[index].IsOccupied)
+                    if (buffer[index].IsOccupied == 1)
                     {
                         return true;
                     }
@@ -100,7 +100,7 @@ namespace Shared
                     if (index >= 0 && index < buffer.Length)
                     {
                         var cell = buffer[index];
-                        cell.IsOccupied = true;
+                        cell.IsOccupied = 1;
                         buffer[index] = cell;
                     }
                 }
@@ -110,7 +110,7 @@ namespace Shared
         /// <summary>
         /// 자원 노드 주변 건설 제외 거리 (그리드 칸 수)
         /// </summary>
-        public const int ResourceNodeExclusionDistance = 9;
+        public const int ResourceNodeExclusionDistance = 18;
 
         /// <summary>
         /// 건설 위치가 자원 노드 제외 구역 내에 있는지 확인 (Burst 호환)
@@ -157,8 +157,152 @@ namespace Shared
                     if (index < buffer.Length)
                     {
                         var cell = buffer[index];
-                        cell.IsOccupied = false;
+                        cell.IsOccupied = 0;
                         buffer[index] = cell;
+                    }
+                }
+            }
+        }
+
+        // --- Flow Field 관련 메서드 ---
+
+        /// <summary>
+        /// 단일 셀 중심의 월드 좌표 반환 (XZ 평면, Y=0)
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static float3 CellCenterToWorld(int2 cell, GridSettings settings)
+        {
+            float2 center = settings.GridOrigin + (new float2(cell) + 0.5f) * settings.CellSize;
+            return new float3(center.x, 0, center.y);
+        }
+
+        /// <summary>
+        /// 범위 체크 + 경로탐색 차단 체크 (IsPathBlocked 기반)
+        /// 경계 밖은 blocked(통과 불가)로 처리
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool IsPassable(NativeArray<byte> map, int x, int y, int gridSizeX, int gridSizeY)
+        {
+            if (x < 0 || y < 0 || x >= gridSizeX || y >= gridSizeY)
+                return false;
+            return map[y * gridSizeX + x] == 0;
+        }
+
+        /// <summary>
+        /// 유닛 크기 고려 — 주변 셀 확장 체크
+        /// cellPadding=0: Small (자기 셀만), cellPadding=1: Large (주변 1칸 포함)
+        /// 경계 밖으로 확장되는 경우 blocked로 처리
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool IsPassableForSize(NativeArray<byte> map, int x, int y, int gridSizeX, int gridSizeY, int cellPadding)
+        {
+            for (int dy = -cellPadding; dy <= cellPadding; dy++)
+            {
+                for (int dx = -cellPadding; dx <= cellPadding; dx++)
+                {
+                    if (!IsPassable(map, x + dx, y + dy, gridSizeX, gridSizeY))
+                        return false;
+                }
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// GridCell 버퍼의 IsPathBlocked → 유닛 크기별 passability 맵 생성
+        /// 0 = passable, 1 = blocked
+        /// 전제 조건: output는 호출자가 gridSize.x * gridSize.y 크기로 할당해야 함
+        /// </summary>
+        public static void BuildPassabilityMap(DynamicBuffer<GridCell> cells, int2 gridSize, int cellPadding, NativeArray<byte> output)
+        {
+            int gridSizeX = gridSize.x;
+            int gridSizeY = gridSize.y;
+
+            // 1단계: GridCell.IsPathBlocked → raw 맵 추출
+            // cellPadding=0이면 raw 맵을 그대로 output에 쓰고 종료 (2단계 스킵)
+            if (cellPadding == 0)
+            {
+                for (int i = 0; i < cells.Length; i++)
+                {
+                    output[i] = cells[i].IsPathBlocked;
+                }
+                return;
+            }
+
+            // cellPadding > 0: raw 맵을 임시로 output에 쓴 뒤 확장 처리
+            // output을 raw 맵 저장소로 재사용하면 확장 시 이미 변경된 값을 읽게 되므로
+            // 별도 rawMap 할당 필요
+            var rawMap = new NativeArray<byte>(cells.Length, Allocator.Temp);
+            for (int i = 0; i < cells.Length; i++)
+            {
+                rawMap[i] = cells[i].IsPathBlocked;
+            }
+
+            // 2단계: cellPadding 확장 적용
+            for (int y = 0; y < gridSizeY; y++)
+            {
+                for (int x = 0; x < gridSizeX; x++)
+                {
+                    output[y * gridSizeX + x] = IsPassableForSize(rawMap, x, y, gridSizeX, gridSizeY, cellPadding)
+                        ? (byte)0
+                        : (byte)1;
+                }
+            }
+
+            rawMap.Dispose();
+        }
+
+        /// <summary>
+        /// 경로탐색 풋프린트 마킹 — 배치 풋프린트의 중앙 부분집합
+        /// 중앙 오프셋 자동 계산: offsetX = (width - pathWidth) / 2
+        /// </summary>
+        public static void MarkPathBlocked(DynamicBuffer<GridCell> cells, int gridX, int gridY,
+            int width, int length, int pathWidth, int pathLength, int gridSizeX)
+        {
+            int offsetX = (width - pathWidth) / 2;
+            int offsetY = (length - pathLength) / 2;
+
+            int startX = gridX + offsetX;
+            int startY = gridY + offsetY;
+
+            for (int dy = 0; dy < pathLength; dy++)
+            {
+                int rowIndex = (startY + dy) * gridSizeX;
+                for (int dx = 0; dx < pathWidth; dx++)
+                {
+                    int index = rowIndex + (startX + dx);
+                    if (index >= 0 && index < cells.Length)
+                    {
+                        var cell = cells[index];
+                        cell.IsPathBlocked = 1;
+                        cells[index] = cell;
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// 경로탐색 풋프린트 해제 — 배치 풋프린트의 중앙 부분집합
+        /// </summary>
+        public static void UnmarkPathBlocked(DynamicBuffer<GridCell> cells, int gridX, int gridY,
+            int width, int length, int pathWidth, int pathLength, int gridSizeX)
+        {
+            int offsetX = (width - pathWidth) / 2;
+            int offsetY = (length - pathLength) / 2;
+
+            int startX = gridX + offsetX;
+            int startY = gridY + offsetY;
+
+            for (int dy = 0; dy < pathLength; dy++)
+            {
+                int rowIndex = (startY + dy) * gridSizeX;
+                for (int dx = 0; dx < pathWidth; dx++)
+                {
+                    int index = rowIndex + (startX + dx);
+                    if (index >= 0 && index < cells.Length)
+                    {
+                        var cell = cells[index];
+                        cell.IsPathBlocked = 0;
+                        cells[index] = cell;
                     }
                 }
             }

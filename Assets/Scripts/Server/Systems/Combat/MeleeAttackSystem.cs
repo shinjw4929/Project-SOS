@@ -145,7 +145,6 @@ namespace Server
                     {
                         Destination = targetPos,
                         IsPathDirty = true,
-                        CurrentWaypointIndex = 0
                     });
                 }
             }

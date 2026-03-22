@@ -5,18 +5,24 @@ namespace Shared
     // 건물이 차지하는 크기 정보
     public struct StructureFootprint : IComponentData
     {
-        // 그리드 칸 수 (건설/점유 시스템용)
-        public int Width;  // 가로 칸 수
-        public int Length; // 세로 칸 수
-        public float Height; // 건물 높이
+        // 그리드 칸 수 — 건설/점유 시스템용 (배치 풋프린트)
+        public int Width;
+        public int Length;
+        public float Height;
 
-        // NavMeshObstacle용 실제 월드 크기
-        public float WorldWidth;  // 실제 가로 크기
-        public float WorldLength; // 실제 세로 크기
-        public float WorldHeight; // NavMeshObstacle 높이
+        // 경로탐색 풋프린트 — FlowField passability용
+        // 배치 풋프린트의 중앙에 위치 (오프셋 자동 계산)
+        // 벽: PathWidth < Width (반투과), 나머지: PathWidth = Width (완전 차단)
+        public int PathWidth;
+        public int PathLength;
 
-        // 원형 장애물 지원 (NavMeshObstacle Capsule 형태)
-        public bool IsCircular;   // 원형 여부 (true면 Capsule, false면 Box)
-        public float WorldRadius; // 원형일 때 반지름
+        // GridObstacle 밀어내기용 실제 월드 크기
+        public float WorldWidth;
+        public float WorldLength;
+        public float WorldHeight;
+
+        // 원형 장애물 지원 (GridObstacle 밀어내기)
+        public bool IsCircular;
+        public float WorldRadius;
     }
 }

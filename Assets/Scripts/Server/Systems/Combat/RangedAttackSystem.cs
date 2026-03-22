@@ -180,7 +180,6 @@ namespace Server
                 {
                     movementGoal.Destination = targetPos;
                     movementGoal.IsPathDirty = true;
-                    movementGoal.CurrentWaypointIndex = 0;
                 }
                 return;
             }
@@ -258,7 +257,6 @@ namespace Server
                     {
                         Destination = targetPos,
                         IsPathDirty = true,
-                        CurrentWaypointIndex = 0
                     });
                 }
                 return;

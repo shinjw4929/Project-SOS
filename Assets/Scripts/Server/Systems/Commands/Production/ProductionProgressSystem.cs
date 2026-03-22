@@ -39,12 +39,15 @@ namespace Server
             var ecb = ecbSingleton.CreateCommandBuffer(state.WorldUnmanaged).AsParallelWriter();
 
             // Job 스케줄링
+            var gridSettings = SystemAPI.GetSingleton<GridSettings>();
+
             new ProductionUpdateJob
             {
                 DeltaTime = deltaTime,
-                CatalogBuffer = catalogBuffer.AsNativeArray(), // 읽기 전용 NativeArray로 변환
+                CellSize = gridSettings.CellSize,
+                CatalogBuffer = catalogBuffer.AsNativeArray(),
                 Ecb = ecb,
-                TransformLookup = _transformLookup // 4. Job에 Lookup 전달
+                TransformLookup = _transformLookup
             }.ScheduleParallel();
         }
     }
@@ -54,6 +57,7 @@ namespace Server
     public partial struct ProductionUpdateJob : IJobEntity
     {
         public float DeltaTime;
+        public float CellSize;
         [ReadOnly] public NativeArray<UnitCatalogElement> CatalogBuffer;
         public EntityCommandBuffer.ParallelWriter Ecb;
         [ReadOnly] public ComponentLookup<LocalTransform> TransformLookup;
@@ -82,12 +86,13 @@ namespace Server
                     Entity prefab = CatalogBuffer[unitIndex].PrefabEntity;
                     
                     
-                    float xOffset = (footprint.Width * 0.5f) + 1.0f;
-                    float zOffset = (footprint.Length * 0.5f) + 1.0f;
+                    // 건물 월드 반크기 + 1m 여유
+                    float halfWorldWidth = footprint.Width * CellSize * 0.5f;
+                    float halfWorldLength = footprint.Length * CellSize * 0.5f;
                     float3 spawnPos = new float3(
-                        transform.Position.x + xOffset, 
-                        0f, 
-                        transform.Position.z - zOffset
+                        transform.Position.x + halfWorldWidth + 1.0f,
+                        0f,
+                        transform.Position.z - halfWorldLength - 1.0f
                     );
                     
                     // 유닛 스폰 명령 예약

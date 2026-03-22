@@ -1,4 +1,4 @@
-# 엔티티 이동 시스템(navmesh)
+# 엔티티 이동 시스템 (Flow Field)
 
 # 전체 흐름
 
@@ -11,9 +11,13 @@
 SpatialMapBuildSystem → MovementMap 빌드 (셀 크기: 3.0f)
     ↓
 [SimulationSystemGroup]
-PathfindingSystem → NavMeshQuery 8개 병렬 IJob 경로 계산 + Funnel 알고리즘 → PathWaypoint 버퍼 (최대 512개/프레임)
+GridObstacleResponseSystem → 건물 건설 시 IsPathBlocked 마킹 + 유닛 밀어내기 + 캐시 무효화
     ↓
-PathFollowSystem → MovementWaypoints.Current/Next 공급
+GridObstacleCleanupSystem → 건물 파괴 시 IsPathBlocked 해제 + 캐시 무효화
+    ↓
+FlowFieldSystem → BFS 기반 Flow Field 계산 (LRU 캐시, 8 IJob 병렬) → FlowFieldRef 할당
+    ↓
+FlowFieldSteeringSystem → Flow Field 방향 조회 → MovementWaypoints.Current/Next 공급
     ↓
 PredictedMovementSystem → LocalTransform 직접 이동 (SpatialMaps.MovementMap 사용)
     ↓
@@ -23,11 +27,13 @@ MovementArrivalSystem → 도착 판정 → 이동 정지 + Intent.Idle 전환
 # 핵심 설계 포인트
 
 1. 서버 권위 모델: 모든 이동 계산은 서버에서 수행, 클라이언트는 Ghost 보간으로 시각화
-2. 3계층 구조: MovementGoal(명령) → PathWaypoint(계획) → MovementWaypoints(실행)
+2. 2계층 구조: MovementGoal(명령) → MovementWaypoints(실행). FlowField가 매 프레임 방향을 주입하므로 별도 웨이포인트 버퍼 불필요
 3. Kinematic 이동: PhysicsVelocity가 아닌 LocalTransform.Position 직접 수정
 4. 대역폭 최적화: MovementWaypoints/MovementGoal 필드는 서버 전용 ([GhostField] 없음), PhysicsVelocity도 동기화 안 함 (Quantization=0). Ghost enabled 상태와 LocalTransform만 동기화
 5. 공간 분할 충돌 회피: SpatialMaps.MovementMap(셀 크기 3.0f)을 사용한 Entity 기반 Separation
 6. AttackMove 지원: 이동 중 적 자동 감지 (Intent.AttackMove 상태)
+7. 단일 그리드: 0.5m 셀, 배치(IsOccupied)와 경로탐색(IsPathBlocked) 분리
+8. 벽 반투과: 배치 4×4, 경로탐색 2×2 중앙 → Small 유닛 통과, Large 유닛 차단
 
 ## 클라이언트 시스템 (Client/Systems/)
 
@@ -53,58 +59,64 @@ MovementArrivalSystem → 도착 판정 → 이동 정지 + Intent.Idle 전환
 파일: HandleMoveRequestSystem.cs
 그룹: SimulationSystemGroup
 역할: MoveRequestRpc 수신 → 소유권 검증 → MovementGoal.Destination 설정
-- IsPathDirty=true, CurrentWaypointIndex=0
+- IsPathDirty=true
 - UnitIntentState = rpc.IsAttackMove ? Intent.AttackMove : Intent.Move
 - AggroTarget 초기화 (공격 대상 제거)
 - MovementWaypoints 활성화 (SetComponentEnabled)
 
 ---
 
-### 이동 시스템 (Server/Systems/Movement/)
+### 장애물 시스템 (Server/Systems/Movement/)
 
-파일: NavMeshObstacleSpawnSystem.cs
-그룹: SimulationSystemGroup
-역할: 건물 생성 시 NavMeshObstacle GameObject 동적 생성
-- NeedsNavMeshObstacle 태그 감지 → NavMeshObstacle 생성
-- Carving 설정: carveOnlyStationary=true, carvingTimeToStationary=0.5초 (스파이크 방지)
-- 건물 내부 엔티티(유닛/적) 자동 밀어내기: 건물 footprint + ObstacleRadius + 0.3f 바깥으로 위치 이동
+파일: GridObstacleResponseSystem.cs
+그룹: SimulationSystemGroup (UpdateBefore: FlowFieldSystem)
+역할: 건물 건설 시 경로탐색 차단 + 유닛 밀어내기
+- NeedsNavMeshObstacle 태그 감지 → IsPathBlocked 마킹 (MarkPathBlocked, 경로탐색 풋프린트 중앙)
+- GridObstacleCleanup ICleanupComponentData 부착
+- FlowFieldCacheData.IsGridStale=true 설정 (캐시 전체 무효화 트리거)
+- 건물 내부 엔티티 자동 밀어내기: WorldWidth/WorldLength + ObstacleRadius 바깥으로
 - 8m 반경 내 이동 중인 유닛/적 경로 무효화 (IsPathDirty=true)
+- NeedsNavMeshObstacle 비활성화
 ---
-파일: NavMeshObstacleCleanupSystem.cs
-그룹: SimulationSystemGroup (UpdateAfter: ServerDeathSystem)
-역할: 건물 파괴 시 NavMeshObstacle GameObject 제거 + 주변 경로 무효화 + Dormant 적 깨우기
-- NavMeshObstacleReference(Cleanup 컴포넌트)로 파괴된 건물 감지
-- GameObject.transform.position에서 위치 획득 (Cleanup 엔티티는 LocalTransform 없음)
+파일: GridObstacleCleanupSystem.cs
+그룹: SimulationSystemGroup (UpdateAfter: ServerDeathSystem, UpdateBefore: FlowFieldSystem)
+역할: 건물 파괴 시 경로탐색 차단 해제 + 캐시 무효화 + Dormant 적 깨우기
+- GridObstacleCleanup(ICleanupComponentData) + WithNone<StructureTag, ResourceNodeTag>로 파괴된 건물 감지
+- UnmarkPathBlocked로 IsPathBlocked 해제
+- FlowFieldCacheData.IsGridStale=true 설정
 - EnemyTag: 12m 반경 내 Dormant 적 즉시 `EnemyContext.Idle`로 전환 + IsPathPartial 적 경로 무효화
 - UnitTag: 12m 반경 내 IsPathPartial 유닛 경로 무효화
-- NavMeshObstacle GameObject 파괴 + Cleanup 컴포넌트 제거
+- GridObstacleCleanup 컴포넌트 제거
+
 ---
-파일: PathfindingSystem.cs
-그룹: SimulationSystemGroup (UpdateAfter: NavMeshObstacleSpawnSystem)
-타입: `partial struct PathfindingSystem : ISystem` (unmanaged)
-역할: IsPathDirty=true인 유닛 감지 → NavMeshQuery 8개 병렬 IJob → PathWaypoint 버퍼 채우기
-- **3단계 파이프라인**: Collect(메인) → Compute(8 IJob 병렬) → Apply(메인)
-  - Phase 1 Collect: IsPathDirty 엔티티를 PathRequest 배열에 수집 (초기 1024, 동적 2배 확장)
-  - Phase 2 Compute: PathComputeJob 8개를 Schedule, 각 워커가 비겹침 인덱스 범위 처리
-  - Phase 3 Apply: 결과를 ComponentLookup으로 PathWaypoint 버퍼, MovementGoal, MovementWaypoints에 반영
-- **NavMeshQuery 병렬화**: 8개 독립 NavMeshQuery (struct 복사, IntPtr 핸들 공유 → 안전)
-- **Funnel 알고리즘**: `NavMeshPathUtils.FindStraightPath`로 폴리곤 경로를 직선 웨이포인트로 변환
-- **lazy 초기화**: NavMeshQuery 8개는 NavMeshWorld가 유효해진 후 생성
-- Agent ID 캐싱으로 NavMesh.GetSettingsByIndex 호출 최소화
-- `MapLocation`으로 시작/끝 위치를 NavMesh 위에 매핑 (SampleExtent: 5.0f)
-- **Partial Path 처리**: 마지막 폴리곤 != 목적지 폴리곤 감지 → 마지막 웨이포인트(도달 불가능한 endPos) 제거 → `MovementGoal.IsPathPartial = true` 설정
-- ProcessFirstWaypoint: Look-ahead 로직으로 지나친 웨이포인트 스킵 (값 기반 ref 시그니처)
-- 최대 경로 길이: 64개, 폴리곤 노드 풀: 256개, 워커 수: 8개
-- **Persistent 메모리**: 모든 NativeArray를 Persistent로 할당, 프레임 간 재사용 (GC 0)
+
+### 이동 시스템 (Server/Systems/Movement/)
+
+파일: FlowFieldSystem.cs
+그룹: SimulationSystemGroup (UpdateAfter: GridObstacleResponseSystem)
+역할: BFS 기반 Flow Field 계산 + LRU 캐시 관리
+- **4단계 파이프라인**: Phase0(Passability) → Collect(메인) → Compute(8 IJob 병렬) → Apply(메인)
+  - Phase 0: IsGridStale 시에만 passability 맵 재생성 (Small/Large 각각)
+  - Collect: IsPathDirty 유닛 수집 (WithNone<FlyingTag>), 목적지 셀 추출, 캐시 히트/미스 분류
+  - Compute: 캐시 미스 목적지에 대해 FlowFieldComputeJob 8개 병렬 BFS (Small 완료 → Large 순차)
+  - Apply: FlowFieldRef 할당, MovementWaypoints 활성화, Partial Path 판정 (8방향 1단계)
+- **Flying 유닛**: 별도 처리 (직선 이동, FlowField 스킵)
+- **LRU 캐시**: 32 필드 × 2풀(Small/Large), Flat NativeArray + NativeHashMap, 그리드 변경 시 전체 무효화
+- **Persistent 메모리**: 워커 8세트 (BfsQueue, Visited, CostMap) + FlowFieldCacheData 싱글톤
 ---
-파일: PathFollowSystem.cs
-그룹: SimulationSystemGroup (UpdateAfter: PathfindingSystem, UpdateBefore: PredictedMovementSystem)
-역할: PathWaypoint 버퍼 관리 및 MovementWaypoints.Next 공급
-- 동기화 체크: PredictedMovementSystem이 웨이포인트 도착 시 인덱스 증가
-- Next 웨이포인트 미리 채워 코너링/부드러운 전환 지원
+파일: FlowFieldSteeringSystem.cs
+그룹: SimulationSystemGroup (UpdateAfter: FlowFieldSystem, UpdateBefore: PredictedMovementSystem)
+역할: Flow Field 방향 조회 → MovementWaypoints 주입
+- 매 프레임 이동 중 유닛(MovementWaypoints enabled, WithNone<FlyingTag>) 순회
+- FlowFieldRef.Key로 캐시에서 Flow Field 조회, CellPadding으로 Small/Large 분기
+- 현재 셀 방향 → 다음 셀 좌표 변환 → CellCenterToWorld
+- 목적지 셀 판정: **좌표 비교** (currentCell == destCell), Current = Destination, HasNext = false
+- 중간 셀: 2단계 look-ahead → HasNext = true, Next = look-ahead 셀 중심
+- 캐시 미스 시: IsPathDirty=true (lazy re-pathing)
+- FlowFieldRef.Key == -1 스킵
 ---
 파일: PredictedMovementSystem.cs
-그룹: SimulationSystemGroup (UpdateAfter: PathfindingSystem)
+그룹: SimulationSystemGroup (UpdateAfter: FlowFieldSteeringSystem)
 역할: 핵심 이동 시스템
 - Kinematic 방식: LocalTransform.Position 직접 수정
 - 가속/감속 적용 (MovementDynamics)
@@ -129,7 +141,7 @@ MovementArrivalSystem → 도착 판정 → 이동 정지 + Intent.Idle 전환
 
 | 파일 | 베이킹 컴포넌트 |
 | --- | --- |
-| MovementAuthoring.cs | MovementDynamics, MovementGoal, MovementWaypoints(비활성화), PathWaypoint 버퍼, NavMeshAgentConfig, Kinematic Mass (Rigidbody 없을 때만) |
+| MovementAuthoring.cs | MovementDynamics, MovementGoal, MovementWaypoints(비활성화), GridPathfindingSize, FlowFieldRef(Key=-1), Kinematic Mass (Rigidbody 없을 때만) |
 | UnitMovementAuthoring.cs | UnitIntentState, UnitActionState, UnitCommand 버퍼. RequireComponent(MovementAuthoring) |
 
 ### MovementAuthoring 인스펙터 설정
@@ -141,20 +153,16 @@ MovementArrivalSystem → 도착 판정 → 이동 정지 + Intent.Idle 전환
 | Deceleration | 240.0 | 감속도 (m/s²) |
 | RotationSpeed | 12.0 | 회전 속도 (rad/s) |
 | ArrivalRadius | 0.5 | 도착 판정 반경 |
-| AgentTypeIndex | 0 | Unity Navigation Agents 탭 순서 |
+| PathfindingSize | 0 | 0=Small (좁은 통로 통과), 1=Large (벽 사이 갭 차단) |
 
 ## 유틸리티
-
-### Server/Utilities/
-
-| 파일 | 역할 |
-| --- | --- |
-| NavMeshPathUtils.cs | Funnel 알고리즘(String-Pulling) 기반 폴리곤 경로 → 직선 웨이포인트 변환. `[BurstCompile]` 적용. `NavMeshQuery.GetPortalPoints`로 포탈 에지 획득, XZ 평면 Cross Product로 funnel 좁히기 수행 |
 
 ### Shared/Utilities/
 
 | 파일 | 역할 |
 | --- | --- |
+| FlowFieldCore.cs | BFS 기반 Flow Field 계산 (8방향, 코너 차단, 직교 우선 탐색). 방향 인코딩 0-7 + 255=None. `[BurstCompile]` struct, IJob 내부 호출 |
+| GridUtility.cs | 그리드 좌표 변환, CellCenterToWorld, IsPassable, IsPassableForSize, BuildPassabilityMap, MarkPathBlocked/UnmarkPathBlocked |
 | MovementMath.cs | 감속 거리 계산(CalculateSlowingDistance), 목표 속도 계산(CalculateTargetSpeed), 가속/감속 적용(CalculateNewSpeed) |
 | SpatialHashUtility.cs | 공간 분할 해시 계산 (중앙 집중화) |
 
@@ -166,44 +174,32 @@ MovementArrivalSystem → 도착 판정 → 이동 정지 + Intent.Idle 전환
 | MovementCellSize | 3.0f | 이동/충돌 회피용 셀 크기 |
 | CapacityMultiplier | 1.5f | 해시 충돌 방지 여유 계수 |
 
-### SpatialHashUtility 주요 함수
-
-| 함수 | 역할 |
-| --- | --- |
-| GetCellHash(pos, cellSize) | 위치 기반 셀 해시 계산 |
-| GetCellHash(pos, xOff, zOff, cellSize) | 오프셋 적용 셀 해시 (인접 셀 탐색용) |
-| GetCellRange(pos, radius, cellSize, out min, out max) | 대형 유닛 AABB 셀 범위 계산 |
-| IsLargeEntity(radius, cellSize) | 대형 유닛 여부 (radius > cellSize * 0.5f) |
-
 ## 컴포넌트 (Shared/Components/Movement/)
 
 | 파일 | 역할 |
 | --- | --- |
-| MovementGoal.cs | 최종 목적지(Destination), 경로 재계산 플래그(IsPathDirty), 웨이포인트 인덱스(CurrentWaypointIndex, TotalWaypoints), Partial 경로 플래그(IsPathPartial), 목적지 설정 시간(DestinationSetTime), 마지막 위치 체크(LastPositionCheck, LastPositionCheckTime), Dormant 깨어남 시간(DormantWakeTime) |
+| MovementGoal.cs | 최종 목적지(Destination), 경로 재계산 플래그(IsPathDirty), Partial 경로 플래그(IsPathPartial), 목적지 설정 시간(DestinationSetTime), 마지막 위치 체크(LastPositionCheck, LastPositionCheckTime), Dormant 깨어남 시간(DormantWakeTime). `[MarshalAs(UnmanagedType.U1)]` 적용 (IsPathDirty, IsPathPartial) |
 | MovementWaypoints.cs | 현재 이동 목표(Current), 다음 지점(Next), HasNext, ArrivalRadius. IEnableableComponent로 이동 중/정지 상태 토글 |
 | MovementDynamics.cs | 유닛 이동 파라미터: MaxSpeed, Acceleration, Deceleration, RotationSpeed |
-| NavMeshAgentConfig.cs | Unity NavMesh Agent Type 인덱스 참조 (유닛 크기별 경로 계산) |
+| GridPathfindingSize.cs | 유닛 경로탐색 크기. CellPadding=0: Small, CellPadding=1: Large |
+| FlowFieldRef.cs | Flow Field 캐시 조회 키 (destinationKey = destCell.y * gridSizeX + destCell.x). Key=-1: 미할당 |
 
 ### Ghost 동기화 필드
 
 | 컴포넌트 | 동기화 | 비동기화 필드 (서버 전용) |
 | --- | --- | --- |
-| MovementGoal | enabled 상태만 | Destination, IsPathDirty, CurrentWaypointIndex, TotalWaypoints, IsPathPartial, DestinationSetTime, LastPositionCheck, LastPositionCheckTime, DormantWakeTime |
+| MovementGoal | enabled 상태만 | Destination, IsPathDirty, IsPathPartial, DestinationSetTime, LastPositionCheck, LastPositionCheckTime, DormantWakeTime |
 | MovementWaypoints | enabled 상태만 | Current, Next, HasNext, ArrivalRadius |
 | PhysicsVelocity | 없음 (Quantization=0) | Linear, Angular (PhysicsVelocityGhostOverride) |
 
-**대역폭 최적화 근거**: 이동 시스템(PathfindingSystem, PathFollowSystem, PredictedMovementSystem)은 전부 서버 전용. 클라이언트는 Ghost 보간된 LocalTransform만으로 시각화하므로 이동 관련 필드 동기화 불필요. Ghost당 ~53바이트 절감.
-
-## 버퍼 (Shared/Buffers/)
-
-| 파일 | 역할 |
-| --- | --- |
-| PathWaypoint.cs | NavMesh 경로 계산 결과 저장. 서버 전용 (클라이언트 동기화 안함 - 대역폭 최적화) |
+**대역폭 최적화 근거**: 이동 시스템(FlowFieldSystem, FlowFieldSteeringSystem, PredictedMovementSystem)은 전부 서버 전용. 클라이언트는 Ghost 보간된 LocalTransform만으로 시각화하므로 이동 관련 필드 동기화 불필요.
 
 ## 싱글톤 (Shared/Singletons/)
 
 | 파일 | 역할 |
 | --- | --- |
+| FlowFieldCacheData.cs | Flow Field 캐시 싱글톤. Small/Large FieldPool + KeyToPoolIndex(NativeHashMap) + LastUsedFrame(LRU) + PassabilityMap. IsGridStale 플래그로 전체 무효화 |
+| GridSettings.cs | 그리드 설정. CellSize(0.5f), GridOrigin, GridSize(200×200), BuildSnapCells(2) |
 | SpatialMaps.cs | 공간 분할 맵 싱글톤. TargetingMap(10.0f) + MovementMap(3.0f) 저장, IsValid 프로퍼티 |
 
 ## 시스템 실행 순서
@@ -220,19 +216,23 @@ HandleMoveRequestSystem
     → MoveRequestRpc 수신
     → MovementGoal 설정, Intent 설정, MovementWaypoints 활성화
     ↓
-NavMeshObstacleSpawnSystem
-    → 건물 NavMeshObstacle 생성, 주변 경로 무효화
+GridObstacleResponseSystem (UpdateBefore: FlowFieldSystem)
+    → 건물 IsPathBlocked 마킹 + 유닛 밀어내기 + IsGridStale=true
     ↓
-PathfindingSystem (UpdateAfter: NavMeshObstacleSpawnSystem)
-    → Phase 1: IsPathDirty=true 수집 → PathRequest 배열 (초기 1024, 동적 확장)
-    → Phase 2: PathComputeJob × 8 병렬 Schedule (NavMeshQuery 8개)
-    → Phase 3: 결과 Apply (ComponentLookup으로 PathWaypoint 버퍼 채우기)
+GridObstacleCleanupSystem (UpdateAfter: ServerDeathSystem, UpdateBefore: FlowFieldSystem)
+    → 건물 파괴 시 IsPathBlocked 해제 + IsGridStale=true
     ↓
-PathFollowSystem (UpdateAfter: PathfindingSystem, UpdateBefore: PredictedMovementSystem)
-    → CurrentWaypointIndex 증가
-    → MovementWaypoints.Next 공급
+FlowFieldSystem (UpdateAfter: GridObstacleResponseSystem)
+    → Phase 0: IsGridStale → passability 맵 재생성 + 캐시 무효화
+    → Phase 1: IsPathDirty=true 수집, 목적지 셀 추출, 캐시 히트/미스 분류
+    → Phase 2: FlowFieldComputeJob × 8 병렬 BFS (Small → Large 순차)
+    → Phase 3: FlowFieldRef 할당, MovementWaypoints 활성화, Partial Path 판정
     ↓
-PredictedMovementSystem (UpdateAfter: PathfindingSystem)
+FlowFieldSteeringSystem (UpdateAfter: FlowFieldSystem, UpdateBefore: PredictedMovementSystem)
+    → Flow Field 방향 조회 → MovementWaypoints.Current/Next 주입
+    → 2단계 look-ahead, 캐시 미스 시 lazy re-pathing
+    ↓
+PredictedMovementSystem (UpdateAfter: FlowFieldSteeringSystem)
     → LocalTransform.Position 직접 수정
     → SpatialMaps.MovementMap 기반 Separation
     → 벽 충돌 미끄러짐
@@ -286,14 +286,3 @@ float forceMag = overlap * (1.0f + overlapRatio * 3.0f);
 
 1. **ResolveWallCollision (velocity 기반)**: 이동 방향 Raycast + 전방향 PointDistance → 속도 벡터에서 법선 성분 제거 (미끄러짐)
 2. **ClampToWall (안전망, 반복)**: `transform.Position` 업데이트 후, 벽과 겹침(overlap > 0.05f)이면 SurfaceNormal 방향으로 밀어내기. **최대 3회 반복**하여 코너(두 벽 교차) 관통 방지. 조기 종료 조건: 벽 미검출, 오차 이내, 무효 법선.
-
-```
-실행 흐름:
-  position += velocity*dt → ClampToWall(반복)
-```
-
-```csharp
-// 유닛: 속도 절대값 유지 (미끄러지면서도 동일 속력)
-// 적: 기존 로직 (속도 감소 가능)
-// 위치 보정: flying이 아닌 엔티티만 적용
-```

@@ -107,7 +107,7 @@ namespace Shared
                     if (index >= 0 && index < gridBuffer.Length)
                     {
                         var cell = gridBuffer[index];
-                        cell.IsOccupied = true;
+                        cell.IsOccupied = 1;
                         gridBuffer[index] = cell;
                     }
                 }
@@ -153,7 +153,7 @@ namespace Shared
                     if (index >= 0 && index < gridBuffer.Length)
                     {
                         var cell = gridBuffer[index];
-                        cell.IsOccupied = false;
+                        cell.IsOccupied = 0;
                         gridBuffer[index] = cell;
                     }
                 }

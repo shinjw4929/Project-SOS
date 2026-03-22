@@ -55,17 +55,23 @@ namespace Shared
                 // 2. 컴포넌트 직접 수정 (ECB 불필요, 즉시 반영)
                 gridPos.ValueRW.Position = calculatedGridPos;
 
-                // 3. 그리드 버퍼 직접 수정 (ECB 불필요, 즉시 반영)
-                //    데이터 값 변경은 ECB를 거치지 않고 직접 하는 것이 성능상 유리합니다.
+                // 3. 그리드 버퍼 직접 수정 — IsOccupied + IsPathBlocked 이중 마킹 (1회성 초기화)
                 GridUtility.MarkOccupied(
-                    gridBuffer, 
-                    calculatedGridPos, 
-                    footprint.ValueRO.Width, 
-                    footprint.ValueRO.Length, 
+                    gridBuffer,
+                    calculatedGridPos,
+                    footprint.ValueRO.Width,
+                    footprint.ValueRO.Length,
+                    gridSettings.GridSize.x
+                );
+                GridUtility.MarkPathBlocked(
+                    gridBuffer,
+                    calculatedGridPos.x, calculatedGridPos.y,
+                    footprint.ValueRO.Width, footprint.ValueRO.Length,
+                    footprint.ValueRO.PathWidth, footprint.ValueRO.PathLength,
                     gridSettings.GridSize.x
                 );
 
-                // 4. NavMeshObstacle 활성화
+                // 4. GridObstacle 활성화
                 if (SystemAPI.HasComponent<NeedsNavMeshObstacle>(entity))
                 {
                     ecb.SetComponentEnabled<NeedsNavMeshObstacle>(entity, true);

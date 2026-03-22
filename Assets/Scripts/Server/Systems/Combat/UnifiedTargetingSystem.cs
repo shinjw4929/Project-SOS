@@ -20,7 +20,7 @@ namespace Server
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     [UpdateAfter(typeof(SpatialPartitioningGroup))]
     [UpdateAfter(typeof(HandleAttackRequestSystem))]
-    [UpdateBefore(typeof(PathfindingSystem))]
+    [UpdateBefore(typeof(FlowFieldSystem))]
     [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
     [BurstCompile]
     public partial struct UnifiedTargetingSystem : ISystem

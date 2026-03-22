@@ -7,20 +7,24 @@ namespace Authoring
 {
     public class ResourceNodeAuthoring : MonoBehaviour
     {
-        [Header("Grid Size (그리드 칸 수)")]
-        [Min(1)] public int width = 1;
-        [Min(1)] public int length = 1;
+        [Header("Grid Size (그리드 칸 수, 0.5m 셀 기준)")]
+        [Min(1)] public int width = 2;
+        [Min(1)] public int length = 2;
         public float height = 1f;
 
-        [Header("World Size (실제 크기, NavMeshObstacle용)")]
+        [Header("Pathfinding Size (경로탐색 점유, 0.5m 셀 기준)")]
+        [Min(1)] public int pathWidth = 2;
+        [Min(1)] public int pathLength = 2;
+
+        [Header("World Size (GridObstacle 밀어내기용)")]
         [Min(0.1f)] public float worldWidth = 1f;
         [Min(0.1f)] public float worldLength = 1f;
         [Min(0.1f)] public float navMeshHeight = 1f;
 
-        [Header("Shape (NavMeshObstacle 형태)")]
+        [Header("Shape (GridObstacle 형태)")]
         [Tooltip("원형 콜라이더(Capsule/Sphere)를 사용하는 경우 체크")]
         public bool isCircular = true;
-        [Tooltip("원형일 때 NavMeshObstacle 캡슐 반지름")]
+        [Tooltip("원형일 때 장애물 캡슐 반지름")]
         [Min(0.1f)] public float navMeshRadius = 1.5f;
 
         [Header("Interaction (상호작용 반지름)")]
@@ -61,6 +65,8 @@ namespace Authoring
                     Width = authoring.width,
                     Length = authoring.length,
                     Height = authoring.height,
+                    PathWidth = authoring.pathWidth,
+                    PathLength = authoring.pathLength,
                     WorldWidth = authoring.worldWidth,
                     WorldLength = authoring.worldLength,
                     WorldHeight = authoring.navMeshHeight,
@@ -71,7 +77,7 @@ namespace Authoring
                 // 그리드 위치
                 AddComponent(entity, new GridPosition { Position = int2.zero });
 
-                // NavMesh Obstacle 경로 탐색 장애물 (서버 전용)
+                // GridObstacle 경로 탐색 장애물 (서버 전용)
                 // ObstacleGridInitSystem에서 활성화됨
                 AddComponent(entity, new NeedsNavMeshObstacle());
                 SetComponentEnabled<NeedsNavMeshObstacle>(entity, false); // 초기 비활성화

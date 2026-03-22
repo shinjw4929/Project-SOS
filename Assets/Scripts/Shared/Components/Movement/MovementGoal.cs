@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.NetCode;
@@ -13,12 +14,10 @@ namespace Shared
         // 최종 목적지 [서버 전용]
         public float3 Destination;
         // 새 경로 계산이 필요한지 여부 [서버만 사용]
+        [MarshalAs(UnmanagedType.U1)]
         public bool IsPathDirty;
-        // 현재 따라가는 웨이포인트 인덱스 [서버만 사용]
-        public byte CurrentWaypointIndex;
-        //총 웨이포인트 개수 [서버만 사용]
-        public byte TotalWaypoints;
         // 경로가 목적지에 도달하지 못함 (partial path) [서버만 사용]
+        [MarshalAs(UnmanagedType.U1)]
         public bool IsPathPartial;
         // 목적지 설정 시간 (Partial Path 재시도용) [서버만 사용]
         public float DestinationSetTime;
