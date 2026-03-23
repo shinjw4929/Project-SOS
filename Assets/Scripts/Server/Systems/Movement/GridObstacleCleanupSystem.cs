@@ -15,7 +15,7 @@ namespace Server
     [UpdateBefore(typeof(FlowFieldSystem))]
     public partial struct GridObstacleCleanupSystem : ISystem
     {
-        const float PartialPathInvalidationRadius = 12f;
+        const float DefaultPartialPathInvalidationRadius = 12f;
 
         public void OnCreate(ref SystemState state)
         {
@@ -28,6 +28,8 @@ namespace Server
             var gridEntity = SystemAPI.GetSingletonEntity<GridSettings>();
             var gridBuffer = SystemAPI.GetBuffer<GridCell>(gridEntity);
             int gridSizeX = gridSettings.GridSize.x;
+            float partialRadius = SystemAPI.TryGetSingleton<GameSettings>(out var gs)
+                ? gs.PartialPathInvalidationRadius : DefaultPartialPathInvalidationRadius;
 
             var ecb = new EntityCommandBuffer(Allocator.Temp);
             bool anyProcessed = false;
@@ -43,11 +45,13 @@ namespace Server
 
                 var data = cleanup.ValueRO;
 
-                // IsPathBlocked 해제 (경로탐색 풋프린트)
+                // IsPathBlocked 해제 (경로탐색 풋프린트, PathWidth = max(1, Width-2) 파생)
+                int pathWidth = math.max(1, data.Width - 2);
+                int pathLength = math.max(1, data.Length - 2);
                 GridUtility.UnmarkPathBlocked(gridBuffer,
                     data.GridPosition.x, data.GridPosition.y,
                     data.Width, data.Length,
-                    data.PathWidth, data.PathLength,
+                    pathWidth, pathLength,
                     gridSizeX);
 
                 // 월드 좌표 복원 (밀어내기/Dormant 깨우기 반경 계산용)
@@ -74,7 +78,7 @@ namespace Server
             ecb.Dispose();
 
             // 주변 Partial Path 무효화 + Dormant 적 깨우기
-            float radiusSq = PartialPathInvalidationRadius * PartialPathInvalidationRadius;
+            float radiusSq = partialRadius * partialRadius;
 
             // EnemyTag: Dormant 깨우기 + Partial Path 무효화
             foreach (var (goal, transform, enemyState) in

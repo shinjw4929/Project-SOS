@@ -63,11 +63,13 @@ namespace Shared
                     footprint.ValueRO.Length,
                     gridSettings.GridSize.x
                 );
+                int pathWidth = math.max(1, footprint.ValueRO.Width - 2);
+                int pathLength = math.max(1, footprint.ValueRO.Length - 2);
                 GridUtility.MarkPathBlocked(
                     gridBuffer,
                     calculatedGridPos.x, calculatedGridPos.y,
                     footprint.ValueRO.Width, footprint.ValueRO.Length,
-                    footprint.ValueRO.PathWidth, footprint.ValueRO.PathLength,
+                    pathWidth, pathLength,
                     gridSettings.GridSize.x
                 );
 

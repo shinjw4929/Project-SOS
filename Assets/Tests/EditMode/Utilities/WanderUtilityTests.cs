@@ -102,8 +102,8 @@ namespace Tests.EditMode.Utilities
             float wakeTime = WanderUtility.CalculateDormantWakeTime(42, elapsedTime);
 
             float duration = wakeTime - elapsedTime;
-            Assert.GreaterOrEqual(duration, WanderUtility.DormantMinDuration);
-            Assert.Less(duration, WanderUtility.DormantMaxDuration);
+            Assert.GreaterOrEqual(duration, WanderUtility.DefaultDormantMinDuration);
+            Assert.Less(duration, WanderUtility.DefaultDormantMaxDuration);
         }
 
         [Test]
@@ -220,18 +220,18 @@ namespace Tests.EditMode.Utilities
             {
                 GridOrigin = new float2(-50, -50),
                 GridSize = new int2(200, 200),
-                CellSize = 0.5f
+                CellSize = 1.0f
             };
 
-            // 맵 범위: (-50,-50) ~ (-50+200*0.5, -50+200*0.5) = (-50,-50) ~ (50,50)
+            // 맵 범위: (-50,-50) ~ (-50+200*1.0, -50+200*1.0) = (-50,-50) ~ (150,150)
             for (int i = 0; i < 50; i++)
             {
                 WanderUtility.GenerateWanderDestination(i, (uint)i * 7, i * 2f, 0f, gridSettings, out float3 result);
 
                 Assert.GreaterOrEqual(result.x, -45f); // -50 + 5
-                Assert.Less(result.x, 45f);             // 50 - 5
+                Assert.Less(result.x, 145f);            // 150 - 5
                 Assert.GreaterOrEqual(result.z, -45f);
-                Assert.Less(result.z, 45f);
+                Assert.Less(result.z, 145f);
             }
         }
 
@@ -242,10 +242,10 @@ namespace Tests.EditMode.Utilities
         [Test]
         public void Constants_HaveExpectedValues()
         {
-            Assert.AreEqual(3.0f, WanderUtility.StuckCheckInterval);
-            Assert.AreEqual(2.0f, WanderUtility.StuckThreshold);
-            Assert.AreEqual(5.0f, WanderUtility.DormantMinDuration);
-            Assert.AreEqual(8.0f, WanderUtility.DormantMaxDuration);
+            Assert.AreEqual(3.0f, WanderUtility.DefaultStuckCheckInterval);
+            Assert.AreEqual(2.0f, WanderUtility.DefaultStuckThreshold);
+            Assert.AreEqual(5.0f, WanderUtility.DefaultDormantMinDuration);
+            Assert.AreEqual(8.0f, WanderUtility.DefaultDormantMaxDuration);
         }
 
         #endregion

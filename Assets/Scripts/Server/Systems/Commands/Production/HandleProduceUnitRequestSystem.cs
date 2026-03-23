@@ -170,7 +170,8 @@ namespace Server
             }
             
             // 6. 생산 시간 조회 (Lookup)
-            float duration = 5f;
+            float duration = SystemAPI.TryGetSingleton<GameSettings>(out var gs)
+                ? gs.DefaultProductionTime : 5f;
             if (_productionInfoLookup.HasComponent(unitPrefab))
             {
                 duration = _productionInfoLookup[unitPrefab].ProductionTime;

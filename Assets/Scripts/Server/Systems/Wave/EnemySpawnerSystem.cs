@@ -134,7 +134,8 @@ namespace Server
             _spawnCounter++;
 
             // 그리드 기반 분산 스폰: 적들이 겹치지 않도록 간격 보장
-            const float gridSpacing = 1f; // 적 간 최소 거리
+            float gridSpacing = SystemAPI.TryGetSingleton<GameSettings>(out var gs0)
+                ? gs0.Wave0SpawnSpacing : 1f;
             int gridSize = (int)math.ceil(math.sqrt(toSpawn)); // 그리드 한 변 크기
 
             // 프리팹의 y 오프셋 미리 캐싱 (루프 내 반복 조회 방지)
@@ -201,7 +202,8 @@ namespace Server
             _spawnCounter++;
 
             // 주기적 스폰도 간격 보장
-            const float spacing = 3f; // 적 간 최소 거리
+            float spacing = SystemAPI.TryGetSingleton<GameSettings>(out var gs1)
+                ? gs1.PeriodicSpawnSpacing : 3f;
 
             // 3종류 프리팹 y 오프셋 미리 캐싱 (루프 내 반복 조회 방지)
             float smallYOffset = prefabSmall != Entity.Null
@@ -229,7 +231,9 @@ namespace Server
                 float3 spawnPos = basePos + offset;
 
                 // 적 타입 랜덤 선택
-                Entity prefab = SelectEnemyPrefab(ref random, prefabSmall, prefabBig, prefabFlying);
+                float bigRate = SystemAPI.TryGetSingleton<GameSettings>(out var gs2) ? gs2.EnemyBigSpawnRate : 0.85f;
+                float smallRate = SystemAPI.HasSingleton<GameSettings>() ? gs2.EnemySmallOnlyRate : 0.60f;
+                Entity prefab = SelectEnemyPrefab(ref random, prefabSmall, prefabBig, prefabFlying, bigRate, smallRate);
                 if (prefab == Entity.Null) continue;
 
                 // 캐싱된 y 오프셋 적용 (BoxCollider 반 높이, Ground 충돌 방지)
@@ -255,20 +259,21 @@ namespace Server
             ref Random random,
             Entity prefabSmall,
             Entity prefabBig,
-            Entity prefabFlying)
+            Entity prefabFlying,
+            float bigSpawnRate = 0.85f,
+            float smallOnlyRate = 0.60f)
         {
-            // 확률 분배: Small 50%, Big 35%, Flying 15% (Flying 없으면 Small/Big만)
             float roll = random.NextFloat(0f, 1f);
 
             if (prefabFlying != Entity.Null)
             {
                 if (roll < 0.50f) return prefabSmall;
-                if (roll < 0.85f) return prefabBig;
+                if (roll < bigSpawnRate) return prefabBig;
                 return prefabFlying;
             }
             else
             {
-                if (roll < 0.60f) return prefabSmall;
+                if (roll < smallOnlyRate) return prefabSmall;
                 return prefabBig;
             }
         }

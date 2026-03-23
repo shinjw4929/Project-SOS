@@ -12,7 +12,6 @@ namespace Server
         public float3 Position;
         public float HalfW;
         public float HalfL;
-        public bool IsCircular;
     }
 
     /// <summary>
@@ -24,7 +23,7 @@ namespace Server
     [UpdateBefore(typeof(FlowFieldSystem))]
     public partial struct GridObstacleResponseSystem : ISystem
     {
-        const float PathInvalidationRadius = 8f;
+        const float DefaultPathInvalidationRadius = 8f;
 
         public void OnCreate(ref SystemState state)
         {
@@ -37,6 +36,8 @@ namespace Server
             var gridEntity = SystemAPI.GetSingletonEntity<GridSettings>();
             var gridBuffer = SystemAPI.GetBuffer<GridCell>(gridEntity);
             int gridSizeX = gridSettings.GridSize.x;
+            float pathInvalidationRadius = SystemAPI.TryGetSingleton<GameSettings>(out var gs)
+                ? gs.PathInvalidationRadius : DefaultPathInvalidationRadius;
 
             var buildings = new NativeList<BuildingPushInfo>(4, Allocator.Temp);
             bool anyProcessed = false;
@@ -52,45 +53,38 @@ namespace Server
             {
                 anyProcessed = true;
 
+                var fp = footprint.ValueRO;
+                int pathWidth = math.max(1, fp.Width - 2);
+                int pathLength = math.max(1, fp.Length - 2);
+
                 // IsPathBlocked 마킹 (경로탐색 풋프린트 중앙)
                 GridUtility.MarkPathBlocked(gridBuffer,
                     gridPos.ValueRO.Position.x, gridPos.ValueRO.Position.y,
-                    footprint.ValueRO.Width, footprint.ValueRO.Length,
-                    footprint.ValueRO.PathWidth, footprint.ValueRO.PathLength,
+                    fp.Width, fp.Length,
+                    pathWidth, pathLength,
                     gridSizeX);
 
                 // GridObstacleCleanup 부착 (건물 파괴 감지용)
                 ecb.AddComponent(entity, new GridObstacleCleanup
                 {
                     GridPosition = gridPos.ValueRO.Position,
-                    Width = footprint.ValueRO.Width,
-                    Length = footprint.ValueRO.Length,
-                    PathWidth = footprint.ValueRO.PathWidth,
-                    PathLength = footprint.ValueRO.PathLength,
+                    Width = fp.Width,
+                    Length = fp.Length
                 });
 
                 // NeedsNavMeshObstacle 비활성화
                 ecb.SetComponentEnabled<NeedsNavMeshObstacle>(entity, false);
 
-                // 밀어내기 정보 수집
-                var fp = footprint.ValueRO;
-                float halfW, halfL;
-                if (fp.IsCircular)
-                {
-                    halfW = halfL = fp.WorldRadius;
-                }
-                else
-                {
-                    halfW = fp.WorldWidth * 0.5f;
-                    halfL = fp.WorldLength * 0.5f;
-                }
+                // 밀어내기 정보 수집 (항상 직사각형, Width×CellSize 파생)
+                float cellSize = gridSettings.CellSize;
+                float halfW = fp.Width * cellSize * 0.5f;
+                float halfL = fp.Length * cellSize * 0.5f;
 
                 buildings.Add(new BuildingPushInfo
                 {
                     Position = transform.ValueRO.Position,
                     HalfW = halfW,
-                    HalfL = halfL,
-                    IsCircular = fp.IsCircular,
+                    HalfL = halfL
                 });
             }
 
@@ -106,7 +100,7 @@ namespace Server
             ecb.Dispose();
 
             // === 2패스: 주변 유닛 밀어내기 + IsPathDirty ===
-            float pathRadiusSq = PathInvalidationRadius * PathInvalidationRadius;
+            float pathRadiusSq = pathInvalidationRadius * pathInvalidationRadius;
 
             foreach (var (goal, entityTransform, obstacle, velocity, waypointsEnabled) in
                 SystemAPI.Query<RefRW<MovementGoal>, RefRW<LocalTransform>, RefRO<ObstacleRadius>,
@@ -121,43 +115,23 @@ namespace Server
                     local.y = 0;
                     float entityR = obstacle.ValueRO.Radius;
 
-                    bool isInside;
-                    if (bld.IsCircular)
-                    {
-                        float dist = math.length(local);
-                        isInside = dist < bld.HalfW + entityR;
-                    }
-                    else
-                    {
-                        isInside = math.abs(local.x) < bld.HalfW + entityR &&
-                                   math.abs(local.z) < bld.HalfL + entityR;
-                    }
+                    bool isInside = math.abs(local.x) < bld.HalfW + entityR &&
+                                    math.abs(local.z) < bld.HalfL + entityR;
 
                     if (isInside)
                     {
-                        // 밀어내기
-                        if (bld.IsCircular)
+                        float overlapX = (bld.HalfW + entityR) - math.abs(local.x);
+                        float overlapZ = (bld.HalfL + entityR) - math.abs(local.z);
+
+                        if (overlapX < overlapZ)
                         {
-                            float dist = math.length(local);
-                            float pushDist = bld.HalfW + entityR - dist;
-                            float3 pushDir = dist > 0.01f ? local / dist : new float3(1, 0, 0);
-                            entityTransform.ValueRW.Position += pushDir * (pushDist + 0.1f);
+                            float sign = local.x >= 0 ? 1f : -1f;
+                            entityTransform.ValueRW.Position.x += sign * (overlapX + 0.1f);
                         }
                         else
                         {
-                            float overlapX = (bld.HalfW + entityR) - math.abs(local.x);
-                            float overlapZ = (bld.HalfL + entityR) - math.abs(local.z);
-
-                            if (overlapX < overlapZ)
-                            {
-                                float sign = local.x >= 0 ? 1f : -1f;
-                                entityTransform.ValueRW.Position.x += sign * (overlapX + 0.1f);
-                            }
-                            else
-                            {
-                                float sign = local.z >= 0 ? 1f : -1f;
-                                entityTransform.ValueRW.Position.z += sign * (overlapZ + 0.1f);
-                            }
+                            float sign = local.z >= 0 ? 1f : -1f;
+                            entityTransform.ValueRW.Position.z += sign * (overlapZ + 0.1f);
                         }
 
                         waypointsEnabled.ValueRW = false;

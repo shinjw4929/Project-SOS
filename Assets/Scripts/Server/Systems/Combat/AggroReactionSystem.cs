@@ -84,7 +84,6 @@ namespace Server
             ref AggroTarget aggroTarget,
             ref AggroLock aggroLock,
             ref DynamicBuffer<DamageEvent> damageEvents,
-            in EnemyChaseDistance chaseDistance,
             in Team myTeam)
         {
             // 1. RemainingLockTime 감소

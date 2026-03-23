@@ -66,6 +66,10 @@ namespace Server
             float time = (float)SystemAPI.Time.ElapsedTime;
 
             // 적 타겟팅 Job (적 → 아군 타겟팅)
+            bool hasGS = SystemAPI.TryGetSingleton<GameSettings>(out var gameSettings);
+            float hysteresis = hasGS ? gameSettings.TargetHysteresisMultiplier : 1.3f;
+            uint searchInterval = hasGS ? gameSettings.TargetSearchInterval : 4u;
+
             var enemyTargetJob = new EnemyTargetJob
             {
                 TargetingMap = spatialMaps.TargetingMap,
@@ -74,17 +78,20 @@ namespace Server
                 GridSettings = gridSettingsData,
                 ElapsedTime = time,
                 CellSize = SpatialHashUtility.TargetingCellSize,
-                FrameCount = _frameCount
+                FrameCount = _frameCount,
+                HysteresisMultiplier = hysteresis,
+                TimeSliceDivisor = searchInterval
             };
 
-            // 유닛 자동 타겟팅 Job (유닛 → 적 자동 감지)
             var unitAutoTargetJob = new UnitAutoTargetJob
             {
                 TargetingMap = spatialMaps.TargetingMap,
                 TransformLookup = _transformLookup,
                 HealthLookup = _healthLookup,
                 CellSize = SpatialHashUtility.TargetingCellSize,
-                FrameCount = _frameCount
+                FrameCount = _frameCount,
+                HysteresisMultiplier = hysteresis,
+                TimeSliceDivisor = searchInterval
             };
 
             // 순차 실행 (AggroTarget 컴포넌트를 공유하므로 병렬 불가)
@@ -109,13 +116,10 @@ namespace Server
         public float ElapsedTime;
         public float CellSize;
         public uint FrameCount;
+        public float HysteresisMultiplier;
+        public uint TimeSliceDivisor;
 
-        // 목적지 변경 역치 (1m 이상 차이나야 경로 재계산)
         private const float DestinationThresholdSq = 1.0f;
-        // 타겟 고착화 계수 (LoseTargetDistance의 1.3배)
-        private const float HysteresisMultiplier = 1.3f;
-        // 시간 분할 주기 (4프레임에 1번 탐색)
-        private const uint TimeSliceDivisor = 4;
 
         public void Execute(
             Entity entity,
@@ -123,7 +127,7 @@ namespace Server
             RefRW<AggroTarget> target,
             RefRO<AggroLock> aggroLock,
             RefRW<EnemyState> enemyState,
-            RefRO<EnemyChaseDistance> chaseDistance,
+            RefRO<VisionRange> visionRange,
             RefRO<Team> myTeam,
             RefRW<MovementGoal> goal,
             EnabledRefRW<MovementWaypoints> waypointsEnabled,
@@ -153,9 +157,9 @@ namespace Server
 
             float3 myPos = myTransform.ValueRO.Position;
             bool needNewTarget = false;
-            float loseDistSq = chaseDistance.ValueRO.LoseTargetDistance * chaseDistance.ValueRO.LoseTargetDistance;
-            // 타겟 고착화: 더 멀어져야 타겟 놓침
-            float hysteresisDistSq = loseDistSq * (HysteresisMultiplier * HysteresisMultiplier);
+            float loseDist = visionRange.ValueRO.Value * HysteresisMultiplier;
+            float loseDistSq = loseDist * loseDist;
+            float hysteresisDistSq = loseDistSq;
 
             // ---------------------------------------------------------
             // 0. 어그로 고정 체크 - 고정 중이면 타겟 변경 불가
@@ -322,8 +326,8 @@ namespace Server
             float3 bestTargetPos = float3.zero;
             float searchRadiusSq = loseDistSq;
 
-            // 탐색 범위: aggroRange / CellSize (올림)
-            int searchRadius = (int)math.ceil(chaseDistance.ValueRO.LoseTargetDistance / CellSize);
+            // 탐색 범위: VisionRange × HysteresisMultiplier / CellSize (올림)
+            int searchRadius = (int)math.ceil(loseDist / CellSize);
             for (int x = -searchRadius; x <= searchRadius; x++)
             {
                 for (int z = -searchRadius; z <= searchRadius; z++)
@@ -444,12 +448,10 @@ namespace Server
         [ReadOnly] public ComponentLookup<Health> HealthLookup;
         public float CellSize;
         public uint FrameCount;
+        public float HysteresisMultiplier;
+        public uint TimeSliceDivisor;
 
         private const float DestinationThresholdSq = 1.0f;
-        // 타겟 고착화 계수 (VisionRange의 1.3배)
-        private const float HysteresisMultiplier = 1.3f;
-        // 시간 분할 주기 (4프레임에 1번 탐색)
-        private const uint TimeSliceDivisor = 4;
 
         public void Execute(
             Entity entity,

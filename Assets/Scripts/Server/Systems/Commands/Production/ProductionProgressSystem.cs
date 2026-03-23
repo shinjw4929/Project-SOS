@@ -41,10 +41,14 @@ namespace Server
             // Job 스케줄링
             var gridSettings = SystemAPI.GetSingleton<GridSettings>();
 
+            float spawnOffset = SystemAPI.TryGetSingleton<GameSettings>(out var gs)
+                ? gs.UnitSpawnOffset : 1.0f;
+
             new ProductionUpdateJob
             {
                 DeltaTime = deltaTime,
                 CellSize = gridSettings.CellSize,
+                UnitSpawnOffset = spawnOffset,
                 CatalogBuffer = catalogBuffer.AsNativeArray(),
                 Ecb = ecb,
                 TransformLookup = _transformLookup
@@ -58,6 +62,7 @@ namespace Server
     {
         public float DeltaTime;
         public float CellSize;
+        public float UnitSpawnOffset;
         [ReadOnly] public NativeArray<UnitCatalogElement> CatalogBuffer;
         public EntityCommandBuffer.ParallelWriter Ecb;
         [ReadOnly] public ComponentLookup<LocalTransform> TransformLookup;
@@ -86,13 +91,13 @@ namespace Server
                     Entity prefab = CatalogBuffer[unitIndex].PrefabEntity;
                     
                     
-                    // 건물 월드 반크기 + 1m 여유
+                    // 건물 월드 반크기 + UnitSpawnOffset 여유
                     float halfWorldWidth = footprint.Width * CellSize * 0.5f;
                     float halfWorldLength = footprint.Length * CellSize * 0.5f;
                     float3 spawnPos = new float3(
-                        transform.Position.x + halfWorldWidth + 1.0f,
+                        transform.Position.x + halfWorldWidth + UnitSpawnOffset,
                         0f,
-                        transform.Position.z - halfWorldLength - 1.0f
+                        transform.Position.z - halfWorldLength - UnitSpawnOffset
                     );
                     
                     // 유닛 스폰 명령 예약

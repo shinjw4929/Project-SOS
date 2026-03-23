@@ -66,16 +66,17 @@ Assets/Scripts/
         └─ UnitAutoTargetJob → 유닛→적 자동 감지
 
 [5. 이동] SimulationSystemGroup (Server)
-    NavMeshObstacleSpawnSystem → PathfindingSystem (Collect→Compute×8→Apply) → PathFollowSystem
-    PredictedMovementSystem (SpatialMaps.MovementMap 사용)
-    MovementArrivalSystem → BuildArrivalSystem (도착 시 건설)
+    GridObstacleResponseSystem → GridObstacleCleanupSystem
+    → FlowFieldSystem (Phase0→Collect→Compute×8→Apply) → FlowFieldSteeringSystem
+    → PredictedMovementSystem (SpatialMaps.MovementMap + GridCell.IsPathBlocked 사용)
+    → MovementArrivalSystem → BuildArrivalSystem (도착 시 건설)
 
 [6. 전투] FixedStepSimulationSystemGroup (Server)
     CombatDamageSystem → MeleeAttackSystem → RangedAttackSystem → DamageApplySystem
     ※ 모든 데미지는 DamageEvent 버퍼를 통해 DamageApplySystem에서 일괄 적용 + 적 킬 카운트
 
 [7. 정리] SimulationSystemGroup (Server)
-    HeroDeathDetectionSystem → ServerDeathSystem → NavMeshObstacleCleanupSystem, TechStateRecalculateSystem
+    HeroDeathDetectionSystem → ServerDeathSystem → GridObstacleCleanupSystem, TechStateRecalculateSystem
 
 [7.5. 네트워크 최적화] SimulationSystemGroup (Server)
     UpdateConnectionPositionSystem (CameraPositionRpc 수신) → GhostRelevancySystem (뷰포트 AABB × 1.3 밖 적/다른 유저 유닛 Ghost 전송 제외, 자기 유닛 항상 relevant)
@@ -102,7 +103,7 @@ Assets/Scripts/
 **핵심 의존성**:
 - `UnifiedTargetingSystem`: UpdateAfter `SpatialPartitioningGroup`, `HandleAttackRequestSystem`
 - `DamageApplySystem`: UpdateAfter `MeleeAttackSystem` (DamageEvent 버퍼 소비)
-- `PathfindingSystem`: ISystem(unmanaged), NavMeshQuery×8 병렬 IJob, `NavMeshPathUtils.FindStraightPath` (Funnel 알고리즘)
+- `FlowFieldSystem`: BFS 기반 Flow Field 계산 (LRU 캐시 32×2풀, 8 IJob 병렬), Grid 기반 passability
 - `SpatialMapBuildSystem`: Persistent 맵 + Job 기반 Clear → dependency chain으로 동기화 (CompleteDependency 불필요)
 - `GhostRelevancySystem`: UpdateAfter `UpdateConnectionPositionSystem` (Ghost Relevancy AABB 필터링, 적+다른 유저 유닛, 자기 유닛 skip, ViewHalfExtent × 1.3/1.15)
 
@@ -212,3 +213,63 @@ Assets/Scenes/
 - **공격**: 적 우클릭 → AttackRequestRpc
 - **건설**: 빌더 선택 → Q → 건물 선택 → 배치 → BuildRequestRpc/BuildMoveRequestRpc
 - **생산**: 생산 시설 선택 → Q → 유닛 선택 → ProduceUnitRequestRpc
+
+---
+
+## Collider 역할 규칙
+
+### 용도 제한
+- Collider는 **raycast (선택, 건설 검증) + 투사체 충돌** 전용
+- 물리 충돌 (벽 미끄러짐, 건설 시 push-out)은 **그리드 기반** — Collider 사용 금지
+
+### 크기 정합성
+- **유닛/적**: Capsule/Sphere Collider 반지름 ≈ ObstacleRadius (raycast 히트 영역)
+- **건물/자원**: Box Collider 크기 ≈ Width × Length × CellSize (raycast 히트 영역)
+- Collider는 자동 베이킹 (코드 생성 금지)
+- 크기 정합성은 프리팹 설정 시 수동 확인
+
+### 물리 충돌 = 그리드 단일 소스
+- 건물 크기: StructureFootprint.Width/Length (그리드 셀 단위)
+- 경로 차단: max(1, Width-2) × max(1, Length-2) (중앙 영역)
+- Push-out: Width × CellSize / 2 (직사각형, 항상)
+- 벽 미끄러짐: GridCell.IsPathBlocked 셀 경계 (PredictedMovementSystem)
+
+---
+
+## StructureFootprint 필드 매핑
+
+| 필드 | 단위 | 참조 시스템 | 용도 |
+|------|------|-----------|------|
+| Width | 그리드 셀 | GridOccupancyEventSystem, ObstacleGridInitSystem, HandleBuildRequestSystem, BuildArrivalSystem, GridObstacleResponseSystem, GridObstacleCleanupSystem, InitialWallDecaySystem, ProductionProgressSystem | 배치 점유, 경로 차단 (W-2 파생), push-out (W×CellSize 파생) |
+| Length | 그리드 셀 | 동일 | 동일 |
+| Height | 월드 단위 (m) | BuildArrivalSystem | 건물 높이 (위치 계산) |
+
+파생값은 StructureFootprint 필드가 아닌, 시스템에서 인라인 계산된다:
+- 경로 차단 폭: `math.max(1, Width - 2)` — GridObstacleResponseSystem, ObstacleGridInitSystem 등
+- Push-out 반폭: `Width * CellSize * 0.5f` — GridObstacleResponseSystem
+
+---
+
+## GameSettings 밸런스 설정 패턴
+
+모든 게임 밸런스/규칙 상수는 `GameSettings` 싱글톤으로 관리한다. 시스템 코드에 하드코딩 금지.
+
+### 접근 패턴
+
+| 컨텍스트 | 패턴 | 예시 |
+|---------|------|------|
+| Main Thread (OnUpdate) | `TryGetSingleton` + fallback | `SystemAPI.TryGetSingleton<GameSettings>(out var gs) ? gs.Field : DEFAULT` |
+| Job 구조체 | OnUpdate에서 읽어 필드 전달 | `new MyJob { SeparationStrength = gs.SeparationStrength }` |
+| Utility static 메서드 | 기본값 파라미터 | `CheckStuck(..., float interval = DefaultInterval)` |
+| Baker | Authoring 필드 사용 (bake 시 GameSettings 미존재) | 주석으로 GameSettings 동기화 표시 |
+
+### GameSettings 카테고리
+
+- **경제**: InitialCurrency, InitialMaxPopulation
+- **건설**: ResourceNodeExclusionDistance, MaxBuildRetryCount, UnitSpawnOffset, DefaultProductionTime
+- **전투/AI**: AggroLockDuration, TargetHysteresisMultiplier, TargetSearchInterval
+- **이동**: SeparationStrength, SeparationPadding, SeparationForceCurve
+- **적 AI**: StuckCheckInterval, StuckThreshold, DormantMinDuration, DormantMaxDuration
+- **장애물**: PathInvalidationRadius, PartialPathInvalidationRadius
+- **스폰**: EnemyBigSpawnRate, EnemySmallOnlyRate, Wave0SpawnSpacing, PeriodicSpawnSpacing
+- **Wave**: Wave0InitialSpawnCount, Wave1/2 TriggerTime/KillCount/SpawnInterval/SpawnCount, MaxEnemyCount

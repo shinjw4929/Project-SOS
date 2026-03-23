@@ -12,7 +12,9 @@ namespace Shared
     [BurstCompile]
     public static class ArrivalUtility
     {
+        /// <summary>접근점 계산 시 타겟 표면에서의 여유 거리 (월드 단위, m)</summary>
         public const float ApproachMargin = 0.1f;
+        /// <summary>타겟의 ObstacleRadius 정보가 없을 때 사용하는 기본 반지름 (월드 단위, m)</summary>
         public const float DefaultTargetRadius = 1.5f;
 
         /// <summary>

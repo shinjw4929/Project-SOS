@@ -1,8 +1,8 @@
 using System.Collections.Generic;
 using Unity.Entities;
 using Unity.Mathematics;
-
 using UnityEngine;
+using UnityEngine.Serialization;
 using Shared;
 
 namespace Authoring
@@ -24,30 +24,14 @@ namespace Authoring
         [Header("Unit Production Settings")]
         public List<GameObject> producibleUnits; // 이 건물이 생산할 수 있는 유닛 프리팹 목록
         
-        [Header("Grid Size (그리드 칸 수, 0.5m 셀 기준)")]
+        [Header("Grid Size (그리드 셀 단위)")]
         [Min(1)] public int width = 2;
         [Min(1)] public int length = 2;
         public float height = 1;
 
-        [Header("Pathfinding Size (경로탐색 점유, 0.5m 셀 기준)")]
-        [Tooltip("배치 풋프린트 중앙 영역만 경로를 차단. 벽: 배치보다 작게 설정하여 소형 유닛 통과 허용")]
-        [Min(1)] public int pathWidth = 2;
-        [Min(1)] public int pathLength = 2;
-
-        [Header("World Size (GridObstacle 밀어내기용)")]
-        [Min(0.1f)] public float worldWidth = 1f;
-        [Min(0.1f)] public float worldLength = 1f;
-        [Min(0.1f)] public float navMeshHeight = 1f;
-
-        [Header("Shape (GridObstacle 형태)")]
-        [Tooltip("원형 콜라이더(Capsule/Sphere)를 사용하는 경우 체크")]
-        public bool isCircular = false;
-        [Tooltip("원형일 때 장애물 캡슐 반지름")]
-        [Min(0.1f)] public float navMeshRadius = 1f;
-
-        [Header("Interaction (상호작용 반지름)")]
-        [Tooltip("도착 판정, 공격 범위, 충돌 회피, SelectionRing 등에 사용")]
-        [Min(0.1f)] public float interactionRadius = 1f;
+        [Header("Obstacle Radius (상호작용/도착/공격 판정, 월드 단위)")]
+        [FormerlySerializedAs("interactionRadius")]
+        [Min(0.1f)] public float obstacleRadius = 1f;
 
         [Header("Build Info (Cost & Time)")]
         public int cost = 100;
@@ -158,7 +142,8 @@ namespace Authoring
                         {
                             AttackPower = authoring.attackDamage,
                             AttackSpeed = authoring.attackSpeed,
-                            AttackRange = authoring.attackRange
+                            AttackRange = authoring.attackRange,
+                            ProjectileSpeed = 30f
                         });
                         
                         AddComponent(entity, new AggroTarget
@@ -194,19 +179,12 @@ namespace Authoring
                 {
                     Width = authoring.width,
                     Length = authoring.length,
-                    Height = authoring.height,
-                    PathWidth = authoring.pathWidth,
-                    PathLength = authoring.pathLength,
-                    WorldWidth = authoring.worldWidth,
-                    WorldLength = authoring.worldLength,
-                    WorldHeight = authoring.navMeshHeight,
-                    IsCircular = authoring.isCircular,
-                    WorldRadius = authoring.navMeshRadius
+                    Height = authoring.height
                 });
-                
+
                 AddComponent(entity, new ObstacleRadius
                 {
-                    Radius = authoring.interactionRadius
+                    Radius = authoring.obstacleRadius
                 });
                 
                 // 그리드 위치

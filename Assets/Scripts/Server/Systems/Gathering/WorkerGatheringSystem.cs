@@ -154,8 +154,21 @@ namespace Server
                 float3 workerPos = transform.ValueRO.Position;
                 float3 nodePos = _transformLookup[nodeEntity].Position;
                 float distance = math.distance(workerPos, nodePos);
+                float arrivalDist = GetArrivalDistance(nodeEntity, entity);
 
-                if (distance <= GetArrivalDistance(nodeEntity, entity))
+                // [DEBUG] 채집 도착 판정 로그
+                {
+                    FixedString128Bytes msg = "GatherArrival";
+                    GameLogger.Field(ref msg, "idx", entity.Index);
+                    GameLogger.Field(ref msg, "dist", (int)(distance * 100));
+                    GameLogger.Field(ref msg, "need", (int)(arrivalDist * 100));
+                    GameLogger.Field(ref msg, "dy", (int)((workerPos.y - nodePos.y) * 100));
+                    GameLogger.Pos(ref msg, "w", workerPos);
+                    GameLogger.Pos(ref msg, "n", nodePos);
+                    GameLogger.Warning(LogWorld.Server, LogCategory.Economy, in msg);
+                }
+
+                if (distance <= arrivalDist)
                 {
                     // 이미 자원을 들고 있으면 채굴 없이 바로 반납으로 전환
                     if (workerState.ValueRO.CarriedAmount > 0)
@@ -286,8 +299,21 @@ namespace Server
                 float3 workerPos = transform.ValueRO.Position;
                 float3 centerPos = _transformLookup[returnPoint].Position;
                 float distance = math.distance(workerPos, centerPos);
+                float returnArrivalDist = GetArrivalDistance(returnPoint, entity);
 
-                if (distance <= GetArrivalDistance(returnPoint, entity))
+                // [DEBUG] 반납 도착 판정 로그
+                {
+                    FixedString128Bytes msg = "ReturnArrival";
+                    GameLogger.Field(ref msg, "idx", entity.Index);
+                    GameLogger.Field(ref msg, "dist", (int)(distance * 100));
+                    GameLogger.Field(ref msg, "need", (int)(returnArrivalDist * 100));
+                    GameLogger.Field(ref msg, "dy", (int)((workerPos.y - centerPos.y) * 100));
+                    GameLogger.Pos(ref msg, "w", workerPos);
+                    GameLogger.Pos(ref msg, "c", centerPos);
+                    GameLogger.Warning(LogWorld.Server, LogCategory.Economy, in msg);
+                }
+
+                if (distance <= returnArrivalDist)
                 {
                     workerState.ValueRW.Phase = GatherPhase.Unloading;
                     actionState.ValueRW.State = Action.Working;

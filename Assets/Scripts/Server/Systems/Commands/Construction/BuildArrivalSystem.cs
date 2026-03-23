@@ -22,7 +22,7 @@ namespace Server
     [BurstCompile]
     public partial struct BuildArrivalSystem : ISystem
     {
-        private const int MaxBuildRetryCount = 3;
+        private const int DefaultMaxBuildRetryCount = 3;
 
         [ReadOnly] private ComponentLookup<ProductionCost> _productionCostLookup;
         [ReadOnly] private ComponentLookup<StructureFootprint> _footprintLookup;
@@ -82,6 +82,8 @@ namespace Server
                 .CreateCommandBuffer(state.WorldUnmanaged);
 
             var gridSettings = SystemAPI.GetSingleton<GridSettings>();
+            int maxRetry = SystemAPI.TryGetSingleton<GameSettings>(out var gs)
+                ? gs.MaxBuildRetryCount : DefaultMaxBuildRetryCount;
             var prefabBuffer = SystemAPI.GetBuffer<StructureCatalogElement>(catalogEntity).AsNativeArray();
 
             // NetworkId → UserCurrency 매핑
@@ -111,7 +113,7 @@ namespace Server
                     ? wr.Value : 1.0f;
                 // FlowField 셀 기반 이동 오차 보상 (셀 대각선 반 ≈ CellSize * 0.7)
                 float arrivalDist = ArrivalUtility.GetInteractionArrivalDistance(
-                    pending.StructureRadius, workRange) + 0.5f;
+                    pending.StructureRadius, workRange) + gridSettings.CellSize * 0.7f;
                 bool isInRange = ArrivalUtility.IsWithinInteractionRangeXZ(
                     unitPos, pending.BuildSiteCenter, arrivalDist);
 
@@ -133,7 +135,7 @@ namespace Server
                 if (!isInRange)
                 {
                     // 이동 완료인데 사거리 밖 → 재시도 또는 포기
-                    if (pendingData.ValueRO.RetryCount < MaxBuildRetryCount)
+                    if (pendingData.ValueRO.RetryCount < maxRetry)
                     {
                         pendingData.ValueRW.RetryCount += 1;
 

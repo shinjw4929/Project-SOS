@@ -1,6 +1,7 @@
 using Unity.Entities;
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.Serialization;
 using Shared;
 
 namespace Authoring
@@ -16,16 +17,16 @@ namespace Authoring
         public float defense = 0.0f;
         public float visionRange = 10.0f;
 
-        [Header("Collision")]
-        [Min(0.1f)] public float radius = 1.5f;
+        [Header("Obstacle Radius")]
+        [FormerlySerializedAs("radius")]
+        [Min(0.1f)] public float obstacleRadius = 1.5f;
 
         [Header("Combat Status")]
         public float attackPower = 0.0f;
         public float attackSpeed = 1.0f;
         public float attackRange = 2.0f;
-
-        [Header("Enemy Status")]
-        public float aggroRange = 15.0f;
+        [Tooltip("시각 투사체 속도 (원거리 전용, m/s)")]
+        public float projectileSpeed = 30f;
 
         [Header("Attack Type")]
         public bool isRanged = false;
@@ -91,12 +92,7 @@ namespace Authoring
                 {
                     LockedTarget = Entity.Null,
                     RemainingLockTime = 0f,
-                    LockDuration = 3.0f
-                });
-
-                AddComponent(entity, new EnemyChaseDistance
-                {
-                    LoseTargetDistance = authoring.aggroRange
+                    LockDuration = 3.0f // GameSettings.AggroLockDuration과 동기화 필요
                 });
 
                 // 적 팀 ID (-1)
@@ -119,7 +115,8 @@ namespace Authoring
                     {
                         AttackPower = authoring.attackPower,
                         AttackSpeed = authoring.attackSpeed,
-                        AttackRange = authoring.attackRange
+                        AttackRange = authoring.attackRange,
+                        ProjectileSpeed = authoring.projectileSpeed
                     });
 
                     // 공격 쿨다운 (초기값 0 = 즉시 공격 가능)
@@ -132,7 +129,7 @@ namespace Authoring
                 // 충돌 반경 (도착 판정용)
                 AddComponent(entity, new ObstacleRadius
                 {
-                    Radius = authoring.radius
+                    Radius = authoring.obstacleRadius
                 });
 
                 // 이동 관련 컴포넌트(MovementDynamics, MovementGoal, MovementWaypoints,

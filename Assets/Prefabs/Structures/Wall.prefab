@@ -27,8 +27,8 @@ Transform:
   m_GameObject: {fileID: 2403961717907715896}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 1, z: 0}
-  m_LocalScale: {x: 13, y: 25, z: 13}
+  m_LocalPosition: {x: 0, y: 1.8, z: 0}
+  m_LocalScale: {x: 20, y: 40, z: 20}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 4569317304208565447}
@@ -139,14 +139,14 @@ CapsuleCollider:
     serializedVersion: 2
     m_Bits: 0
   m_LayerOverridePriority: 0
-  m_IsTrigger: 0
+  m_IsTrigger: 1
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 2
-  m_Radius: 0.8
-  m_Height: 2.4
+  m_Radius: 1.6
+  m_Height: 3.8
   m_Direction: 1
-  m_Center: {x: 0, y: 1.2, z: 0}
+  m_Center: {x: 0, y: 1.9, z: 0}
 --- !u!54 &-4329564950412688463
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -203,14 +203,7 @@ MonoBehaviour:
   width: 4
   length: 4
   height: 0
-  pathWidth: 2
-  pathLength: 2
-  worldWidth: 0.5
-  worldLength: 0.5
-  navMeshHeight: 2
-  isCircular: 1
-  navMeshRadius: 0.4
-  interactionRadius: 1.4
+  obstacleRadius: 3
   cost: 0
   buildTime: 1
   maxHealth: 10

@@ -383,10 +383,10 @@ namespace Tests.EditMode.Utilities
         #region Constants Tests
 
         [Test]
-        public void ResourceNodeExclusionDistance_HasExpectedValue()
+        public void DefaultResourceNodeExclusionDistance_HasExpectedValue()
         {
             // Assert
-            Assert.AreEqual(18, GridUtility.ResourceNodeExclusionDistance);
+            Assert.AreEqual(9, GridUtility.DefaultResourceNodeExclusionDistance);
         }
 
         #endregion

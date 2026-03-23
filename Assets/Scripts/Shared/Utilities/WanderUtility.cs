@@ -11,13 +11,10 @@ namespace Shared
     [BurstCompile]
     public static class WanderUtility
     {
-        // 위치 정체 체크 간격 (초)
-        public const float StuckCheckInterval = 3.0f;
-        // stuck 판정 이동 거리 (미터)
-        public const float StuckThreshold = 2.0f;
-        // Dormant 최소/최대 지속 시간 (초)
-        public const float DormantMinDuration = 5.0f;
-        public const float DormantMaxDuration = 8.0f;
+        public const float DefaultStuckCheckInterval = 3.0f;
+        public const float DefaultStuckThreshold = 2.0f;
+        public const float DefaultDormantMinDuration = 5.0f;
+        public const float DefaultDormantMaxDuration = 8.0f;
 
         /// <summary>
         /// Stuck 감지 판정: 일정 시간 동안 이동 거리가 임계치 미만이면 stuck
@@ -35,27 +32,32 @@ namespace Shared
             in float3 lastCheckPos,
             float lastCheckTime,
             float elapsedTime,
-            out bool isStuck)
+            out bool isStuck,
+            float stuckCheckInterval = DefaultStuckCheckInterval,
+            float stuckThreshold = DefaultStuckThreshold)
         {
             isStuck = false;
-            if (elapsedTime - lastCheckTime < StuckCheckInterval)
+            if (elapsedTime - lastCheckTime < stuckCheckInterval)
                 return false;
 
             float movedDistance = math.distance(currentPos, lastCheckPos);
-            isStuck = movedDistance < StuckThreshold;
+            isStuck = movedDistance < stuckThreshold;
             return true;
         }
 
         /// <summary>
-        /// Dormant 깨어남 시간 계산 (5~8초 랜덤)
+        /// Dormant 깨어남 시간 계산 (dormantMin~dormantMax 랜덤)
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         [BurstCompile]
-        public static float CalculateDormantWakeTime(int entityIndex, float elapsedTime)
+        public static float CalculateDormantWakeTime(
+            int entityIndex, float elapsedTime,
+            float dormantMin = DefaultDormantMinDuration,
+            float dormantMax = DefaultDormantMaxDuration)
         {
             uint seed = (uint)entityIndex ^ (uint)(elapsedTime * 1000f) ^ 0xDEADBEEF;
             var random = Random.CreateFromIndex(seed);
-            return elapsedTime + random.NextFloat(DormantMinDuration, DormantMaxDuration);
+            return elapsedTime + random.NextFloat(dormantMin, dormantMax);
         }
 
         /// <summary>

@@ -12,7 +12,6 @@ namespace Shared
         public int2 GridPosition;
         public int Width;       // 배치 풋프린트 (월드 좌표 복원용)
         public int Length;
-        public int PathWidth;   // 경로탐색 풋프린트 (UnmarkPathBlocked용)
-        public int PathLength;
+        // PathWidth/PathLength는 math.max(1, Width-2), math.max(1, Length-2)로 파생
     }
 }

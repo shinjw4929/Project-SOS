@@ -115,9 +115,13 @@ namespace Client
                         resourceNodeSizes[i] = new int2(fp.Width, fp.Length);
                     }
 
+                    int exclusionDist = SystemAPI.TryGetSingleton<GameSettings>(out var gs)
+                        ? gs.ResourceNodeExclusionDistance
+                        : GridUtility.DefaultResourceNodeExclusionDistance;
                     isInResourceExclusionZone = GridUtility.IsInResourceExclusionZone(
                         previewState.GridPosition, width, length,
-                        resourceNodePositions, resourceNodeSizes
+                        resourceNodePositions, resourceNodeSizes,
+                        exclusionDist
                     );
 
                     resourceNodePositions.Dispose();

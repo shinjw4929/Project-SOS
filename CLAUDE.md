@@ -45,6 +45,7 @@ Before implementing any request, ask yourself: "Is this the most efficient way t
 2. **Job System 활용**: 연산 로직은 `IJobEntity`로 구현하여 멀티스레드 활용
 3. **네이밍**: "Player" 대신 **"User"** 사용 (Unity Player와 혼동 방지). 변수명은 의미를 알 수 있도록 작성하며, 축약하지 않는다 (예: `var c` ✗ → `var teamColor` ✓). 단, DOTS 관용 약어(`ecb`, `em`, `job` 등)는 허용.
 4. **테스트**: EditMode(순수 함수) / PlayMode(ECS 시스템) 테스트 작성
+5. **게임 규칙 하드코딩 금지**: 밸런스/규칙 관련 상수(거리, 시간, 확률, 횟수 등)는 시스템 코드에 직접 작성하지 않는다. 반드시 `GameSettings` 싱글톤에 필드를 추가하고 `GameSettingsAuthoring` 인스펙터에서 조절 가능하게 한다. fallback은 `SystemAPI.TryGetSingleton<GameSettings>(out var gs) ? gs.Field : DEFAULT` 패턴. Job 내부에서는 OnUpdate에서 읽어 구조체 필드로 전달. 유틸리티 static 메서드에서는 기본값 파라미터로 처리.
 
 ### Burst 제약사항
 1. **`[BurstCompile]` static 메서드**: struct(`float3`, `Entity` 등)를 값으로 전달/반환하면 BC1064 에러 발생 (external function 제약). struct 파라미터/반환이 있는 메서드는 `[BurstCompile]` 제거하고 `[MethodImpl(AggressiveInlining)]`만 사용. primitive(`float`, `int`, `bool`)만 다루는 메서드만 개별 `[BurstCompile]` 적용 가능. 클래스 레벨 `[BurstCompile]`은 유지.
@@ -63,6 +64,11 @@ Before implementing any request, ask yourself: "Is this the most efficient way t
 2. **CompleteDependency 최소화**: 같은 SystemGroup 내에서는 `UpdateAfter`로 순서 지정
 3. **AggroTarget**: 유닛/적 공통 타겟 추적 컴포넌트
 4. **원거리 공격**: `RangedUnitTag`/`RangedEnemyTag` → 필중 + 시각 투사체(VisualOnlyTag) 생성
+
+### Collider Rules
+1. **Collider 용도**: raycast(선택, 건설 검증) + 투사체 충돌 전용. 물리 충돌에 Collider 사용 금지.
+2. **물리 충돌**: 그리드 셀(GridCell.IsPathBlocked) 기반. PredictedMovementSystem, GridObstacleResponseSystem 참조.
+3. **Collider 크기**: 유닛/적 Capsule 반지름 ≈ ObstacleRadius, 건물 Box ≈ Width × Length × CellSize.
 
 ---
 

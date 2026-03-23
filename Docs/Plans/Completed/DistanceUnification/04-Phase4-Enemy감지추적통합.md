@@ -31,7 +31,7 @@
 **파일**: `Assets/Scripts/Server/Systems/Combat/UnifiedTargetingSystem.cs`
 
 ```csharp
-// Before (line 126):
+// Before (line 326):
 int searchRadius = (int)math.ceil(chaseDistance.ValueRO.LoseTargetDistance / CellSize);
 
 // After:
@@ -39,7 +39,7 @@ int searchRadius = (int)math.ceil(visionRange.ValueRO.Value * HysteresisMultipli
 ```
 
 EnemyTargetJob Execute 파라미터에서 `in EnemyChaseDistance chaseDistance` 제거.
-이미 `in VisionRange visionRange`을 받고 있으므로 해당 값 활용.
+현재 EnemyTargetJob에는 `VisionRange` 파라미터가 **없으므로** `RefRO<VisionRange> visionRange` 추가 필요.
 
 이탈 판정도 동일하게 교체:
 ```csharp
@@ -121,7 +121,7 @@ public float visionRange = 10.0f;
 
 - [ ] `UnifiedTargetingSystem.cs` EnemyTargetJob.Execute(): `RefRO<VisionRange> visionRange` 파라미터 추가 (현재 없음, UnitAutoTargetJob에는 이미 존재)
 - [ ] `UnifiedTargetingSystem.cs` EnemyTargetJob: `in EnemyChaseDistance chaseDistance` 파라미터 → `RefRO<VisionRange> visionRange`로 교체
-- [ ] `UnifiedTargetingSystem.cs` EnemyTargetJob: `chaseDistance.ValueRO.LoseTargetDistance` → `visionRange.ValueRO.Value * HysteresisMultiplier` 교체 (line 126, 156, 326)
+- [ ] `UnifiedTargetingSystem.cs` EnemyTargetJob: `chaseDistance.ValueRO.LoseTargetDistance` → `visionRange.ValueRO.Value * HysteresisMultiplier` 교체 (line 156, 326)
 - [ ] `AggroReactionSystem.cs` EnemyAggroReactionJob: `in EnemyChaseDistance` 파라미터 제거
 - [ ] `EnemyAuthoring.cs`: `aggroRange` 필드 + Baker 제거, `visionRange` Tooltip 보강
 - [ ] `EnemyChaseDistance.cs`: 파일 삭제

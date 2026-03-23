@@ -13,7 +13,7 @@ namespace Server
     /// <summary>
     /// 유닛 이동 시스템 (서버 전용)
     /// <para>- SpatialMaps 싱글톤에서 MovementMap 사용</para>
-    /// <para>- 충돌 회피 및 벽 충돌 처리</para>
+    /// <para>- 충돌 회피 및 그리드 기반 벽 충돌 처리</para>
     /// </summary>
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     [UpdateAfter(typeof(FlowFieldSteeringSystem))]
@@ -24,7 +24,7 @@ namespace Server
 
         public void OnCreate(ref SystemState state)
         {
-            state.RequireForUpdate<PhysicsWorldSingleton>();
+            state.RequireForUpdate<GridSettings>();
             state.RequireForUpdate<SpatialMaps>();
 
             // 이동 그룹 (Waypoint 보유, 비활성 포함 - 공격 중 Separation 유지)
@@ -50,8 +50,12 @@ namespace Server
             if (!SystemAPI.TryGetSingleton<SpatialMaps>(out var spatialMaps) || !spatialMaps.IsValid)
                 return;
 
-            var physicsWorld = SystemAPI.GetSingleton<PhysicsWorldSingleton>().PhysicsWorld;
             float dt = SystemAPI.Time.DeltaTime;
+
+            // Grid 데이터 준비
+            var gridSettings = SystemAPI.GetSingleton<GridSettings>();
+            var gridEntity = SystemAPI.GetSingletonEntity<GridSettings>();
+            var gridCells = SystemAPI.GetBuffer<GridCell>(gridEntity).AsNativeArray();
 
             // Lookup 준비
             var enemyTagLookup = SystemAPI.GetComponentLookup<EnemyTag>(true);
@@ -61,13 +65,6 @@ namespace Server
             var transformLookup = SystemAPI.GetComponentLookup<LocalTransform>(true);
             var radiusLookup = SystemAPI.GetComponentLookup<ObstacleRadius>(true);
             var flyingTagLookup = SystemAPI.GetComponentLookup<FlyingTag>(true);
-
-            var wallFilter = new CollisionFilter
-            {
-                BelongsTo = ~0u,
-                CollidesWith = (1u << 6) | (1u << 7),
-                GroupIndex = 0
-            };
 
             var moveJob = new KinematicMovementJob
             {
@@ -81,9 +78,11 @@ namespace Server
                 ActionStateLookup = actionStateLookup,
                 FlyingTagLookup = flyingTagLookup,
                 CellSize = SpatialHashUtility.MovementCellSize,
-                SeparationStrength = 4.0f,
-                CollisionWorld = physicsWorld.CollisionWorld,
-                WallFilter = wallFilter
+                SeparationStrength = SystemAPI.TryGetSingleton<GameSettings>(out var gs) ? gs.SeparationStrength : 4.0f,
+                SeparationPadding = SystemAPI.HasSingleton<GameSettings>() ? gs.SeparationPadding : 0.3f,
+                SeparationForceCurve = SystemAPI.HasSingleton<GameSettings>() ? gs.SeparationForceCurve : 3.0f,
+                GridCells = gridCells,
+                GridSettings = gridSettings
             };
 
             state.Dependency = moveJob.ScheduleParallel(_movingQuery, state.Dependency);
@@ -110,9 +109,11 @@ namespace Server
 
         public float CellSize;
         public float SeparationStrength;
+        public float SeparationPadding;
+        public float SeparationForceCurve;
 
-        [ReadOnly] public CollisionWorld CollisionWorld;
-        public CollisionFilter WallFilter;
+        [ReadOnly] public NativeArray<GridCell> GridCells;
+        public GridSettings GridSettings;
 
         public void Execute(
             Entity entity,
@@ -206,15 +207,13 @@ namespace Server
                 finalVelocity = math.normalizesafe(finalVelocity) * maxLimit;
             }
 
-            // Wall Collision (flying 엔티티는 벽 무시)
+            // Wall Collision — 그리드 기반 (flying 엔티티는 벽 무시)
             if (!iAmFlying)
             {
                 finalVelocity = ResolveWallCollision(currentPos, finalVelocity, obstacleRadius.Radius, DeltaTime, iAmEnemy);
             }
 
             // Separation 진동 감지: 최종 목적지 근처에서 밀려나는 경우 정지
-            // 다수 유닛이 동일 목적지로 이동 시 도착한 유닛의 Separation이
-            // 이동 중 유닛을 도착 반경 밖으로 밀어내는 현상 방지
             if (!skipMovement && !waypoints.HasNext)
             {
                 float3 tp = waypoints.Current;
@@ -235,10 +234,10 @@ namespace Server
             // Apply
             transform.Position += finalVelocity * DeltaTime;
 
-            // 이동 후 벽 관통 차단 (안전망)
+            // 이동 후 벽 관통 차단 (안전망, 3회 반복)
             if (!iAmFlying)
             {
-                ClampToWall(ref transform.Position, obstacleRadius.Radius, in CollisionWorld, WallFilter);
+                ClampToWall(ref transform.Position, obstacleRadius.Radius);
             }
 
             velocity.Linear = finalVelocity;
@@ -294,7 +293,7 @@ namespace Server
                             toOther.y = 0;
 
                             float distSq = math.lengthsq(toOther);
-                            float combinedRadius = myRadius + otherRadius + 0.3f;
+                            float combinedRadius = myRadius + otherRadius + SeparationPadding;
 
                             if (distSq < combinedRadius * combinedRadius && distSq > 0.0001f)
                             {
@@ -303,7 +302,7 @@ namespace Server
 
                                 // 비선형 force: 깊이 침투 시 기하급수적으로 강해짐
                                 float overlapRatio = overlap / combinedRadius;
-                                float forceMag = overlap * (1.0f + overlapRatio * 3.0f);
+                                float forceMag = overlap * (1.0f + overlapRatio * SeparationForceCurve);
                                 separation += (toOther / dist) * forceMag;
                             }
 
@@ -314,138 +313,141 @@ namespace Server
             return separation;
         }
 
-        private static void ClampToWall(
-            ref float3 position, float radius,
-            in CollisionWorld collisionWorld, CollisionFilter wallFilter)
-        {
-            // 반복 처리: 코너(두 벽 교차)에서 첫 번째 벽으로 밀어낸 후 두 번째 벽 겹침 재검사
-            for (int i = 0; i < 3; i++)
-            {
-                var clampInput = new PointDistanceInput
-                {
-                    Position = position + new float3(0, 0.5f, 0),
-                    MaxDistance = radius,
-                    Filter = wallFilter
-                };
-
-                if (!collisionWorld.CalculateDistance(clampInput, out DistanceHit clampHit))
-                    break;
-
-                float overlap = radius - clampHit.Distance;
-                if (overlap <= 0.05f)
-                    break;
-
-                float3 pushNormal = math.normalizesafe(clampHit.SurfaceNormal);
-                pushNormal.y = 0;
-                if (math.lengthsq(pushNormal) <= 0.001f)
-                    break;
-
-                pushNormal = math.normalize(pushNormal);
-                position += pushNormal * (overlap + 0.02f);
-            }
-        }
-
+        /// <summary>
+        /// 그리드 기반 벽 충돌: 각 축 독립 검사로 벽 미끄러짐 구현.
+        /// X/Z 방향 이동이 path-blocked 셀과 겹치면 해당 축 속도를 제거.
+        /// 유닛은 속력 보존, 적은 벡터 삭제.
+        /// </summary>
         private float3 ResolveWallCollision(float3 currentPos, float3 velocity, float radius, float dt, bool isEnemy)
         {
             float moveSpeed = math.length(velocity);
             if (moveSpeed < 0.001f) return velocity;
 
-            float3 moveDir = velocity / moveSpeed;
-            float moveDist = moveSpeed * dt;
+            // X축 이동만 적용한 위치에서 겹침 검사
+            float3 testPosX = currentPos + new float3(velocity.x * dt, 0, 0);
+            bool blockedX = IsOverlappingBlockedCell(testPosX, radius);
 
-            // [1] 이동 방향 Raycast
-            var rayInput = new RaycastInput
+            // Z축 이동만 적용한 위치에서 겹침 검사
+            float3 testPosZ = currentPos + new float3(0, 0, velocity.z * dt);
+            bool blockedZ = IsOverlappingBlockedCell(testPosZ, radius);
+
+            if (blockedX) velocity.x = 0;
+            if (blockedZ) velocity.z = 0;
+
+            // 유닛: 속력 보존 (벽을 따라 미끄러질 때 감속하지 않음)
+            if ((blockedX || blockedZ) && !isEnemy)
             {
-                Start = currentPos + new float3(0, 0.5f, 0),
-                End = currentPos + new float3(0, 0.5f, 0) + (moveDir * (moveDist + radius + 0.1f)),
-                Filter = WallFilter
-            };
-
-            if (CollisionWorld.CastRay(rayInput, out RaycastHit hit))
-            {
-                float distToHit = hit.Fraction * math.length(rayInput.End - rayInput.Start);
-
-                if (distToHit < radius + 0.05f)
-                {
-                    float3 normal = hit.SurfaceNormal;
-                    normal.y = 0;
-
-                    if (math.lengthsq(normal) > 0.001f)
-                    {
-                        normal = math.normalize(normal);
-
-                        float dot = math.dot(velocity, normal);
-                        if (dot < 0)
-                        {
-                            if (!isEnemy)
-                            {
-                                // 유닛: 속도 절대값 유지
-                                float originalSpeed = math.length(velocity);
-                                velocity = velocity - (normal * dot);
-                                float newSpeed = math.length(velocity);
-                                if (newSpeed > 0.001f)
-                                {
-                                    velocity = (velocity / newSpeed) * originalSpeed;
-                                }
-                            }
-                            else
-                            {
-                                // 적: 기존 로직
-                                velocity = velocity - (normal * dot);
-                            }
-                        }
-                    }
-                }
-            }
-
-            // [2] 주변 전방향 충돌 검사
-            var pointInput = new PointDistanceInput
-            {
-                Position = currentPos + new float3(0, 0.5f, 0),
-                MaxDistance = radius + 0.1f,
-                Filter = WallFilter
-            };
-
-            if (CollisionWorld.CalculateDistance(pointInput, out DistanceHit distHit))
-            {
-                float3 wallNormal = math.normalizesafe(distHit.SurfaceNormal);
-                wallNormal.y = 0;
-
-                if (math.lengthsq(wallNormal) > 0.001f)
-                {
-                    wallNormal = math.normalize(wallNormal);
-                    float overlap = radius - distHit.Distance;
-
-                    if (overlap > 0)
-                    {
-                        float dotToWall = math.dot(velocity, wallNormal);
-                        if (dotToWall < 0)
-                        {
-                            if (!isEnemy)
-                            {
-                                // 유닛: 속도 절대값 유지
-                                float originalSpeed = math.length(velocity);
-                                velocity -= wallNormal * dotToWall;
-                                float newSpeed = math.length(velocity);
-                                if (newSpeed > 0.001f)
-                                {
-                                    velocity = (velocity / newSpeed) * originalSpeed;
-                                }
-                            }
-                            else
-                            {
-                                // 적: 기존 로직
-                                velocity -= wallNormal * dotToWall;
-                            }
-                        }
-
-                        float pushSpeed = math.min(overlap * 10f, 5f);
-                        velocity += wallNormal * pushSpeed;
-                    }
-                }
+                float newSpeed = math.length(velocity);
+                if (newSpeed > 0.001f)
+                    velocity = (velocity / newSpeed) * moveSpeed;
             }
 
             return velocity;
+        }
+
+        /// <summary>
+        /// 이동 후 벽 관통 보정 (안전망).
+        /// 유닛 AABB가 path-blocked 셀과 겹치면 최소 침투 축 방향으로 밀어냄.
+        /// 코너(두 벽 교차)를 위해 3회 반복.
+        /// </summary>
+        private void ClampToWall(ref float3 position, float radius)
+        {
+            float cellSize = GridSettings.CellSize;
+            float2 origin = GridSettings.GridOrigin;
+            int2 gridSize = GridSettings.GridSize;
+
+            for (int iter = 0; iter < 3; iter++)
+            {
+                float unitMinX = position.x - radius;
+                float unitMaxX = position.x + radius;
+                float unitMinZ = position.z - radius;
+                float unitMaxZ = position.z + radius;
+
+                int cMinX = math.clamp((int)math.floor((unitMinX - origin.x) / cellSize), 0, gridSize.x - 1);
+                int cMaxX = math.clamp((int)math.floor((unitMaxX - origin.x) / cellSize), 0, gridSize.x - 1);
+                int cMinZ = math.clamp((int)math.floor((unitMinZ - origin.y) / cellSize), 0, gridSize.y - 1);
+                int cMaxZ = math.clamp((int)math.floor((unitMaxZ - origin.y) / cellSize), 0, gridSize.y - 1);
+
+                float smallestOverlap = float.MaxValue;
+                float3 pushVec = float3.zero;
+
+                for (int cz = cMinZ; cz <= cMaxZ; cz++)
+                {
+                    for (int cx = cMinX; cx <= cMaxX; cx++)
+                    {
+                        int idx = cz * gridSize.x + cx;
+                        if (GridCells[idx].IsPathBlocked == 0) continue;
+
+                        float cwMinX = cx * cellSize + origin.x;
+                        float cwMaxX = cwMinX + cellSize;
+                        float cwMinZ = cz * cellSize + origin.y;
+                        float cwMaxZ = cwMinZ + cellSize;
+
+                        // AABB 겹침 검사
+                        if (unitMaxX <= cwMinX || unitMinX >= cwMaxX ||
+                            unitMaxZ <= cwMinZ || unitMinZ >= cwMaxZ)
+                            continue;
+
+                        float oL = unitMaxX - cwMinX;
+                        float oR = cwMaxX - unitMinX;
+                        float oD = unitMaxZ - cwMinZ;
+                        float oU = cwMaxZ - unitMinZ;
+
+                        float minOX = math.min(oL, oR);
+                        float minOZ = math.min(oD, oU);
+                        float minO = math.min(minOX, minOZ);
+
+                        if (minO < smallestOverlap)
+                        {
+                            smallestOverlap = minO;
+                            if (minOX < minOZ)
+                            {
+                                float dir = oL < oR ? -1f : 1f;
+                                pushVec = new float3(dir * (minOX + 0.02f), 0, 0);
+                            }
+                            else
+                            {
+                                float dir = oD < oU ? -1f : 1f;
+                                pushVec = new float3(0, 0, dir * (minOZ + 0.02f));
+                            }
+                        }
+                    }
+                }
+
+                if (smallestOverlap >= float.MaxValue) break;
+                position += pushVec;
+            }
+        }
+
+        private bool IsOverlappingBlockedCell(float3 pos, float radius)
+        {
+            float cellSize = GridSettings.CellSize;
+            float2 origin = GridSettings.GridOrigin;
+            int2 gridSize = GridSettings.GridSize;
+
+            int cMinX = math.clamp((int)math.floor((pos.x - radius - origin.x) / cellSize), 0, gridSize.x - 1);
+            int cMaxX = math.clamp((int)math.floor((pos.x + radius - origin.x) / cellSize), 0, gridSize.x - 1);
+            int cMinZ = math.clamp((int)math.floor((pos.z - radius - origin.y) / cellSize), 0, gridSize.y - 1);
+            int cMaxZ = math.clamp((int)math.floor((pos.z + radius - origin.y) / cellSize), 0, gridSize.y - 1);
+
+            for (int cz = cMinZ; cz <= cMaxZ; cz++)
+            {
+                for (int cx = cMinX; cx <= cMaxX; cx++)
+                {
+                    int idx = cz * gridSize.x + cx;
+                    if (GridCells[idx].IsPathBlocked == 0) continue;
+
+                    float cwMinX = cx * cellSize + origin.x;
+                    float cwMaxX = cwMinX + cellSize;
+                    float cwMinZ = cz * cellSize + origin.y;
+                    float cwMaxZ = cwMinZ + cellSize;
+
+                    if (pos.x + radius > cwMinX && pos.x - radius < cwMaxX &&
+                        pos.z + radius > cwMinZ && pos.z - radius < cwMaxZ)
+                        return true;
+                }
+            }
+            return false;
         }
     }
 }

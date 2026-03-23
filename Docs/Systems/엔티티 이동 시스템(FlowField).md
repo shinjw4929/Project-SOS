@@ -32,7 +32,7 @@ MovementArrivalSystem → 도착 판정 → 이동 정지 + Intent.Idle 전환
 4. 대역폭 최적화: MovementWaypoints/MovementGoal 필드는 서버 전용 ([GhostField] 없음), PhysicsVelocity도 동기화 안 함 (Quantization=0). Ghost enabled 상태와 LocalTransform만 동기화
 5. 공간 분할 충돌 회피: SpatialMaps.MovementMap(셀 크기 3.0f)을 사용한 Entity 기반 Separation
 6. AttackMove 지원: 이동 중 적 자동 감지 (Intent.AttackMove 상태)
-7. 단일 그리드: 0.5m 셀, 배치(IsOccupied)와 경로탐색(IsPathBlocked) 분리
+7. 단일 그리드: 1.0m 셀, 배치(IsOccupied)와 경로탐색(IsPathBlocked) 분리
 8. 벽 반투과: 배치 4×4, 경로탐색 2×2 중앙 → Small 유닛 통과, Large 유닛 차단
 
 ## 클라이언트 시스템 (Client/Systems/)
@@ -74,7 +74,7 @@ MovementArrivalSystem → 도착 판정 → 이동 정지 + Intent.Idle 전환
 - NeedsNavMeshObstacle 태그 감지 → IsPathBlocked 마킹 (MarkPathBlocked, 경로탐색 풋프린트 중앙)
 - GridObstacleCleanup ICleanupComponentData 부착
 - FlowFieldCacheData.IsGridStale=true 설정 (캐시 전체 무효화 트리거)
-- 건물 내부 엔티티 자동 밀어내기: WorldWidth/WorldLength + ObstacleRadius 바깥으로
+- 건물 내부 엔티티 자동 밀어내기: Width×CellSize/Length×CellSize + ObstacleRadius 바깥으로
 - 8m 반경 내 이동 중인 유닛/적 경로 무효화 (IsPathDirty=true)
 - NeedsNavMeshObstacle 비활성화
 ---
@@ -125,8 +125,8 @@ MovementArrivalSystem → 도착 판정 → 이동 정지 + Intent.Idle 전환
   - 유닛-유닛 간 충돌 회피: 둘 다 Gather 상태면 무시
 - **공격 중 Separation 유지**: `IgnoreComponentEnabledState` + `EnabledRefRW<MovementWaypoints>`로 MovementWaypoints 비활성화 엔티티도 쿼리에 포함. 이동만 스킵하고 Separation은 계속 적용.
 - **비선형 Separation Force**: `forceMag = overlap * (1 + overlapRatio * 3)` — 깊이 침투 시 기하급수적 반발
-- 벽 충돌 미끄러짐 처리 (Raycast + PointDistance)
-- 벽 충돌 안전망: `ClampToWall` static 메서드로 이동 후 벽 관통 재검사 (반복 최대 3회, 코너 대응)
+- 벽 충돌: GridCell.IsPathBlocked 기반 축 독립 검사 (X축/Z축 개별 차단 → 벽 미끄러짐). 유닛은 속력 보존, 적은 벡터 삭제
+- 벽 관통 보정: `ClampToWall` — 이동 후 유닛 AABB vs IsPathBlocked 셀 겹침 검사, 최소 침투 축 방향으로 밀어냄 (3회 반복, 코너 대응)
 - Separation 진동 감지: 최종 목적지 확장 반경(2배) 내에서 밀려나는 경우 즉시 정지
 ---
 파일: MovementArrivalSystem.cs
@@ -152,8 +152,9 @@ MovementArrivalSystem → 도착 판정 → 이동 정지 + Intent.Idle 전환
 | Acceleration | 180.0 | 가속도 (m/s²) |
 | Deceleration | 240.0 | 감속도 (m/s²) |
 | RotationSpeed | 12.0 | 회전 속도 (rad/s) |
-| ArrivalRadius | 0.5 | 도착 판정 반경 |
 | PathfindingSize | 0 | 0=Small (좁은 통로 통과), 1=Large (벽 사이 갭 차단) |
+
+> ArrivalRadius 필드는 제거됨. Baker에서 0으로 고정, MovementArrivalSystem에서 ObstacleRadius+0.1f fallback 적용.
 
 ## 유틸리티
 
@@ -162,7 +163,7 @@ MovementArrivalSystem → 도착 판정 → 이동 정지 + Intent.Idle 전환
 | 파일 | 역할 |
 | --- | --- |
 | FlowFieldCore.cs | BFS 기반 Flow Field 계산 (8방향, 코너 차단, 직교 우선 탐색). 방향 인코딩 0-7 + 255=None. `[BurstCompile]` struct, IJob 내부 호출 |
-| GridUtility.cs | 그리드 좌표 변환, CellCenterToWorld, IsPassable, IsPassableForSize, BuildPassabilityMap, MarkPathBlocked/UnmarkPathBlocked |
+| GridUtility.cs | 그리드 좌표 변환, CellCenterToWorld, IsPassable, IsPassableForSize, BuildPassabilityMap, MarkPathBlocked/UnmarkPathBlocked. **BuildPassabilityMap**: CellPadding=0(Small)은 `IsPathBlocked` 그대로 복사, CellPadding=1(Large)은 3×3 범위 모두 passable해야 통과 가능 (Minkowski 합 확장) |
 | MovementMath.cs | 감속 거리 계산(CalculateSlowingDistance), 목표 속도 계산(CalculateTargetSpeed), 가속/감속 적용(CalculateNewSpeed) |
 | SpatialHashUtility.cs | 공간 분할 해시 계산 (중앙 집중화) |
 
@@ -199,7 +200,7 @@ MovementArrivalSystem → 도착 판정 → 이동 정지 + Intent.Idle 전환
 | 파일 | 역할 |
 | --- | --- |
 | FlowFieldCacheData.cs | Flow Field 캐시 싱글톤. Small/Large FieldPool + KeyToPoolIndex(NativeHashMap) + LastUsedFrame(LRU) + PassabilityMap. IsGridStale 플래그로 전체 무효화 |
-| GridSettings.cs | 그리드 설정. CellSize(0.5f), GridOrigin, GridSize(200×200), BuildSnapCells(2) |
+| GridSettings.cs | 그리드 설정. CellSize(1.0f), GridOrigin, GridSize(200×200), BuildSnapCells(1) |
 | SpatialMaps.cs | 공간 분할 맵 싱글톤. TargetingMap(10.0f) + MovementMap(3.0f) 저장, IsValid 프로퍼티 |
 
 ## 시스템 실행 순서
@@ -235,7 +236,7 @@ FlowFieldSteeringSystem (UpdateAfter: FlowFieldSystem, UpdateBefore: PredictedMo
 PredictedMovementSystem (UpdateAfter: FlowFieldSteeringSystem)
     → LocalTransform.Position 직접 수정
     → SpatialMaps.MovementMap 기반 Separation
-    → 벽 충돌 미끄러짐
+    → Grid 기반 벽 충돌 (축 독립 검사 + AABB 겹침 보정)
     → Separation 진동 감지 (확장 반경 내 밀려남 → 정지)
     ↓
 MovementArrivalSystem (UpdateAfter: PredictedMovementSystem)
@@ -259,8 +260,9 @@ bool skipMovement = isAttacking || isWaypointsDisabled || isPathPending;
 bool shouldCollide = iAmEnemy || isEnemy || (!iAmGathering && !isGathering);
 
 // 적-유닛: 항상 충돌 회피
-// 유닛-유닛: 둘 다 Gather가 아닐 때만 충돌 회피
+// 유닛-유닛: 둘 다 Gather가 아닐 때만 충돌 회피 (자원 노드 큐잉 허용)
 // 적-적: 항상 충돌 회피
+// 참고: Intent.Build에는 면제 없음 → BuildArrivalSystem 재시도(max 3)로 보상
 ```
 
 ### 공격 중 Separation 유지
@@ -282,7 +284,8 @@ float forceMag = overlap * (1.0f + overlapRatio * 3.0f);
 
 ```
 
-### 벽 충돌 처리
+### 벽 충돌 처리 (Grid 기반)
 
-1. **ResolveWallCollision (velocity 기반)**: 이동 방향 Raycast + 전방향 PointDistance → 속도 벡터에서 법선 성분 제거 (미끄러짐)
-2. **ClampToWall (안전망, 반복)**: `transform.Position` 업데이트 후, 벽과 겹침(overlap > 0.05f)이면 SurfaceNormal 방향으로 밀어내기. **최대 3회 반복**하여 코너(두 벽 교차) 관통 방지. 조기 종료 조건: 벽 미검출, 오차 이내, 무효 법선.
+1. **ResolveWallCollision (축 독립 검사)**: X축/Z축 이동을 각각 독립 검사하여 IsPathBlocked 셀과 겹치면 해당 축 속도를 제거. 유닛은 속력 보존 (벽을 따라 미끄러질 때 감속하지 않음), 적은 벡터 삭제.
+2. **ClampToWall (안전망, 반복)**: 이동 후 유닛 AABB와 IsPathBlocked 셀의 겹침을 검사하여 최소 침투 축 방향으로 밀어냄. **최대 3회 반복**하여 코너(두 벽 교차) 관통 방지. 조기 종료 조건: 겹침 미검출.
+3. **IsOverlappingBlockedCell**: 위치+반지름 AABB가 커버하는 그리드 셀 중 IsPathBlocked==1인 셀이 있으면 true 반환.

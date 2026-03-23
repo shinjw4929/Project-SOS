@@ -20,7 +20,7 @@ namespace Tests.EditMode.Utilities
         {
             _settings = new GridSettings
             {
-                CellSize = 0.5f,
+                CellSize = 1.0f,
                 GridOrigin = float2.zero,
                 GridSize = new int2(200, 200)
             };
@@ -42,10 +42,10 @@ namespace Tests.EditMode.Utilities
         {
             float3 result = GridUtility.CellCenterToWorld(new int2(0, 0), _settings);
 
-            // GridOrigin(0,0) + (0 + 0.5) * 0.5 = 0.25
-            Assert.AreEqual(0.25f, result.x, 0.001f);
+            // GridOrigin(0,0) + (0 + 0.5) * 1.0 = 0.5
+            Assert.AreEqual(0.5f, result.x, 0.001f);
             Assert.AreEqual(0f, result.y, 0.001f);
-            Assert.AreEqual(0.25f, result.z, 0.001f);
+            Assert.AreEqual(0.5f, result.z, 0.001f);
         }
 
         [Test]

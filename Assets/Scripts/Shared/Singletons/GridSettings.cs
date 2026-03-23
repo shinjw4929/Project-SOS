@@ -9,7 +9,7 @@ namespace Shared
         public float2 GridOrigin;
         public int2 GridSize;
 
-        // 건설 스냅 단위 (셀 수). CellSize=0.5, BuildSnapCells=2 → 1m 단위 스냅
+        // 건설 스냅 단위 (셀 수). CellSize × BuildSnapCells = 스냅 거리
         public int BuildSnapCells;
     }
 }

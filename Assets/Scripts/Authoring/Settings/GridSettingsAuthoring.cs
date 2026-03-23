@@ -8,10 +8,10 @@ namespace Authoring
 {
     public class GridSettingsAuthoring : MonoBehaviour
     {
-        public float cellSize = 0.5f;
+        public float cellSize = 1.0f;
         public int2 gridSize = new int2(100, 100);
-        [Tooltip("건설 스냅 단위 (셀 수). CellSize=0.5 + BuildSnapCells=2 → 1m 단위 스냅")]
-        [Min(1)] public int buildSnapCells = 2;
+        [Tooltip("건설 스냅 단위 (셀 수). CellSize=1.0 + BuildSnapCells=1 → 1m 단위 스냅")]
+        [Min(1)] public int buildSnapCells = 1;
         public Transform groundTransform;
 
         public class Baker : Baker<GridSettingsAuthoring>

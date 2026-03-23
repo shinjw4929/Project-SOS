@@ -13,10 +13,8 @@ namespace Shared
     [BurstCompile]
     public static class CombatUtility
     {
-        // 투사체 높이 오프셋
+        /// <summary>투사체 발사 시작점의 Y 오프셋 (월드 단위, m). 지면이 아닌 유닛 중심 높이에서 발사.</summary>
         const float ProjectileHeightOffset = 1f;
-        // 투사체 이동 속도
-        const float ProjectileSpeed = 30f;
 
         /// <summary>
         /// 유효 거리 계산: max(0, 직선거리 - 타겟 반지름)
@@ -125,7 +123,8 @@ namespace Shared
             int sortKey,
             in Entity prefab,
             in float3 myPos,
-            in float3 targetPos)
+            in float3 targetPos,
+            float speed)
         {
             float3 startPos = myPos + new float3(0, ProjectileHeightOffset, 0);
             float3 endPos = targetPos + new float3(0, ProjectileHeightOffset, 0);
@@ -140,7 +139,7 @@ namespace Shared
             ecb.SetComponent(sortKey, projectile, new ProjectileMove
             {
                 Direction = projectileDir,
-                Speed = ProjectileSpeed,
+                Speed = speed,
                 RemainingDistance = projectileDistance
             });
 

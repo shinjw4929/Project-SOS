@@ -145,13 +145,17 @@ namespace Shared
             return frameCount % timeSliceDivisor == (uint)entityIndex % timeSliceDivisor;
         }
 
-        // 상수 정의
+        /// <summary>최소 이동 속도 (m/s). 이 이하이면 정지 처리.</summary>
         public const float MinSpeed = 0.5f;
+        /// <summary>도착 판정 임계 거리 (월드 단위, m). 이 거리 이내이면 도착으로 판정.</summary>
         public const float ArrivalThreshold = 0.3f;
+        /// <summary>정지 보정 거리 (월드 단위, m). 진동 방지용 스냅.</summary>
         public const float SnapDistance = 0.02f;
+        /// <summary>정지 보정 속도 임계치 (m/s). 이 이하이면 스냅 보정 적용.</summary>
         public const float SnapSpeedThreshold = 0.3f;
+        /// <summary>웨이포인트 전환 거리 (월드 단위, m). 다음 웨이포인트로 코너링 시작.</summary>
         public const float CornerRadius = 0.5f;
-        // Partial Path 재시도 최소 간격 (초)
+        /// <summary>Partial Path 재시도 최소 간격 (초). 이 시간 이내에는 재탐색하지 않음.</summary>
         public const float PathRetryInterval = 2.0f;
     }
 }

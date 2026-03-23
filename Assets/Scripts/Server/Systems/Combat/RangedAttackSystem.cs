@@ -193,7 +193,7 @@ namespace Server
             if (cooldown.RemainingTime > 0) return;
 
             CombatUtility.ApplyDamage(ref ECB, sortKey, targetEntity, entity, combatStats.AttackPower, in DefenseLookup);
-            CombatUtility.SpawnVisualProjectile(ref ECB, sortKey, ProjectilePrefab, in myPos, in targetPos);
+            CombatUtility.SpawnVisualProjectile(ref ECB, sortKey, ProjectilePrefab, in myPos, in targetPos, combatStats.ProjectileSpeed);
             cooldown.RemainingTime = CombatUtility.ResetCooldown(combatStats.AttackSpeed);
         }
     }
@@ -274,7 +274,7 @@ namespace Server
             if (cooldown.RemainingTime > 0) return;
 
             CombatUtility.ApplyDamage(ref ECB, sortKey, targetEntity, entity, combatStats.AttackPower, in DefenseLookup);
-            CombatUtility.SpawnVisualProjectile(ref ECB, sortKey, ProjectilePrefab, in myPos, in targetPos);
+            CombatUtility.SpawnVisualProjectile(ref ECB, sortKey, ProjectilePrefab, in myPos, in targetPos, combatStats.ProjectileSpeed);
             cooldown.RemainingTime = CombatUtility.ResetCooldown(combatStats.AttackSpeed);
         }
     }

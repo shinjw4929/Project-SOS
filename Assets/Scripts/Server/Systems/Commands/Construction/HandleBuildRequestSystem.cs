@@ -125,6 +125,7 @@ namespace Server
                 // Resource Node Data
                 ResourceNodePositions = resourceNodePositions,
                 ResourceNodeSizes = resourceNodeSizes,
+                ResourceNodeExclusionDistance = SystemAPI.GetSingleton<GameSettings>().ResourceNodeExclusionDistance,
 
                 // Output
                 ActionQueue = actionQueue.AsParallelWriter()
@@ -197,6 +198,7 @@ namespace Server
         [ReadOnly] public NativeArray<int2> ResourceNodePositions;
         [ReadOnly] public NativeArray<int2> ResourceNodeSizes;
         [ReadOnly] public ComponentLookup<ResourceCenterTag> ResourceCenterTagLookup;
+        public int ResourceNodeExclusionDistance;
 
         private void Execute(Entity rpcEntity, [EntityIndexInQuery] int sortKey, RefRO<ReceiveRpcCommandRequest> rpcReceive, RefRO<BuildRequestRpc> rpc)
         {
@@ -269,7 +271,8 @@ namespace Server
                 {
                     if (GridUtility.IsInResourceExclusionZone(
                         gridPos, width, length,
-                        ResourceNodePositions, ResourceNodeSizes))
+                        ResourceNodePositions, ResourceNodeSizes,
+                        ResourceNodeExclusionDistance))
                     {
                         isValid = false;
                     }

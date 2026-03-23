@@ -64,9 +64,11 @@ namespace Server
 
                     // Grid 점유 직접 해제 (Cleanup 시스템에 의존하지 않음)
                     GridUtility.UnmarkOccupied(gridBuffer, pos.x, pos.y, w, l, gridSizeX);
+                    int pathWidth = math.max(1, w - 2);
+                    int pathLength = math.max(1, l - 2);
                     GridUtility.UnmarkPathBlocked(gridBuffer,
                         pos.x, pos.y, w, l,
-                        footprint.ValueRO.PathWidth, footprint.ValueRO.PathLength,
+                        pathWidth, pathLength,
                         gridSizeX);
 
                     anyDecayed = true;

@@ -26,10 +26,6 @@ namespace Authoring
         [Tooltip("회전 속도 (rad/s)")]
         public float RotationSpeed = 12.0f;
 
-        [Header("Pathfinding")]
-        [Tooltip("도착 판정 반경")]
-        public float ArrivalRadius = 0.5f;
-
         [Header("Pathfinding Size")]
         [Tooltip("Small(0): 좁은 통로 통과 가능, Large(1): 벽 사이 갭 차단")]
         public byte PathfindingSize = 0;
@@ -70,7 +66,7 @@ namespace Authoring
                     Current = float3.zero,
                     Next = float3.zero,
                     HasNext = false,
-                    ArrivalRadius = authoring.ArrivalRadius
+                    ArrivalRadius = 0 // fallback: ObstacleRadius + 0.1f (MovementArrivalSystem)
                 });
                 SetComponentEnabled<MovementWaypoints>(entity, false);
 

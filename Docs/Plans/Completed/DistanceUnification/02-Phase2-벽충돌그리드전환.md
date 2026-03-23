@@ -45,11 +45,11 @@ float maxX = position.x + obstacleRadius;
 float minZ = position.z - obstacleRadius;
 float maxZ = position.z + obstacleRadius;
 
-// AABB가 겹치는 그리드 셀 범위
-int cellMinX = GridUtility.WorldToGridX(minX, gridSettings);
-int cellMaxX = GridUtility.WorldToGridX(maxX, gridSettings);
-int cellMinZ = GridUtility.WorldToGridZ(minZ, gridSettings);
-int cellMaxZ = GridUtility.WorldToGridZ(maxZ, gridSettings);
+// AABB가 겹치는 그리드 셀 범위 (기존 WorldToGrid는 int2 반환 — X/Z 개별 변환 헬퍼 추가 또는 인라인)
+int cellMinX = (int)math.floor((minX - gridSettings.GridOrigin.x) / gridSettings.CellSize);
+int cellMaxX = (int)math.floor((maxX - gridSettings.GridOrigin.x) / gridSettings.CellSize);
+int cellMinZ = (int)math.floor((minZ - gridSettings.GridOrigin.y) / gridSettings.CellSize);
+int cellMaxZ = (int)math.floor((maxZ - gridSettings.GridOrigin.y) / gridSettings.CellSize);
 
 // 겹치는 셀 중 path-blocked 셀이 있는지 검사
 for (int cx = cellMinX; cx <= cellMaxX; cx++)
@@ -131,7 +131,7 @@ PredictedMovementSystem에서 충돌 대상은 `GridCell.IsPathBlocked` 셀.
 
 - `GridSettings` 싱글톤 접근
 - `GridCell` DynamicBuffer → `AsNativeArray()` 로 `[ReadOnly] NativeArray<GridCell>` 변환, Job 필드로 전달
-- 그리드 좌표 변환 유틸리티 (`GridUtility.WorldToGridX/Z`)
+- 그리드 좌표 변환: 기존 `GridUtility.WorldToGrid()` (int2 반환)를 활용하거나 X/Z 개별 변환을 인라인 처리
 
 ```csharp
 // OnUpdate에서 준비:

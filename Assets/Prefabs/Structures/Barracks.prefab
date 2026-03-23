@@ -53,12 +53,12 @@ BoxCollider:
     serializedVersion: 2
     m_Bits: 0
   m_LayerOverridePriority: 0
-  m_IsTrigger: 0
+  m_IsTrigger: 1
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 2, y: 2, z: 2}
-  m_Center: {x: 0, y: 1, z: 0}
+  m_Size: {x: 4, y: 3.6, z: 4}
+  m_Center: {x: 0, y: 1.8, z: 0}
 --- !u!54 &6290110214241745948
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -118,14 +118,7 @@ MonoBehaviour:
   width: 6
   length: 6
   height: 0
-  pathWidth: 6
-  pathLength: 6
-  worldWidth: 2.7
-  worldLength: 2.7
-  navMeshHeight: 2.7
-  isCircular: 0
-  navMeshRadius: 1
-  interactionRadius: 1.9
+  obstacleRadius: 4.5
   cost: 0
   buildTime: 3
   maxHealth: 10
@@ -190,15 +183,15 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 4844460577631706, guid: 96c2679d777839647ba95af37f03876e, type: 3}
       propertyPath: m_LocalScale.x
-      value: 1.6
+      value: 2.5
       objectReference: {fileID: 0}
     - target: {fileID: 4844460577631706, guid: 96c2679d777839647ba95af37f03876e, type: 3}
       propertyPath: m_LocalScale.y
-      value: 1.6
+      value: 2.5
       objectReference: {fileID: 0}
     - target: {fileID: 4844460577631706, guid: 96c2679d777839647ba95af37f03876e, type: 3}
       propertyPath: m_LocalScale.z
-      value: 1.6
+      value: 2.5
       objectReference: {fileID: 0}
     - target: {fileID: 4844460577631706, guid: 96c2679d777839647ba95af37f03876e, type: 3}
       propertyPath: m_LocalPosition.x
@@ -206,7 +199,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 4844460577631706, guid: 96c2679d777839647ba95af37f03876e, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 1
+      value: 1.7
       objectReference: {fileID: 0}
     - target: {fileID: 4844460577631706, guid: 96c2679d777839647ba95af37f03876e, type: 3}
       propertyPath: m_LocalPosition.z

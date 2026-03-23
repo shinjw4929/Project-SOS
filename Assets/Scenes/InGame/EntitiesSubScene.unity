@@ -735,10 +735,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2cdf682877fb0674ba6852f05336c620, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  cellSize: 0.5
+  cellSize: 1
   gridSize:
-    x: 100
-    y: 100
+    x: 250
+    y: 250
   buildSnapCells: 2
   groundTransform: {fileID: 1392215424}
 --- !u!1 &670457695

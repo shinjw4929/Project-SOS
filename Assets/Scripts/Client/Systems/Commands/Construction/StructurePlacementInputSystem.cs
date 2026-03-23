@@ -56,7 +56,7 @@ namespace Client
             {
                 int2 gridPos = GridUtility.WorldToGrid(hit.Position, gridSettings);
 
-                // 건설 스냅: BuildSnapCells 단위로 반올림 (0.5m 셀 × 2 = 1m 스냅)
+                // 건설 스냅: BuildSnapCells 단위로 반올림 (CellSize × BuildSnapCells 단위 스냅)
                 int snap = gridSettings.BuildSnapCells;
                 if (snap > 1)
                 {

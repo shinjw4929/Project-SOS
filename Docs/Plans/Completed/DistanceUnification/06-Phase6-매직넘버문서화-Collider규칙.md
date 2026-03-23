@@ -70,8 +70,34 @@ const float PartialPathInvalidationRadius = 12f;
 ### WanderUtility.cs
 
 ```csharp
+/// <summary>위치 정체 체크 간격 (초). 이 간격마다 이동 거리를 측정.</summary>
+const float StuckCheckInterval = 3.0f;
+
 /// <summary>정체 판정 이동 거리 (월드 단위, m). StuckCheckInterval 동안 이 거리 미만 이동 시 정체.</summary>
 const float StuckThreshold = 2.0f;
+
+/// <summary>Dormant 상태 최소 지속 시간 (초).</summary>
+const float DormantMinDuration = 5.0f;
+
+/// <summary>Dormant 상태 최대 지속 시간 (초).</summary>
+const float DormantMaxDuration = 8.0f;
+```
+
+### MovementMath.cs (추가분)
+
+```csharp
+/// <summary>정지 보정 속도 임계치 (m/s). 이 이하이면 스냅 보정 적용.</summary>
+const float SnapSpeedThreshold = 0.3f;
+
+/// <summary>Partial Path 재시도 최소 간격 (초). 이 시간 이내에는 재탐색하지 않음.</summary>
+const float PathRetryInterval = 2.0f;
+```
+
+### SpatialHashUtility.cs (추가분)
+
+```csharp
+/// <summary>공간 해시 용량 계수. 해시 충돌 방지를 위한 여유 배수.</summary>
+const float CapacityMultiplier = 1.5f;
 ```
 
 ---
@@ -136,11 +162,11 @@ const float StuckThreshold = 2.0f;
 ## 체크리스트
 
 - [ ] `ArrivalUtility.cs`: `DefaultTargetRadius`, `ApproachMargin` 주석 추가
-- [ ] `MovementMath.cs`: `ArrivalThreshold`, `CornerRadius`, `SnapDistance`, `MinSpeed` 주석 추가
-- [ ] `SpatialHashUtility.cs`: `TargetingCellSize`, `MovementCellSize` 주석 추가
+- [ ] `MovementMath.cs`: `ArrivalThreshold`, `CornerRadius`, `SnapDistance`, `MinSpeed`, `SnapSpeedThreshold`, `PathRetryInterval` 주석 추가
+- [ ] `SpatialHashUtility.cs`: `TargetingCellSize`, `MovementCellSize`, `CapacityMultiplier` 주석 추가
 - [ ] `CombatUtility.cs`: `ProjectileHeightOffset` 주석 추가
 - [ ] `GridObstacleResponseSystem.cs`: `PathInvalidationRadius` 주석 추가
 - [ ] `GridObstacleCleanupSystem.cs`: `PartialPathInvalidationRadius` 주석 추가
-- [ ] `WanderUtility.cs`: `StuckThreshold` 주석 추가
+- [ ] `WanderUtility.cs`: `StuckCheckInterval`, `StuckThreshold`, `DormantMinDuration`, `DormantMaxDuration` 주석 추가
 - [ ] `Docs/Architecture.md`: Collider 규칙 + StructureFootprint 매핑 추가
 - [ ] `CLAUDE.md`: Collider Rules 섹션 추가

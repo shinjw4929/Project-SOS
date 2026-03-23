@@ -1,8 +1,8 @@
 using System.Collections.Generic;
 using Unity.Entities;
 using Unity.Mathematics;
-
 using UnityEngine;
+using UnityEngine.Serialization;
 using Shared;
 
 namespace Authoring
@@ -34,13 +34,16 @@ namespace Authoring
         public float visionRange = 10.0f;
         public float workRange = 1.0f;
 
-        [Header("Unit Size")]
-        public float radius = 1.0f;
+        [Header("Obstacle Radius")]
+        [FormerlySerializedAs("radius")]
+        public float obstacleRadius = 1.0f;
 
         [Header("Combat Status")]
         public float attackPower = 0.0f;
         public float attackSpeed = 1.0f;
         public float attackRange = 2.0f;
+        [Tooltip("시각 투사체 속도 (원거리 전용, m/s)")]
+        public float projectileSpeed = 30f;
         
         [Header("Gathering Settings (Worker Only)")]
         [Min(1)] public int maxCarryAmount = 10;
@@ -212,7 +215,7 @@ namespace Authoring
                 // 유닛 반지름 (상호작용/도착 판정용)
                 AddComponent(entity, new ObstacleRadius
                 {
-                    Radius = authoring.radius
+                    Radius = authoring.obstacleRadius
                 });
 
                 // GridPathfindingSize, FlowFieldRef는 MovementAuthoring에서 처리
@@ -226,7 +229,8 @@ namespace Authoring
                     {
                         AttackPower = authoring.attackPower,
                         AttackSpeed = authoring.attackSpeed,
-                        AttackRange = authoring.attackRange
+                        AttackRange = authoring.attackRange,
+                        ProjectileSpeed = authoring.projectileSpeed
                     });
 
                     // 공격 쿨다운 (초기값 0 = 즉시 공격 가능)

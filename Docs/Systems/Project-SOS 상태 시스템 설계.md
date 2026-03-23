@@ -446,7 +446,7 @@ UnifiedTargetingSystem
 | 트리거 | 타겟 없음 (`AggroTarget.TargetEntity == Entity.Null`) |
 | 목적지 범위 | GridSettings 기반 맵 범위 (가장자리 5유닛 여유) |
 | 랜덤 시드 | `entity.Index ^ (FrameCount * 0x9E3779B9) ^ (ElapsedTime * 1000)` |
-| 경로 계산 | `MovementGoal.IsPathDirty = true` → PathfindingSystem |
+| 경로 계산 | `MovementGoal.IsPathDirty = true` → FlowFieldSystem |
 | 재배회 조건 | 목적지 도착 (`!waypointsEnabled`) 또는 타겟 발견 |
 
 ---

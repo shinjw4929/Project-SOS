@@ -108,9 +108,9 @@ namespace Shared
         }
         
         /// <summary>
-        /// 자원 노드 주변 건설 제외 거리 (그리드 칸 수)
+        /// 자원 노드 주변 건설 제외 거리 기본값 (그리드 셀 단위). GameSettings.ResourceNodeExclusionDistance 사용 권장.
         /// </summary>
-        public const int ResourceNodeExclusionDistance = 18;
+        public const int DefaultResourceNodeExclusionDistance = 9;
 
         /// <summary>
         /// 건설 위치가 자원 노드 제외 구역 내에 있는지 확인 (Burst 호환)
@@ -122,7 +122,7 @@ namespace Shared
             int buildLength,
             in NativeArray<int2> resourceNodePositions,
             in NativeArray<int2> resourceNodeSizes,
-            int exclusionDistance = ResourceNodeExclusionDistance)
+            int exclusionDistance)
         {
             int2 buildMax = buildGridPos + new int2(buildWidth, buildLength);
 
