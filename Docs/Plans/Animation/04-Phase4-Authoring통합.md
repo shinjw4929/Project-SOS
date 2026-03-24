@@ -14,11 +14,10 @@
 public class VATAnimationAuthoring : MonoBehaviour
 {
     public VATClipDataAsset ClipData;  // Inspector에서 Phase 2 출력물 할당
-}
 
-public class VATAnimationBaker : Baker<VATAnimationAuthoring>
-{
-    public override void Bake(VATAnimationAuthoring authoring)
+    public class Baker : Baker<VATAnimationAuthoring>
+    {
+        public override void Bake(VATAnimationAuthoring authoring)
     {
         if (authoring.ClipData == null)
         {
@@ -59,6 +58,7 @@ public class VATAnimationBaker : Baker<VATAnimationAuthoring>
         builder.Dispose();
 
         AddComponent(entity, new VATClipLibrary { Value = blobRef });
+    }
     }
 }
 ```

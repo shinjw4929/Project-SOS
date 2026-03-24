@@ -32,6 +32,7 @@
         → useScale: false 필수 (로컬 좌표 유지)
       - 각 버텍스의 로컬 좌표를 텍스처 행에 기록
    c. AnimationMode.StopAnimationMode()
+   ※ try-finally로 StopAnimationMode() 호출을 보장할 것 (베이킹 중 예외 발생 시 AnimationMode가 켜진 채 남는 문제 방지)
 6. Static Mesh: 바인드포즈(프레임 0) 메시를 별도 에셋으로 저장
 7. UV2 인코딩: Static Mesh의 UV2.x에 버텍스 인덱스(0, 1, 2, ...) 기록
    ※ 정규화 금지! uv2[i] = new Vector2((float)i, 0)  ← 정수값 그대로 기록
@@ -79,6 +80,8 @@ for (int row = 0; row < height; row++)
 texture.Apply();
 ```
 
+> **정밀도 참고**: Half(16bit)로 시작하되, 모델 좌표 범위가 넓어 정밀도가 부족할 경우 `TextureFormat.RGBAFloat`(32bit)로 전환한다. 전환 시 `GetRawTextureData<float4>()`를 사용하고, 셰이더 측 변경은 불필요 (텍스처 포맷 투명).
+
 ### UV2 인코딩
 
 셰이더에서 SV_VertexID 대신 UV2를 사용 (Entities Graphics 호환성).
@@ -89,6 +92,8 @@ UV2.y = 미사용 (0.0)
 ```
 
 Static Mesh 생성 시 UV2 채널에 인덱스를 기록. 셰이더에서 `v.texcoord1.x`로 읽음.
+
+> **UV2 채널 초기화**: `BakeMesh()` 출력 메시는 원본 UV 채널을 보존하지 않을 수 있다. Static Mesh 생성 후 반드시 `mesh.SetUVs(1, uv2List)`로 UV2 채널을 명시적으로 설정한다 (기존 UV2 데이터에 의존하지 않음).
 
 ### 파일 저장 경로 규약
 

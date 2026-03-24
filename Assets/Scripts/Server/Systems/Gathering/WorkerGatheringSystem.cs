@@ -29,11 +29,16 @@ namespace Server
         private ComponentLookup<ResourceNodeSetting> _resourceNodeSettingLookup;
         private ComponentLookup<ObstacleRadius> _obstacleRadiusLookup;
         private ComponentLookup<PhysicsVelocity> _physicsVelocityLookup;
+        private ComponentLookup<MovementWaypoints> _movementWaypointsLookup;
+        [ReadOnly] private ComponentLookup<StructureFootprint> _footprintLookup;
         [ReadOnly] private ComponentLookup<GhostOwner> _ghostOwnerLookup;
+
+        private float _cellSize;
 
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<NetworkStreamInGame>();
+            state.RequireForUpdate<GridSettings>();
 
             _resourceNodeStateLookup = state.GetComponentLookup<ResourceNodeState>(false);
             _transformLookup = state.GetComponentLookup<LocalTransform>(true);
@@ -43,6 +48,8 @@ namespace Server
             _resourceNodeSettingLookup = state.GetComponentLookup<ResourceNodeSetting>(true);
             _obstacleRadiusLookup = state.GetComponentLookup<ObstacleRadius>(true);
             _physicsVelocityLookup = state.GetComponentLookup<PhysicsVelocity>(false);
+            _movementWaypointsLookup = state.GetComponentLookup<MovementWaypoints>(false);
+            _footprintLookup = state.GetComponentLookup<StructureFootprint>(true);
             _ghostOwnerLookup = state.GetComponentLookup<GhostOwner>(true);
         }
 
@@ -56,6 +63,7 @@ namespace Server
             UpdateLookups(ref state);
 
             float deltaTime = SystemAPI.Time.DeltaTime;
+            _cellSize = SystemAPI.GetSingleton<GridSettings>().CellSize;
 
             // 네트워크 ID → UserCurrency Entity 맵 (임시 할당)
             var networkIdToCurrency = new NativeParallelHashMap<int, Entity>(16, Allocator.Temp);
@@ -98,6 +106,8 @@ namespace Server
             _resourceNodeSettingLookup.Update(ref state);
             _obstacleRadiusLookup.Update(ref state);
             _physicsVelocityLookup.Update(ref state);
+            _movementWaypointsLookup.Update(ref state);
+            _footprintLookup.Update(ref state);
             _ghostOwnerLookup.Update(ref state);
         }
 
@@ -132,7 +142,7 @@ namespace Server
 
         /// <summary>
         /// [단계 1] 자원 노드로 이동 중 도착 감지
-        /// 도착 판정: 노드 중심과의 거리 기준 (NavMesh가 표면까지 도달 못해도 채굴 가능)
+        /// 도착 판정: 노드 중심과의 XZ 거리 기준
         /// 이미 자원을 들고 있으면 채굴 없이 바로 반납으로 전환
         /// </summary>
         [BurstCompile]
@@ -153,20 +163,8 @@ namespace Server
 
                 float3 workerPos = transform.ValueRO.Position;
                 float3 nodePos = _transformLookup[nodeEntity].Position;
-                float distance = math.distance(workerPos, nodePos);
+                float distance = math.distance(workerPos.xz, nodePos.xz);
                 float arrivalDist = GetArrivalDistance(nodeEntity, entity);
-
-                // [DEBUG] 채집 도착 판정 로그
-                {
-                    FixedString128Bytes msg = "GatherArrival";
-                    GameLogger.Field(ref msg, "idx", entity.Index);
-                    GameLogger.Field(ref msg, "dist", (int)(distance * 100));
-                    GameLogger.Field(ref msg, "need", (int)(arrivalDist * 100));
-                    GameLogger.Field(ref msg, "dy", (int)((workerPos.y - nodePos.y) * 100));
-                    GameLogger.Pos(ref msg, "w", workerPos);
-                    GameLogger.Pos(ref msg, "n", nodePos);
-                    GameLogger.Warning(LogWorld.Server, LogCategory.Economy, in msg);
-                }
 
                 if (distance <= arrivalDist)
                 {
@@ -275,7 +273,7 @@ namespace Server
         }
 
         /// <summary>
-        /// [단계 3] 반납 지점으로 이동 중 도착 감지
+        /// [단계 3] 반납 지점으로 이동 중 도착 감지 (XZ 거리 기준)
         /// </summary>
         [BurstCompile]
         private void ProcessMovingToReturn(ref SystemState state)
@@ -298,20 +296,8 @@ namespace Server
 
                 float3 workerPos = transform.ValueRO.Position;
                 float3 centerPos = _transformLookup[returnPoint].Position;
-                float distance = math.distance(workerPos, centerPos);
+                float distance = math.distance(workerPos.xz, centerPos.xz);
                 float returnArrivalDist = GetArrivalDistance(returnPoint, entity);
-
-                // [DEBUG] 반납 도착 판정 로그
-                {
-                    FixedString128Bytes msg = "ReturnArrival";
-                    GameLogger.Field(ref msg, "idx", entity.Index);
-                    GameLogger.Field(ref msg, "dist", (int)(distance * 100));
-                    GameLogger.Field(ref msg, "need", (int)(returnArrivalDist * 100));
-                    GameLogger.Field(ref msg, "dy", (int)((workerPos.y - centerPos.y) * 100));
-                    GameLogger.Pos(ref msg, "w", workerPos);
-                    GameLogger.Pos(ref msg, "c", centerPos);
-                    GameLogger.Warning(LogWorld.Server, LogCategory.Economy, in msg);
-                }
 
                 if (distance <= returnArrivalDist)
                 {
@@ -413,7 +399,8 @@ namespace Server
             float3 workerPos = _transformLookup[workerEntity].Position;
             float3 nodePos = _transformLookup[nodeEntity].Position;
             float3 targetPos = ArrivalUtility.CalculateApproachPoint(
-                    workerPos, nodePos, nodeEntity, in _obstacleRadiusLookup);
+                    workerPos, nodePos, nodeEntity,
+                    in _obstacleRadiusLookup, in _footprintLookup, _cellSize);
 
             // 노드가 비었거나 자기 자신이 점유 중이면 -> 즉시 점유 및 이동
             if (nodeStateRW.ValueRO.OccupyingWorker == Entity.Null ||
@@ -425,6 +412,8 @@ namespace Server
 
                 movementGoal.ValueRW.Destination = targetPos;
                 movementGoal.ValueRW.IsPathDirty = true;
+
+                SetArrivalRadius(workerEntity);
             }
             // 다른 워커가 점유 중이면 -> 대기 상태로 노드 근처 이동
             else
@@ -434,11 +423,13 @@ namespace Server
 
                 movementGoal.ValueRW.Destination = targetPos;
                 movementGoal.ValueRW.IsPathDirty = true;
+
+                SetArrivalRadius(workerEntity);
             }
         }
 
         /// <summary>
-        /// [단계 5] 대기 중 노드 선점 시도 (WaitingForNode)
+        /// [단계 5] 대기 중 노드 선점 시도 (WaitingForNode, XZ 거리 기준)
         /// </summary>
         [BurstCompile]
         private void ProcessWaitingForNode(ref SystemState state)
@@ -465,7 +456,7 @@ namespace Server
 
                 float3 workerPos = transform.ValueRO.Position;
                 float3 nodePos = _transformLookup[nodeEntity].Position;
-                float distance = math.distance(workerPos, nodePos);
+                float distance = math.distance(workerPos.xz, nodePos.xz);
 
                 if (distance > GetArrivalDistance(nodeEntity, entity))
                 {
@@ -532,9 +523,12 @@ namespace Server
             {
                 float3 centerPos = _transformLookup[returnPoint].Position;
                 float3 returnTargetPos = ArrivalUtility.CalculateApproachPoint(
-                    nodePos, centerPos, returnPoint, in _obstacleRadiusLookup);
+                    nodePos, centerPos, returnPoint,
+                    in _obstacleRadiusLookup, in _footprintLookup, _cellSize);
                 movementGoal.ValueRW.Destination = returnTargetPos;
                 movementGoal.ValueRW.IsPathDirty = true;
+
+                SetArrivalRadius(entity);
             }
             else
             {
@@ -543,12 +537,26 @@ namespace Server
         }
 
         /// <summary>
-        /// 도착 거리 계산: 타겟 반지름 + WorkRange (ArrivalUtility 위임)
+        /// 도착 거리 계산: 타겟 반지름 + WorkRange + CellSize (그리드 이동 오차 보정)
         /// </summary>
         private float GetArrivalDistance(Entity targetEntity, Entity unitEntity)
         {
-            return ArrivalUtility.GetInteractionArrivalDistance(
-                targetEntity, unitEntity, in _obstacleRadiusLookup, in _workRangeLookup);
+            return ArrivalUtility.GetGridCompensatedArrivalDistance(
+                targetEntity, unitEntity, in _obstacleRadiusLookup, in _workRangeLookup, _cellSize);
+        }
+
+        /// <summary>
+        /// ArrivalRadius 설정 (Dead Zone 방지)
+        /// </summary>
+        private void SetArrivalRadius(Entity entity)
+        {
+            if (_movementWaypointsLookup.HasComponent(entity))
+            {
+                float workRange = _workRangeLookup.TryGetComponent(entity, out var wr)
+                    ? wr.Value : 1.0f;
+                _movementWaypointsLookup.GetRefRW(entity).ValueRW.ArrivalRadius =
+                    ArrivalUtility.GetSafeArrivalRadius(workRange);
+            }
         }
 
         /// <summary>
@@ -562,7 +570,7 @@ namespace Server
         }
 
         /// <summary>
-        /// 워커 현재 위치에서 가장 가까운 아군 ResourceCenter 찾기
+        /// 워커 현재 위치에서 가장 가까운 아군 ResourceCenter 찾기 (XZ 거리)
         /// </summary>
         private Entity FindNearestResourceCenter(ref SystemState state, Entity workerEntity)
         {
@@ -582,7 +590,7 @@ namespace Server
                 if (!_ghostOwnerLookup.HasComponent(entity)) continue;
                 if (_ghostOwnerLookup[entity].NetworkId != workerOwnerId) continue;
 
-                float dist = math.distance(workerPos, transform.ValueRO.Position);
+                float dist = math.distance(workerPos.xz, transform.ValueRO.Position.xz);
                 if (dist < minDist)
                 {
                     minDist = dist;

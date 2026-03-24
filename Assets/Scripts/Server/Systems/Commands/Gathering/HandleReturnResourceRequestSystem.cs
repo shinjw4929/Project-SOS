@@ -25,6 +25,7 @@ namespace Server
         [ReadOnly] private ComponentLookup<LocalTransform> _transformLookup;
         [ReadOnly] private ComponentLookup<ObstacleRadius> _obstacleRadiusLookup;
         [ReadOnly] private ComponentLookup<WorkRange> _workRangeLookup;
+        [ReadOnly] private ComponentLookup<StructureFootprint> _footprintLookup;
 
         private ComponentLookup<GatheringTarget> _gatheringTargetLookup;
         private ComponentLookup<UnitIntentState> _unitIntentStateLookup;
@@ -38,6 +39,7 @@ namespace Server
             state.RequireForUpdate<NetworkStreamInGame>();
             state.RequireForUpdate<EndSimulationEntityCommandBufferSystem.Singleton>();
             state.RequireForUpdate<GhostIdMap>();
+            state.RequireForUpdate<GridSettings>();
 
             _ghostOwnerLookup = state.GetComponentLookup<GhostOwner>(true);
             _networkIdLookup = state.GetComponentLookup<NetworkId>(true);
@@ -46,6 +48,7 @@ namespace Server
             _transformLookup = state.GetComponentLookup<LocalTransform>(true);
             _obstacleRadiusLookup = state.GetComponentLookup<ObstacleRadius>(true);
             _workRangeLookup = state.GetComponentLookup<WorkRange>(true);
+            _footprintLookup = state.GetComponentLookup<StructureFootprint>(true);
 
             _gatheringTargetLookup = state.GetComponentLookup<GatheringTarget>(false);
             _unitIntentStateLookup = state.GetComponentLookup<UnitIntentState>(false);
@@ -65,6 +68,7 @@ namespace Server
             _transformLookup.Update(ref state);
             _obstacleRadiusLookup.Update(ref state);
             _workRangeLookup.Update(ref state);
+            _footprintLookup.Update(ref state);
             _gatheringTargetLookup.Update(ref state);
             _unitIntentStateLookup.Update(ref state);
             _unitActionStateLookup.Update(ref state);
@@ -77,6 +81,7 @@ namespace Server
 
             // GhostIdMap 싱글톤 재사용 (GhostIdLookupSystem이 매 프레임 갱신)
             var ghostMap = SystemAPI.GetSingleton<GhostIdMap>().Map;
+            float cellSize = SystemAPI.GetSingleton<GridSettings>().CellSize;
 
             // RPC 처리
             foreach (var (rpcReceive, rpc, rpcEntity) in
@@ -86,7 +91,7 @@ namespace Server
                 if (ghostMap.TryGetValue(rpc.ValueRO.WorkerGhostId, out Entity workerEntity) &&
                     ghostMap.TryGetValue(rpc.ValueRO.ResourceCenterGhostId, out Entity resourceCenterEntity))
                 {
-                    ProcessRequest(ecb, workerEntity, resourceCenterEntity, rpcReceive.ValueRO.SourceConnection);
+                    ProcessRequest(ecb, workerEntity, resourceCenterEntity, rpcReceive.ValueRO.SourceConnection, cellSize);
                 }
 
                 ecb.DestroyEntity(rpcEntity);
@@ -97,7 +102,8 @@ namespace Server
             EntityCommandBuffer ecb,
             Entity workerEntity,
             Entity resourceCenterEntity,
-            Entity sourceConnection)
+            Entity sourceConnection,
+            float cellSize)
         {
             // 1. Worker 유효성 검증
             if (!_workerTagLookup.HasComponent(workerEntity) ||
@@ -167,7 +173,8 @@ namespace Server
                 float3 workerPos = _transformLookup[workerEntity].Position;
                 float3 centerPos = _transformLookup[resourceCenterEntity].Position;
                 float3 targetPos = ArrivalUtility.CalculateApproachPoint(
-                    workerPos, centerPos, resourceCenterEntity, in _obstacleRadiusLookup);
+                    workerPos, centerPos, resourceCenterEntity,
+                    in _obstacleRadiusLookup, in _footprintLookup, cellSize);
 
                 RefRW<MovementGoal> pathRW = _movementGoalLookup.GetRefRW(workerEntity);
                 pathRW.ValueRW.Destination = targetPos;

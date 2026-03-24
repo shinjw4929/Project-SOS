@@ -95,7 +95,7 @@ namespace Server
                     float3 destPos = goal.ValueRO.Destination;
                     destPos.y = transform.ValueRO.Position.y;
                     float distToDestSq = math.lengthsq(transform.ValueRO.Position - destPos);
-                    float nearR = obstacle.ValueRO.Radius + gridSettings.CellSize;
+                    float nearR = obstacle.ValueRO.Radius;
                     if (distToDestSq < nearR * nearR)
                     {
                         waypoints.ValueRW.Current = transform.ValueRO.Position;

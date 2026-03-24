@@ -38,13 +38,18 @@ SoundManager Inspector에서 SoundType → AudioClip 매핑 할당:
 
 **변경 위치**: `Docs/Architecture.md`
 
-1. **System Execution Flow 섹션** — 아래 항목 추가:
+1. **System Execution Flow 섹션** — 기존 번호 사이에 삽입:
    ```
-   [6.5. 애니메이션] SimulationSystemGroup (Server)
-       VATAnimationStateUpdateSystem (유닛+적 클립 인덱스 갱신)
+   [6] 전투 (FixedStepSimulationSystemGroup) 다음에 삽입:
+
+   [6.5. 애니메이션] SimulationSystemGroup (Server, UpdateAfter FixedStepSimulationSystemGroup)
+       VATAnimationStateUpdateSystem (유닛+적 클립 인덱스 갱신 → Ghost 동기화)
+
+   [9.5] 커맨드 마커 다음에 삽입:
 
    [9.7. 애니메이션+사운드] SimulationSystemGroup (Client)
        VATAnimationInitSystem → VATAnimationPlaybackSystem → SoundEventEmitSystem
+       → SoundManager (MonoBehaviour, 매 프레임 버퍼 소비 + AudioSource 풀 재생)
    ```
 
 2. **Key Patterns 섹션** — VAT 애니메이션 패턴 추가:
@@ -57,7 +62,9 @@ SoundManager Inspector에서 SoundType → AudioClip 매핑 할당:
 3. **Folder Structure 테이블** — 추가:
    ```
    | `Shared/Components/Animation/` | 애니메이션 상태/클립 | `VATAnimation*.cs` |
-   | `Client/Components/Animation/` | 셰이더 파라미터 | `VATAnimParam.cs` |
+   | `Shared/Components/Sound/` | 사운드 타입 정의 | `SoundType.cs` |
+   | `Client/Component/Animation/` | 셰이더 파라미터 | `VATAnimParam.cs` |
+   | `Client/Component/Sound/` | 사운드 이벤트 버퍼 | `SoundEvent.cs` |
    | `Client/Systems/Sound/` | 사운드 이벤트 | `Sound*System.cs` |
    | `Client/Controller/Sound/` | 사운드 매니저 | `SoundManager.cs` |
    ```
@@ -69,9 +76,9 @@ SoundManager Inspector에서 SoundType → AudioClip 매핑 할당:
 신규 파일 목록 반영:
 - `Editor/VATBaker/` (2개)
 - `Shared/Components/Animation/` (2개)
-- `Shared/Animation/` (1개)
-- `Client/Components/Animation/` (3개: VATAnimParam, VATAnimTarget, PreviousClipIndex)
-- `Client/Components/Sound/` (1개)
+- `Shared/Components/Animation/` 내 VATClipDataAsset 포함 (위 2개에 합산)
+- `Client/Component/Animation/` (3개: VATAnimParam, VATAnimTarget, PreviousClipIndex)
+- `Client/Component/Sound/` (1개)
 - `Client/Systems/Animation/` (2개)
 - `Client/Systems/Sound/` (1개)
 - `Client/Controller/Sound/` (1개)
@@ -88,7 +95,10 @@ SoundManager Inspector에서 SoundType → AudioClip 매핑 할당:
 - [ ] Hero 전체 상태 사이클 테스트: Idle → Moving → Attacking → Dying → Dead
 - [ ] 각 상태 전환 시 SoundEvent 발생 확인 (MoveCommand, MeleeHit/RangedShot, UnitDeath)
 - [ ] Dying/Dead 상태 애니메이션 재생 여부 확인 (ClientDeathSystem과의 상호작용)
-- [ ] 500+ 유닛 전투 시 사운드 스팸/성능 프로파일링
+- [ ] 500+ 유닛 전투 시 사운드 성능 프로파일링:
+  - 측정 대상: SoundEventEmitSystem CPU 시간, SoundManager.Update() CPU 시간, AudioSource 풀 활용률 (사용 중/전체)
+  - 목표: SoundEventEmitSystem < 0.5ms, SoundManager.Update() < 1ms
+  - 확인: 사운드 이벤트 과다 발생 시 버퍼 오버플로우 없는지, 동시 재생 제한이 정상 작동하는지
 
 ## 에셋 통합 체크리스트
 
@@ -109,5 +119,5 @@ SoundManager Inspector에서 SoundType → AudioClip 매핑 할당:
 ## Post-Implementation 체크리스트 (CLAUDE.md 준수)
 
 - [ ] 주석 정합성 점검: Phase 1~5에서 변경된 파일의 기존 주석이 코드 동작과 일치하는지 확인
-- [ ] CLAUDE.md 동기화: VAT Animation 패턴, SoundEvent 패턴 등 주요 패턴 추가 여부 검토
+- [ ] CLAUDE.md 동기화: Development Guidelines > Key Patterns에 VAT Animation 패턴 (MaterialProperty + 셰이더 연동), SoundEvent 패턴 (ECS 버퍼 → MonoBehaviour 브릿지) 추가
 - [ ] WorkLog 기록: `Docs/WorkLog/YYYY-MM-DD/VAT 애니메이션 + 사운드 시스템 구현.md` 작성

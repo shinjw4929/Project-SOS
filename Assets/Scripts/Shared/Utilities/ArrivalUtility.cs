@@ -7,7 +7,10 @@ namespace Shared
 {
     /// <summary>
     /// 도착 거리 공통 유틸리티 (Burst 호환 static 메서드)
-    /// - 접근점 계산, 상호작용 도착 거리, Dead Zone 없는 ArrivalRadius 계산
+    /// - 접근점 계산 (effectiveRadius 기반 오버로드 포함)
+    /// - 상호작용 도착 거리 (그리드 이동 오차 보정 포함)
+    /// - Dead Zone 없는 ArrivalRadius 계산
+    /// - 그리드 차단 반경 기반 effectiveRadius 계산
     /// </summary>
     [BurstCompile]
     public static class ArrivalUtility
@@ -74,6 +77,35 @@ namespace Shared
         }
 
         /// <summary>
+        /// FlowField 셀 양자화 + 이동 도착 허용 오차를 보정한 상호작용 도착 거리.
+        /// 채집/건설 등 그리드 기반 이동 후 상호작용하는 모든 시스템에서 공통 사용.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        [BurstCompile]
+        public static float GetGridCompensatedArrivalDistance(
+            float targetRadius, float interactionRange, float cellSize)
+        {
+            return targetRadius + interactionRange + cellSize;
+        }
+
+        /// <summary>
+        /// ComponentLookup 기반 그리드 보정 상호작용 도착 거리
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static float GetGridCompensatedArrivalDistance(
+            Entity targetEntity, Entity unitEntity,
+            in ComponentLookup<ObstacleRadius> radiusLookup,
+            in ComponentLookup<WorkRange> workRangeLookup,
+            float cellSize)
+        {
+            float targetRadius = radiusLookup.TryGetComponent(targetEntity, out var obs)
+                ? obs.Radius : DefaultTargetRadius;
+            float workRange = workRangeLookup.TryGetComponent(unitEntity, out var wr)
+                ? wr.Value : 1.0f;
+            return GetGridCompensatedArrivalDistance(targetRadius, workRange, cellSize);
+        }
+
+        /// <summary>
         /// Dead Zone 없는 안전한 ArrivalRadius 계산
         /// 부등식: approachMargin + ArrivalRadius * 2 &lt;= interactionRange
         /// </summary>
@@ -82,6 +114,45 @@ namespace Shared
         public static float GetSafeArrivalRadius(float interactionRange, float approachMargin = ApproachMargin)
         {
             return (interactionRange - approachMargin) * 0.5f;
+        }
+
+        /// <summary>
+        /// 그리드 차단 반경을 고려한 유효 반지름.
+        /// 접근점이 blocked 셀 밖에 배치되도록 보장.
+        /// 현재 모든 건물에서 ObstacleRadius >= gridBlockedHalfExtent이므로 실질적 변화 없음 (미래 대비).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static float GetEffectiveRadius(
+            float obstacleRadius, in StructureFootprint footprint, float cellSize)
+        {
+            int pathWidth = math.max(1, footprint.Width - 2);
+            float gridBlockedHalfExtent = pathWidth * cellSize * 0.5f;
+            return math.max(obstacleRadius, gridBlockedHalfExtent + cellSize * 0.5f);
+        }
+
+        /// <summary>
+        /// effectiveRadius 기반 접근점 계산.
+        /// StructureFootprint가 있으면 그리드 차단 반경을 고려한 유효 반지름 사용.
+        /// 없으면 ObstacleRadius 그대로 사용 (기존 동작 유지).
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static float3 CalculateApproachPoint(
+            float3 fromPos, float3 targetPos,
+            Entity targetEntity,
+            in ComponentLookup<ObstacleRadius> radiusLookup,
+            in ComponentLookup<StructureFootprint> footprintLookup,
+            float cellSize,
+            float margin = ApproachMargin)
+        {
+            float targetRadius = radiusLookup.TryGetComponent(targetEntity, out var obs)
+                ? obs.Radius : DefaultTargetRadius;
+
+            if (footprintLookup.TryGetComponent(targetEntity, out var footprint))
+            {
+                targetRadius = GetEffectiveRadius(targetRadius, in footprint, cellSize);
+            }
+
+            return CalculateApproachPoint(fromPos, targetPos, targetRadius + margin);
         }
 
         /// <summary>

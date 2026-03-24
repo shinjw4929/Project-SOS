@@ -63,7 +63,7 @@ float3 animatedPos = lerp(posA, posB, frac(frameFloat));
 public struct VATAnimationState : IComponentData
 {
     [GhostField] public byte CurrentClipIndex;   // 클립 인덱스 (유닛: 0-6, 적: 0-5)
-    [GhostField] public float AnimStartTime;     // 클립 전환 시점의 ElapsedTime
+    [GhostField(Quantization = 100)] public float AnimStartTime;  // 클립 전환 시점의 ElapsedTime (0.01초 정밀도)
 }
 ```
 
@@ -96,7 +96,7 @@ public struct VATClipLibrary : IComponentData
 
 ### VATClipDataAsset (Shared)
 
-**파일**: `Assets/Scripts/Shared/Animation/VATClipDataAsset.cs`
+**파일**: `Assets/Scripts/Shared/Components/Animation/VATClipDataAsset.cs`
 
 ```csharp
 [CreateAssetMenu(fileName = "VATClipData", menuName = "VAT/Clip Data")]
@@ -123,7 +123,7 @@ Phase 2 베이킹 툴이 이 에셋을 자동 생성. Phase 4 Authoring에서 Bl
 
 ### VATAnimParam (Client)
 
-**파일**: `Assets/Scripts/Client/Components/Animation/VATAnimParam.cs`
+**파일**: `Assets/Scripts/Client/Component/Animation/VATAnimParam.cs`
 
 ```csharp
 [MaterialProperty("_VATAnimParam")]
@@ -138,7 +138,7 @@ TeamColorSystem의 URPMaterialPropertyBaseColor와 동일 패턴. Entities Graph
 
 ### VATAnimTarget (Client)
 
-**파일**: `Assets/Scripts/Client/Components/Animation/VATAnimTarget.cs`
+**파일**: `Assets/Scripts/Client/Component/Animation/VATAnimTarget.cs`
 
 ```csharp
 public struct VATAnimTarget : IComponentData
@@ -151,7 +151,7 @@ TeamColorTarget과 동일 패턴. VATAnimationInitSystem에서 Parent 체인 탐
 
 ### PreviousClipIndex (Client)
 
-**파일**: `Assets/Scripts/Client/Components/Animation/PreviousClipIndex.cs`
+**파일**: `Assets/Scripts/Client/Component/Animation/PreviousClipIndex.cs`
 
 ```csharp
 public struct PreviousClipIndex : IComponentData

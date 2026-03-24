@@ -45,14 +45,14 @@ public enum SoundType : byte
     BuildingPlace = 21,  // 건물 배치
     BuildingComplete = 22, // 건설 완료
 
-    // 이동
-    MoveCommand = 30,    // 이동 명령
+    // 이동 (향후 확장용 — VATAnimationState 변화가 아닌 별도 트리거 필요)
+    MoveCommand = 30,    // 이동 명령 (Phase 5 범위 외, 입력 시스템에서 직접 발생 예정)
 }
 ```
 
 ### SoundEvent (Client)
 
-**파일**: `Assets/Scripts/Client/Components/Sound/SoundEvent.cs`
+**파일**: `Assets/Scripts/Client/Component/Sound/SoundEvent.cs`
 
 ```csharp
 public struct SoundEvent : IBufferElementData
@@ -69,9 +69,9 @@ public struct SoundEvent : IBufferElementData
 
 ```csharp
 public struct SoundEventState : IComponentData { }
-// SoundEventState는 태그 역할 (데이터 없음)
-// 실제 사운드 이벤트 데이터는 DynamicBuffer<SoundEvent>가 담당
-// DynamicBuffer<SoundEvent>는 같은 엔티티에 부착
+// SoundEventState는 싱글톤 버퍼 엔티티의 마커 컴포넌트 (데이터 없음)
+// 역할: SystemAPI.GetSingletonEntity<SoundEventState>()로 버퍼 엔티티를 찾기 위한 식별자
+// 실제 사운드 이벤트 데이터는 DynamicBuffer<SoundEvent>가 담당 (같은 엔티티에 부착)
 // ClientBootstrapSystem에서 싱글톤 엔티티 생성 시 함께 추가
 ```
 
@@ -126,7 +126,7 @@ foreach (var (target, prevClip, entity) in
     SoundType soundType = isUnit
         ? GetUnitSoundType(currentClip, rangedTagLookup.HasComponent(target.ValueRO.RootEntity))
         : isEnemy
-            ? GetEnemySoundType(currentClip)
+            ? GetEnemySoundType(currentClip, rangedEnemyTagLookup.HasComponent(target.ValueRO.RootEntity))
             : SoundType.None;
 
     if (soundType == SoundType.None) { prevClip.ValueRW.Value = currentClip; continue; }
@@ -146,6 +146,7 @@ foreach (var (target, prevClip, entity) in
 [ReadOnly] ComponentLookup<UnitTag> unitTagLookup;
 [ReadOnly] ComponentLookup<EnemyTag> enemyTagLookup;
 [ReadOnly] ComponentLookup<RangedUnitTag> rangedTagLookup;
+[ReadOnly] ComponentLookup<RangedEnemyTag> rangedEnemyTagLookup;
 [ReadOnly] ComponentLookup<LocalToWorld> ltwLookup;
 ```
 
@@ -156,11 +157,34 @@ foreach (var (target, prevClip, entity) in
 | 유닛: ClipIndex → 3 (Attacking) | MeleeHit (근접) 또는 RangedShot (원거리) |
 | 유닛: ClipIndex → 4 (Dying) | UnitDeath |
 | 유닛: ClipIndex → 2 (Working) | WorkerGather |
-| 적: ClipIndex → 2 (Attacking) | MeleeHit |
+| 적: ClipIndex → 2 (Attacking) | MeleeHit (근접) 또는 RangedShot (원거리, EnemyFlying) |
 | 적: ClipIndex → 3 (Dying) | EnemyDeath |
 
-근접/원거리 구분: `RangedUnitTag` 유무로 판별 (루트 엔티티의 `RangedUnitTag` 확인).
-유닛/적 구분: 루트 엔티티의 `UnitTag`/`EnemyTag` 확인 (IdentityTags.cs에 정의).
+근접/원거리 구분: 유닛은 `RangedUnitTag`, 적은 `RangedEnemyTag` 유무로 판별.
+- `RangedUnitTag`: `Shared/Components/Tags/RangedUnitTag.cs`
+- `RangedEnemyTag`: `Shared/Components/Tags/RangedEnemyTag.cs`
+유닛/적 구분: 루트 엔티티의 `UnitTag`/`EnemyTag` 확인 (`Shared/Components/Tags/IdentityTags.cs`에 정의).
+
+#### GetUnitSoundType / GetEnemySoundType 구현
+
+```csharp
+static SoundType GetUnitSoundType(byte clipIndex, bool isRanged) => clipIndex switch
+{
+    3 => isRanged ? SoundType.RangedShot : SoundType.MeleeHit,  // Attacking
+    4 => SoundType.UnitDeath,                                    // Dying
+    2 => SoundType.WorkerGather,                                 // Working
+    _ => SoundType.None,
+};
+
+static SoundType GetEnemySoundType(byte clipIndex, bool isRanged) => clipIndex switch
+{
+    2 => isRanged ? SoundType.RangedShot : SoundType.MeleeHit,  // Attacking
+    3 => SoundType.EnemyDeath,                                   // Dying
+    _ => SoundType.None,
+};
+```
+
+> **BuildingPlace/BuildingComplete**: 이 SoundType들은 VAT 애니메이션 상태 변화에서 발생하지 않는다. 건설 시스템에서 별도로 SoundEvent를 직접 발행해야 하며, Phase 5 범위 외이다. SoundType enum에 미리 정의만 해둔다.
 
 #### SoundEvent.Position 계산
 
@@ -250,7 +274,7 @@ if (!SystemAPI.HasSingleton<SoundEventState>())
 - [ ] 상태 변화 감지: PreviousClipIndex vs CurrentClipIndex 비교
 - [ ] SoundEvent.Position: `LocalToWorld.Position` 사용
 - [ ] 첫 프레임 중복 이벤트 방지 확인 (PreviousClipIndex=0, CurrentClipIndex=0)
-- [ ] 클립 전환 → SoundType 매핑 규칙 구현 (유닛/적 구분: UnitTag/EnemyTag + 근접/원거리 구분: RangedUnitTag)
+- [ ] 클립 전환 → SoundType 매핑 규칙 구현 (유닛/적 구분: UnitTag/EnemyTag + 근접/원거리 구분: RangedUnitTag/RangedEnemyTag)
 - [ ] `SoundManager` MonoBehaviour 구현
 - [ ] AudioSource 풀 (32개, 라운드로빈)
 - [ ] 3D AudioSource 설정 (spatialBlend=1, minDistance=5, maxDistance=80)

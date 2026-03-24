@@ -13,7 +13,7 @@ namespace Server
     /// 건설 도착 시스템
     /// - PendingBuildServerData가 있는 유닛의 도착 감지 (이동 완료 OR 사거리 내 저속)
     /// - 사거리 내: 건물 생성 (BuildingUtility.CreateBuilding 사용)
-    /// - 사거리 밖: 목적지 재계산 후 재시도 (최대 3회), 초과 시 포기
+    /// - 사거리 밖: 즉시 포기 (Idle 복귀)
     /// - PendingBuildServerData 제거 + UnitIntentState를 Idle로 복원
     /// </summary>
     [UpdateInGroup(typeof(SimulationSystemGroup))]
@@ -22,8 +22,6 @@ namespace Server
     [BurstCompile]
     public partial struct BuildArrivalSystem : ISystem
     {
-        private const int DefaultMaxBuildRetryCount = 3;
-
         [ReadOnly] private ComponentLookup<ProductionCost> _productionCostLookup;
         [ReadOnly] private ComponentLookup<StructureFootprint> _footprintLookup;
         [ReadOnly] private ComponentLookup<LocalTransform> _transformLookup;
@@ -36,7 +34,6 @@ namespace Server
 
         private ComponentLookup<UserCurrency> _userCurrencyLookup;
         private ComponentLookup<UserTechState> _userTechStateLookup;
-        private ComponentLookup<MovementGoal> _movementGoalLookup;
 
         public void OnCreate(ref SystemState state)
         {
@@ -56,7 +53,6 @@ namespace Server
 
             _userCurrencyLookup = state.GetComponentLookup<UserCurrency>(false);
             _userTechStateLookup = state.GetComponentLookup<UserTechState>(false);
-            _movementGoalLookup = state.GetComponentLookup<MovementGoal>(false);
         }
 
         [BurstCompile]
@@ -76,14 +72,11 @@ namespace Server
             _velocityLookup.Update(ref state);
             _userCurrencyLookup.Update(ref state);
             _userTechStateLookup.Update(ref state);
-            _movementGoalLookup.Update(ref state);
 
             var ecb = SystemAPI.GetSingleton<EndSimulationEntityCommandBufferSystem.Singleton>()
                 .CreateCommandBuffer(state.WorldUnmanaged);
 
             var gridSettings = SystemAPI.GetSingleton<GridSettings>();
-            int maxRetry = SystemAPI.TryGetSingleton<GameSettings>(out var gs)
-                ? gs.MaxBuildRetryCount : DefaultMaxBuildRetryCount;
             var prefabBuffer = SystemAPI.GetBuffer<StructureCatalogElement>(catalogEntity).AsNativeArray();
 
             // NetworkId → UserCurrency 매핑
@@ -111,9 +104,8 @@ namespace Server
                 float3 unitPos = transform.ValueRO.Position;
                 float workRange = _workRangeLookup.TryGetComponent(entity, out var wr)
                     ? wr.Value : 1.0f;
-                // FlowField 셀 기반 이동 오차 보상 (셀 대각선 반 ≈ CellSize * 0.7)
-                float arrivalDist = ArrivalUtility.GetInteractionArrivalDistance(
-                    pending.StructureRadius, workRange) + gridSettings.CellSize * 0.7f;
+                float arrivalDist = ArrivalUtility.GetGridCompensatedArrivalDistance(
+                    pending.StructureRadius, workRange, gridSettings.CellSize);
                 bool isInRange = ArrivalUtility.IsWithinInteractionRangeXZ(
                     unitPos, pending.BuildSiteCenter, arrivalDist);
 
@@ -134,58 +126,24 @@ namespace Server
 
                 if (!isInRange)
                 {
-                    // 이동 완료인데 사거리 밖 → 재시도 또는 포기
-                    if (pendingData.ValueRO.RetryCount < maxRetry)
-                    {
-                        pendingData.ValueRW.RetryCount += 1;
+                    // 이동 완료인데 사거리 밖 → 즉시 포기
+                    float actualDist = math.distance(
+                        new float3(unitPos.x, 0, unitPos.z),
+                        new float3(pending.BuildSiteCenter.x, 0, pending.BuildSiteCenter.z));
 
-                        float actualDist = math.distance(
-                            new float3(unitPos.x, 0, unitPos.z),
-                            new float3(pending.BuildSiteCenter.x, 0, pending.BuildSiteCenter.z));
+                    FixedString128Bytes giveUpMsg = "Build giveup";
+                    GameLogger.Field(ref giveUpMsg, "idx", entity.Index);
+                    GameLogger.Pos(ref giveUpMsg, "pos", unitPos);
+                    GameLogger.Pos(ref giveUpMsg, "site", pending.BuildSiteCenter);
+                    GameLogger.Field(ref giveUpMsg, "dist", (int)(actualDist * 100));
+                    GameLogger.Field(ref giveUpMsg, "need", (int)(arrivalDist * 100));
+                    GameLogger.Warning(LogWorld.Server, LogCategory.Construction, in giveUpMsg);
 
-                        FixedString128Bytes retryMsg = "Build retry";
-                        GameLogger.Field(ref retryMsg, "idx", entity.Index);
-                        GameLogger.Field(ref retryMsg, "try", pendingData.ValueRO.RetryCount);
-                        GameLogger.Pos(ref retryMsg, "pos", unitPos);
-                        GameLogger.Pos(ref retryMsg, "site", pending.BuildSiteCenter);
-                        GameLogger.Field(ref retryMsg, "dist", (int)(actualDist * 100));
-                        GameLogger.Field(ref retryMsg, "need", (int)(arrivalDist * 100));
-                        GameLogger.Warning(LogWorld.Server, LogCategory.Construction, in retryMsg);
-
-                        // 재시도: BuildSiteCenter 직접 목표 (건물 미배치 상태이므로 통과 가능)
-                        // offset 목적지가 도달 불가 셀에 배치되는 문제 방지
-                        if (_movementGoalLookup.HasComponent(entity))
-                        {
-                            var goal = _movementGoalLookup.GetRefRW(entity);
-                            goal.ValueRW.Destination = pending.BuildSiteCenter;
-                            goal.ValueRW.IsPathDirty = true;
-                        }
-
-                        waypoints.ValueRW.ArrivalRadius =
-                            ArrivalUtility.GetSafeArrivalRadius(workRange, 0f);
-                        ecb.SetComponentEnabled<MovementWaypoints>(entity, true);
-                    }
-                    else
-                    {
-                        // 포기: PendingBuildServerData 제거 + Intent 복원
-                        float giveUpDist = math.distance(
-                            new float3(unitPos.x, 0, unitPos.z),
-                            new float3(pending.BuildSiteCenter.x, 0, pending.BuildSiteCenter.z));
-
-                        FixedString128Bytes giveUpMsg = "Build giveup";
-                        GameLogger.Field(ref giveUpMsg, "idx", entity.Index);
-                        GameLogger.Pos(ref giveUpMsg, "pos", unitPos);
-                        GameLogger.Pos(ref giveUpMsg, "site", pending.BuildSiteCenter);
-                        GameLogger.Field(ref giveUpMsg, "dist", (int)(giveUpDist * 100));
-                        GameLogger.Field(ref giveUpMsg, "need", (int)(arrivalDist * 100));
-                        GameLogger.Warning(LogWorld.Server, LogCategory.Construction, in giveUpMsg);
-
-                        ecb.RemoveComponent<PendingBuildServerData>(entity);
-                        waypoints.ValueRW.ArrivalRadius = 0f;
-                        ecb.SetComponentEnabled<MovementWaypoints>(entity, false);
-                        intentState.ValueRW.State = Intent.Idle;
-                        intentState.ValueRW.TargetEntity = Entity.Null;
-                    }
+                    ecb.RemoveComponent<PendingBuildServerData>(entity);
+                    waypoints.ValueRW.ArrivalRadius = 0f;
+                    ecb.SetComponentEnabled<MovementWaypoints>(entity, false);
+                    intentState.ValueRW.State = Intent.Idle;
+                    intentState.ValueRW.TargetEntity = Entity.Null;
                     continue;
                 }
 

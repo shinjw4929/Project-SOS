@@ -49,6 +49,38 @@ static byte GetEnemyClipIndex(EnemyContext ctx) => ctx switch
 };
 ```
 
+### OnUpdate 구현
+
+```csharp
+[BurstCompile]
+public void OnUpdate(ref SystemState state)
+{
+    var elapsedTime = (float)SystemAPI.Time.ElapsedTime;
+
+    // 유닛 클립 인덱스 갱신
+    foreach (var (actionState, animState) in
+        SystemAPI.Query<RefRO<UnitActionState>, RefRW<VATAnimationState>>())
+    {
+        byte newClip = GetUnitClipIndex(actionState.ValueRO.CurrentAction);
+        if (newClip == animState.ValueRO.CurrentClipIndex) continue;
+
+        animState.ValueRW.CurrentClipIndex = newClip;
+        animState.ValueRW.AnimStartTime = elapsedTime;
+    }
+
+    // 적 클립 인덱스 갱신
+    foreach (var (enemyState, animState) in
+        SystemAPI.Query<RefRO<EnemyState>, RefRW<VATAnimationState>>())
+    {
+        byte newClip = GetEnemyClipIndex(enemyState.ValueRO.CurrentContext);
+        if (newClip == animState.ValueRO.CurrentClipIndex) continue;
+
+        animState.ValueRW.CurrentClipIndex = newClip;
+        animState.ValueRW.AnimStartTime = elapsedTime;
+    }
+}
+```
+
 ### 변화 감지 전략
 
 이전 프레임의 `CurrentClipIndex`와 새로 계산된 인덱스를 비교. 다를 때만 VATAnimationState를 갱신하여 불필요한 Ghost 전송을 방지한다.
@@ -59,7 +91,7 @@ UnitActionState는 두 곳에서 변경됨:
 1. SimulationSystemGroup (WorkerGatheringSystem 등)
 2. FixedStepSimulationSystemGroup (MeleeAttackSystem, RangedAttackSystem)
 
-`UpdateAfter(FixedStepSimulationSystemGroup)`으로 배치하면, SimulationSystemGroup의 모든 시스템 + FixedStep의 모든 시스템이 먼저 실행된 후 VATAnimationStateUpdateSystem이 실행됨. 따라서 양쪽 변경을 모두 캡처 가능.
+`UpdateAfter(FixedStepSimulationSystemGroup)`으로 배치하면 전투 시스템(FixedStep 내부) 이후에 실행됨. SimulationSystemGroup의 다른 시스템(WorkerGatheringSystem 등)은 FixedStep보다 먼저 실행되므로, 이 배치로 양쪽 변경을 모두 캡처 가능. 참고: HeroDeathDetectionSystem/ServerDeathSystem은 UnitActionState를 변경하지 않고 엔티티 파괴만 수행하므로 순서 제약 불필요.
 
 ### Dying/Dead 상태 주의사항
 
@@ -108,7 +140,7 @@ foreach (var (parent, entity) in
 // 첫 프레임은 float4.zero 상태 → 셰이더에서 프레임 0 위치 표시 (바인드포즈, 자연스러움).
 ```
 
-`VATAnimTarget`은 TeamColorTarget과 동일 패턴으로, 메시 엔티티가 자신의 루트(VATAnimationState 보유) 엔티티를 참조하는 컴포넌트. 정의는 Phase 1 참조 (`Assets/Scripts/Client/Components/Animation/VATAnimTarget.cs`).
+`VATAnimTarget`은 TeamColorTarget과 동일 패턴으로, 메시 엔티티가 자신의 루트(VATAnimationState 보유) 엔티티를 참조하는 컴포넌트. 정의는 Phase 1 참조 (`Assets/Scripts/Client/Component/Animation/VATAnimTarget.cs`).
 
 ---
 

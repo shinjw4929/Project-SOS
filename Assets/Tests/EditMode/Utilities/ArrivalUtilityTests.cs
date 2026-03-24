@@ -218,5 +218,100 @@ namespace Tests.EditMode.Utilities
         }
 
         #endregion
+
+        #region GetGridCompensatedArrivalDistance Tests
+
+        [Test]
+        public void GetGridCompensatedArrivalDistance_AddsCellSizeMargin()
+        {
+            float result = ArrivalUtility.GetGridCompensatedArrivalDistance(6.0f, 0.7f, 1.0f);
+
+            // 6.0 + 0.7 + 1.0 = 7.7
+            Assert.AreEqual(7.7f, result, 0.001f);
+        }
+
+        [Test]
+        public void GetGridCompensatedArrivalDistance_ZeroCellSize_EqualsBasicArrival()
+        {
+            float compensated = ArrivalUtility.GetGridCompensatedArrivalDistance(2.0f, 1.0f, 0f);
+            float basic = ArrivalUtility.GetInteractionArrivalDistance(2.0f, 1.0f);
+
+            Assert.AreEqual(basic, compensated, 0.001f);
+        }
+
+        [Test]
+        public void GetGridCompensatedArrivalDistance_ResourceCenterScenario_WorkerCanArrive()
+        {
+            float obstacleRadius = 6.0f;
+            float workRange = 0.7f;
+            float cellSize = 1.0f;
+            float workerStopDistance = 7.55f;
+
+            float arrivalDist = ArrivalUtility.GetGridCompensatedArrivalDistance(
+                obstacleRadius, workRange, cellSize);
+
+            Assert.Greater(arrivalDist, workerStopDistance);
+        }
+
+        [Test]
+        public void GetGridCompensatedArrivalDistance_BuildScenario_LargerThanOldMargin()
+        {
+            float structureRadius = 4.5f;
+            float workRange = 0.7f;
+            float cellSize = 1.0f;
+
+            float newArrival = ArrivalUtility.GetGridCompensatedArrivalDistance(
+                structureRadius, workRange, cellSize);
+            float oldArrival = ArrivalUtility.GetInteractionArrivalDistance(
+                structureRadius, workRange) + cellSize * 0.7f;
+
+            Assert.Greater(newArrival, oldArrival);
+        }
+
+        #endregion
+
+        #region GetEffectiveRadius Tests
+
+        [Test]
+        public void GetEffectiveRadius_ObstacleRadiusLarger_ReturnsObstacleRadius()
+        {
+            var footprint = new StructureFootprint { Width = 8, Length = 8, Height = 5f };
+
+            float result = ArrivalUtility.GetEffectiveRadius(6.0f, in footprint, 1.0f);
+
+            Assert.AreEqual(6.0f, result, 0.001f);
+        }
+
+        [Test]
+        public void GetEffectiveRadius_Wall_ReturnsObstacleRadius()
+        {
+            var footprint = new StructureFootprint { Width = 4, Length = 4, Height = 3f };
+
+            float result = ArrivalUtility.GetEffectiveRadius(3.0f, in footprint, 1.0f);
+
+            Assert.AreEqual(3.0f, result, 0.001f);
+        }
+
+        [Test]
+        public void GetEffectiveRadius_GridRadiusLarger_ReturnsGridBased()
+        {
+            var footprint = new StructureFootprint { Width = 12, Length = 12, Height = 5f };
+
+            float result = ArrivalUtility.GetEffectiveRadius(2.0f, in footprint, 1.0f);
+
+            Assert.AreEqual(5.5f, result, 0.001f);
+        }
+
+        [Test]
+        public void GetEffectiveRadius_SmallBuilding_MinPathWidthOne()
+        {
+            var footprint = new StructureFootprint { Width = 2, Length = 2, Height = 2f };
+
+            float result = ArrivalUtility.GetEffectiveRadius(1.0f, in footprint, 1.0f);
+
+            Assert.AreEqual(1.0f, result, 0.001f);
+        }
+
+        #endregion
     }
 }
