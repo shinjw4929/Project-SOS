@@ -90,10 +90,12 @@ SoundManager Inspector에서 SoundType → AudioClip 매핑 할당:
 
 ## 검증 체크리스트
 
-- [ ] PreviousClipIndex 초기값 처리 확인 (첫 프레임 불필요 이벤트 없음)
+- [ ] PreviousActionState/PreviousEnemyContext 초기값 처리 확인 (첫 프레임 불필요 이벤트 없음)
 - [ ] SoundEvent.Position이 엔티티 LocalToWorld.Position을 올바르게 사용하는지 확인
-- [ ] Hero 전체 상태 사이클 테스트: Idle → Moving → Attacking → Dying → Dead
-- [ ] 각 상태 전환 시 SoundEvent 발생 확인 (MoveCommand, MeleeHit/RangedShot, UnitDeath)
+- [ ] VAT 적용 유닛(Hero) 상태 사이클: Idle → Moving → Working (걷기 VAT + 사운드)
+- [ ] VAT 미적용 유닛(Worker/Striker 등) 상태 사이클: Idle → Attacking (기울임 + 사운드)
+- [ ] 적(EnemySmall) 상태 사이클: Idle → Moving → Attacking → Dying (VAT + 사운드)
+- [ ] 각 상태 전환 시 SoundEvent 발생 확인 (MeleeHit/RangedShot, UnitDeath, EnemyDeath, WorkerGather)
 - [ ] Dying/Dead 상태 애니메이션 재생 여부 확인 (ClientDeathSystem과의 상호작용)
 - [ ] 500+ 유닛 전투 시 사운드 성능 프로파일링:
   - 측정 대상: SoundEventEmitSystem CPU 시간, SoundManager.Update() CPU 시간, AudioSource 풀 활용률 (사용 중/전체)

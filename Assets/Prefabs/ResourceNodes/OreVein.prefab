@@ -27,8 +27,8 @@ Transform:
   m_GameObject: {fileID: 1134229276743385107}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 2.4, z: 0}
-  m_LocalScale: {x: 1.4, y: 2, z: 1.4}
+  m_LocalPosition: {x: 0, y: 1.6, z: 0}
+  m_LocalScale: {x: 1, y: 1.4, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 7206204841924016351}
@@ -170,10 +170,10 @@ CapsuleCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 2
-  m_Radius: 2
-  m_Height: 1
+  m_Radius: 2.9
+  m_Height: 3
   m_Direction: 1
-  m_Center: {x: 0, y: 1, z: 0}
+  m_Center: {x: 0, y: 1.5, z: 0}
 --- !u!114 &6524115531172210290
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -224,10 +224,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cb732d1dec071ba499bc209e0aab8acd, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  width: 8
-  length: 8
-  height: 6
-  obstacleRadius: 6
+  width: 6
+  length: 6
+  height: 4
+  obstacleRadius: 3
   resourceType: 1
   amountPerGather: 10
   baseGatherDuration: 1

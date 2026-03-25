@@ -57,8 +57,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 7, y: 6, z: 7}
-  m_Center: {x: 0, y: 3, z: 0}
+  m_Size: {x: 6, y: 5.6, z: 6}
+  m_Center: {x: 0, y: 2.8, z: 0}
 --- !u!54 &-7519532794091690618
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -151,10 +151,10 @@ MonoBehaviour:
   structureType: 3
   producibleUnits:
   - {fileID: 3179942793388120451, guid: 984b09c4e963f89418c604e3d3764090, type: 3}
-  width: 8
-  length: 8
+  width: 6
+  length: 6
   height: 0
-  obstacleRadius: 6
+  obstacleRadius: 4.5
   cost: 0
   buildTime: 1
   maxHealth: 10
@@ -177,15 +177,15 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 3294208536604426464, guid: 50c45558f4b09cd4796dbe1416c755ab, type: 3}
       propertyPath: m_LocalScale.x
-      value: 0.7
+      value: 0.6
       objectReference: {fileID: 0}
     - target: {fileID: 3294208536604426464, guid: 50c45558f4b09cd4796dbe1416c755ab, type: 3}
       propertyPath: m_LocalScale.y
-      value: 0.7
+      value: 0.6
       objectReference: {fileID: 0}
     - target: {fileID: 3294208536604426464, guid: 50c45558f4b09cd4796dbe1416c755ab, type: 3}
       propertyPath: m_LocalScale.z
-      value: 0.7
+      value: 0.6
       objectReference: {fileID: 0}
     - target: {fileID: 3294208536604426464, guid: 50c45558f4b09cd4796dbe1416c755ab, type: 3}
       propertyPath: m_LocalPosition.x

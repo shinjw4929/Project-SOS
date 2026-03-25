@@ -193,11 +193,12 @@ namespace Server
             // Separation (Avoidance) - 공격 중에도 실행
             bool iAmEnemy = EnemyTagLookup.HasComponent(entity);
             bool iAmFlying = FlyingTagLookup.HasComponent(entity);
-            bool iAmGathering = false;
-            if (IntentLookup.TryGetComponent(entity, out UnitIntentState intent) && intent.State == Intent.Gather)
-                iAmGathering = true;
+            bool iAmWorking = false;
+            if (IntentLookup.TryGetComponent(entity, out UnitIntentState intent)
+                && (intent.State == Intent.Gather || intent.State == Intent.Build))
+                iAmWorking = true;
 
-            float3 separationForce = CalculateSeparation(currentPos, obstacleRadius.Radius, entity, iAmEnemy, iAmFlying, iAmGathering);
+            float3 separationForce = CalculateSeparation(currentPos, obstacleRadius.Radius, entity, iAmEnemy, iAmFlying, iAmWorking);
             float3 finalVelocity = desiredVelocity + (separationForce * SeparationStrength);
 
             // Cap Velocity
@@ -252,7 +253,7 @@ namespace Server
 
         private float3 CalculateSeparation(
             float3 myPos, float myRadius, Entity myEntity,
-            bool iAmEnemy, bool iAmFlying, bool iAmGathering)
+            bool iAmEnemy, bool iAmFlying, bool iAmWorking)
         {
             float3 separation = float3.zero;
 
@@ -274,11 +275,12 @@ namespace Server
 
                             // Lookup을 통해 이웃 데이터 조회
                             bool isEnemy = EnemyTagLookup.HasComponent(neighbor.Entity);
-                            bool isGathering = false;
-                            if (IntentLookup.TryGetComponent(neighbor.Entity, out UnitIntentState nIntent) && nIntent.State == Intent.Gather)
-                                isGathering = true;
+                            bool isWorking = false;
+                            if (IntentLookup.TryGetComponent(neighbor.Entity, out UnitIntentState nIntent)
+                                && (nIntent.State == Intent.Gather || nIntent.State == Intent.Build))
+                                isWorking = true;
 
-                            bool shouldCollide = iAmEnemy || isEnemy || (!iAmGathering && !isGathering);
+                            bool shouldCollide = iAmEnemy || isEnemy || (!iAmWorking && !isWorking);
                             if (!shouldCollide) continue;
 
                             if (!TransformLookup.TryGetComponent(neighbor.Entity, out LocalTransform neighborTransform))

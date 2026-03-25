@@ -98,10 +98,10 @@ CapsuleCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 2
-  m_Radius: 0.4
-  m_Height: 1.6
+  m_Radius: 0.7
+  m_Height: 2
   m_Direction: 1
-  m_Center: {x: 0, y: 0.8, z: 0}
+  m_Center: {x: 0, y: 1, z: 0}
 --- !u!114 &2142624865458360963
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -121,11 +121,12 @@ MonoBehaviour:
   maxHealth: 50
   defense: 0
   visionRange: 12
-  workRange: 0.7
-  radius: 0.5
+  workRange: 1
+  obstacleRadius: 0.5
   attackPower: 1
   attackSpeed: 1
   attackRange: 1
+  projectileSpeed: 30
   maxCarryAmount: 10
   gatheringSpeed: 1
   buildableStructures:
@@ -198,8 +199,7 @@ MonoBehaviour:
   Acceleration: 30
   Deceleration: 30
   RotationSpeed: 12
-  ArrivalRadius: 0.5
-  AgentTypeIndex: 0
+  PathfindingSize: 0
 --- !u!1001 &4837877035269938942
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -226,15 +226,15 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 888165675229301945, guid: 9443f37985a557843a81b1ee41a25ed2, type: 3}
       propertyPath: m_LocalScale.x
-      value: 2.5
+      value: 3
       objectReference: {fileID: 0}
     - target: {fileID: 888165675229301945, guid: 9443f37985a557843a81b1ee41a25ed2, type: 3}
       propertyPath: m_LocalScale.y
-      value: 2.5
+      value: 3
       objectReference: {fileID: 0}
     - target: {fileID: 888165675229301945, guid: 9443f37985a557843a81b1ee41a25ed2, type: 3}
       propertyPath: m_LocalScale.z
-      value: 2.5
+      value: 3
       objectReference: {fileID: 0}
     - target: {fileID: 888165675229301945, guid: 9443f37985a557843a81b1ee41a25ed2, type: 3}
       propertyPath: m_LocalPosition.x

@@ -14,15 +14,21 @@ namespace Server
     [UpdateBefore(typeof(PredictedMovementSystem))]
     public partial struct FlowFieldSteeringSystem : ISystem
     {
+        [ReadOnly] private ComponentLookup<BuildApproachRadius> _buildApproachLookup;
+
         public void OnCreate(ref SystemState state)
         {
             state.RequireForUpdate<GridSettings>();
             state.RequireForUpdate<FlowFieldCacheData>();
+
+            _buildApproachLookup = state.GetComponentLookup<BuildApproachRadius>(true);
         }
 
         [BurstCompile]
         public void OnUpdate(ref SystemState state)
         {
+            _buildApproachLookup.Update(ref state);
+
             var gridSettings = SystemAPI.GetSingleton<GridSettings>();
             var cache = SystemAPI.GetSingleton<FlowFieldCacheData>();
             int gridSizeX = gridSettings.GridSize.x;
@@ -77,6 +83,21 @@ namespace Server
                 // 목적지 셀 판정: 좌표 비교 (방향=255 판정은 도달 불가와 혼동됨)
                 int2 destCell = GridUtility.WorldToGrid(goal.ValueRO.Destination, gridSettings);
                 destCell = math.clamp(destCell, int2.zero, new int2(gridSizeX - 1, gridSizeY - 1));
+
+                // BuildApproachRadius 기반 조기 정지:
+                // AABB 표면에서 stopDistance 이내 진입 시 웨이포인트 생성 중단
+                if (_buildApproachLookup.TryGetComponent(entity, out var buildApproach))
+                {
+                    float surfaceDistSq = ArrivalUtility.DistanceSqToAABBSurfaceXZ(
+                        transform.ValueRO.Position, buildApproach.Center,
+                        buildApproach.HalfW, buildApproach.HalfL);
+                    if (surfaceDistSq < buildApproach.Value * buildApproach.Value)
+                    {
+                        waypoints.ValueRW.Current = transform.ValueRO.Position;
+                        waypoints.ValueRW.HasNext = false;
+                        continue;
+                    }
+                }
 
                 if (currentCell.x == destCell.x && currentCell.y == destCell.y)
                 {

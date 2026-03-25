@@ -203,7 +203,7 @@ MonoBehaviour:
   width: 4
   length: 4
   height: 0
-  obstacleRadius: 3
+  obstacleRadius: 2.5
   cost: 0
   buildTime: 1
   maxHealth: 10

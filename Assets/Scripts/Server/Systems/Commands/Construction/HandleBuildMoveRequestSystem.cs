@@ -12,7 +12,8 @@ namespace Server
     /// <summary>
     /// 건설 이동 명령 RPC 처리 시스템 (서버)
     /// - 빌더 검증 (GhostId → Entity, 소유권)
-    /// - MovementGoal 설정
+    /// - MovementGoal 설정 (Destination = BuildSiteCenter)
+    /// - BuildApproachRadius 추가 (AABB 표면 기준 조기 정지)
     /// - UnitIntentState.State = Intent.Build
     /// - PendingBuildServerData 추가 (도착 판정용)
     /// - MovementWaypoints 활성화
@@ -29,6 +30,7 @@ namespace Server
         [ReadOnly] private ComponentLookup<UnitTag> _unitTagLookup;
         [ReadOnly] private ComponentLookup<WorkRange> _workRangeLookup;
         [ReadOnly] private ComponentLookup<LocalTransform> _transformLookup;
+        [ReadOnly] private ComponentLookup<StructureFootprint> _footprintLookup;
 
         private ComponentLookup<MovementGoal> _movementGoalLookup;
         private ComponentLookup<MovementWaypoints> _movementWaypointsLookup;
@@ -40,6 +42,8 @@ namespace Server
             state.RequireForUpdate<NetworkStreamInGame>();
             state.RequireForUpdate<EndSimulationEntityCommandBufferSystem.Singleton>();
             state.RequireForUpdate<GhostIdMap>();
+            state.RequireForUpdate<StructureCatalog>();
+            state.RequireForUpdate<GridSettings>();
 
             _ghostOwnerLookup = state.GetComponentLookup<GhostOwner>(true);
             _networkIdLookup = state.GetComponentLookup<NetworkId>(true);
@@ -47,6 +51,7 @@ namespace Server
             _unitTagLookup = state.GetComponentLookup<UnitTag>(true);
             _workRangeLookup = state.GetComponentLookup<WorkRange>(true);
             _transformLookup = state.GetComponentLookup<LocalTransform>(true);
+            _footprintLookup = state.GetComponentLookup<StructureFootprint>(true);
 
             _movementGoalLookup = state.GetComponentLookup<MovementGoal>(false);
             _movementWaypointsLookup = state.GetComponentLookup<MovementWaypoints>(false);
@@ -66,6 +71,7 @@ namespace Server
             _unitTagLookup.Update(ref state);
             _workRangeLookup.Update(ref state);
             _transformLookup.Update(ref state);
+            _footprintLookup.Update(ref state);
             _movementGoalLookup.Update(ref state);
             _movementWaypointsLookup.Update(ref state);
             _unitIntentStateLookup.Update(ref state);
@@ -79,6 +85,10 @@ namespace Server
 
             float elapsedTime = (float)SystemAPI.Time.ElapsedTime;
 
+            var gridSettings = SystemAPI.GetSingleton<GridSettings>();
+            var catalogEntity = SystemAPI.GetSingletonEntity<StructureCatalog>();
+            var prefabBuffer = SystemAPI.GetBuffer<StructureCatalogElement>(catalogEntity).AsNativeArray();
+
             // RPC 처리
             foreach (var (rpcReceive, rpc, rpcEntity) in
                 SystemAPI.Query<RefRO<ReceiveRpcCommandRequest>, RefRO<BuildMoveRequestRpc>>()
@@ -91,7 +101,9 @@ namespace Server
                         builderEntity,
                         rpcReceive.ValueRO.SourceConnection,
                         rpc.ValueRO,
-                        elapsedTime
+                        elapsedTime,
+                        prefabBuffer,
+                        gridSettings
                     );
                 }
 
@@ -104,7 +116,9 @@ namespace Server
             Entity builderEntity,
             Entity sourceConnection,
             BuildMoveRequestRpc rpc,
-            float elapsedTime)
+            float elapsedTime,
+            NativeArray<StructureCatalogElement> prefabBuffer,
+            GridSettings gridSettings)
         {
             // 1. 빌더 유효성 검증
             if (!_builderTagLookup.HasComponent(builderEntity) ||
@@ -123,7 +137,7 @@ namespace Server
                 return;
             }
 
-            // 3. MovementGoal 설정: 건물 가장자리에서 workRange 오프셋만큼 바깥으로 이동
+            // 3. MovementGoal 설정: BuildSiteCenter로 이동 + AABB 표면 기준 조기 정지
             float workRange = _workRangeLookup.TryGetComponent(builderEntity, out var wr)
                 ? wr.Value : 1.0f;
 
@@ -132,23 +146,36 @@ namespace Server
             {
                 RefRW<MovementGoal> goalRW = _movementGoalLookup.GetRefRW(builderEntity);
 
-                float3 builderPos = _transformLookup[builderEntity].Position;
-                float3 toBuilder = builderPos - rpc.BuildSiteCenter;
-                toBuilder.y = 0;
-                float dirLen = math.length(toBuilder);
-                float destinationOffset = rpc.StructureRadius + workRange * 0.5f;
-
-                if (dirLen > 0.01f)
+                // 카탈로그에서 Footprint 조회
+                float halfW = gridSettings.CellSize * 0.5f;
+                float halfL = gridSettings.CellSize * 0.5f;
+                if (rpc.StructureIndex >= 0 && rpc.StructureIndex < prefabBuffer.Length)
                 {
-                    goalRW.ValueRW.Destination = rpc.BuildSiteCenter + (toBuilder / dirLen) * destinationOffset;
-                }
-                else
-                {
-                    goalRW.ValueRW.Destination = rpc.BuildSiteCenter + new float3(destinationOffset, 0, 0);
+                    Entity prefab = prefabBuffer[rpc.StructureIndex].PrefabEntity;
+                    if (_footprintLookup.TryGetComponent(prefab, out var footprint))
+                    {
+                        halfW = footprint.Width * gridSettings.CellSize * 0.5f;
+                        halfL = footprint.Length * gridSettings.CellSize * 0.5f;
+                    }
                 }
 
+                goalRW.ValueRW.Destination = rpc.BuildSiteCenter;
                 goalRW.ValueRW.IsPathDirty = true;
                 goalRW.ValueRW.DestinationSetTime = elapsedTime;
+
+                ecb.AddComponent(builderEntity, new BuildApproachRadius
+                {
+                    Value = workRange,
+                    Center = rpc.BuildSiteCenter,
+                    HalfW = halfW,
+                    HalfL = halfL
+                });
+
+                FixedString128Bytes moveMsg = "BuildMove";
+                GameLogger.Pos(ref moveMsg, "builder", _transformLookup[builderEntity].Position);
+                GameLogger.Pos(ref moveMsg, "site", rpc.BuildSiteCenter);
+                GameLogger.Field(ref moveMsg, "stopR", (int)(workRange * 100));
+                GameLogger.Info(LogWorld.Server, LogCategory.Construction, in moveMsg);
             }
 
             // ArrivalRadius 설정 (Dead Zone 방지: ArrivalRadius * 2 <= workRange)

@@ -12,9 +12,10 @@ namespace Server
     /// <summary>
     /// 건설 도착 시스템
     /// - PendingBuildServerData가 있는 유닛의 도착 감지 (이동 완료 OR 사거리 내 저속)
+    /// - 사거리 판정: AABB 표면 거리 기반 (방향 독립적)
     /// - 사거리 내: 건물 생성 (BuildingUtility.CreateBuilding 사용)
     /// - 사거리 밖: 즉시 포기 (Idle 복귀)
-    /// - PendingBuildServerData 제거 + UnitIntentState를 Idle로 복원
+    /// - PendingBuildServerData + BuildApproachRadius 제거 + UnitIntentState를 Idle로 복원
     /// </summary>
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     [UpdateAfter(typeof(MovementArrivalSystem))]
@@ -104,10 +105,24 @@ namespace Server
                 float3 unitPos = transform.ValueRO.Position;
                 float workRange = _workRangeLookup.TryGetComponent(entity, out var wr)
                     ? wr.Value : 1.0f;
-                float arrivalDist = ArrivalUtility.GetGridCompensatedArrivalDistance(
-                    pending.StructureRadius, workRange, gridSettings.CellSize);
-                bool isInRange = ArrivalUtility.IsWithinInteractionRangeXZ(
-                    unitPos, pending.BuildSiteCenter, arrivalDist);
+
+                // AABB 표면 거리 기반 도착 판정 (방향 독립적)
+                float halfW = gridSettings.CellSize * 0.5f;
+                float halfL = gridSettings.CellSize * 0.5f;
+                if (pending.StructureIndex >= 0 && pending.StructureIndex < prefabBuffer.Length)
+                {
+                    Entity prefab = prefabBuffer[pending.StructureIndex].PrefabEntity;
+                    if (_footprintLookup.TryGetComponent(prefab, out var fp))
+                    {
+                        halfW = fp.Width * gridSettings.CellSize * 0.5f;
+                        halfL = fp.Length * gridSettings.CellSize * 0.5f;
+                    }
+                }
+
+                float surfaceDistSq = ArrivalUtility.DistanceSqToAABBSurfaceXZ(
+                    unitPos, pending.BuildSiteCenter, halfW, halfL);
+                float arrivalDist = workRange + gridSettings.CellSize;
+                bool isInRange = surfaceDistSq <= arrivalDist * arrivalDist;
 
                 // 도착 판정: MovementWaypoints 비활성화 OR (사거리 내 + 저속)
                 bool waypointsDone = !waypointsEnabled.ValueRO;
@@ -127,19 +142,16 @@ namespace Server
                 if (!isInRange)
                 {
                     // 이동 완료인데 사거리 밖 → 즉시 포기
-                    float actualDist = math.distance(
-                        new float3(unitPos.x, 0, unitPos.z),
-                        new float3(pending.BuildSiteCenter.x, 0, pending.BuildSiteCenter.z));
-
                     FixedString128Bytes giveUpMsg = "Build giveup";
                     GameLogger.Field(ref giveUpMsg, "idx", entity.Index);
                     GameLogger.Pos(ref giveUpMsg, "pos", unitPos);
                     GameLogger.Pos(ref giveUpMsg, "site", pending.BuildSiteCenter);
-                    GameLogger.Field(ref giveUpMsg, "dist", (int)(actualDist * 100));
-                    GameLogger.Field(ref giveUpMsg, "need", (int)(arrivalDist * 100));
+                    GameLogger.Field(ref giveUpMsg, "sDistSq", (int)(surfaceDistSq * 100));
+                    GameLogger.Field(ref giveUpMsg, "needSq", (int)(arrivalDist * arrivalDist * 100));
                     GameLogger.Warning(LogWorld.Server, LogCategory.Construction, in giveUpMsg);
 
                     ecb.RemoveComponent<PendingBuildServerData>(entity);
+                    ecb.RemoveComponent<BuildApproachRadius>(entity);
                     waypoints.ValueRW.ArrivalRadius = 0f;
                     ecb.SetComponentEnabled<MovementWaypoints>(entity, false);
                     intentState.ValueRW.State = Intent.Idle;
@@ -173,8 +185,9 @@ namespace Server
                     GameLogger.Info(LogWorld.Server, LogCategory.Construction, in failMsg);
                 }
 
-                // PendingBuildServerData 제거
+                // PendingBuildServerData + BuildApproachRadius 제거
                 ecb.RemoveComponent<PendingBuildServerData>(entity);
+                ecb.RemoveComponent<BuildApproachRadius>(entity);
 
                 // ArrivalRadius 초기화 + MovementWaypoints 비활성화
                 waypoints.ValueRW.ArrivalRadius = 0f;

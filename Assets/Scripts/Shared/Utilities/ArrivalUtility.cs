@@ -156,6 +156,20 @@ namespace Shared
         }
 
         /// <summary>
+        /// AABB 표면까지의 XZ 2D 거리의 제곱. 유닛이 AABB 내부이면 0.
+        /// 건설 도착 판정 등에서 중심 거리 대신 표면 거리 기반 판정에 사용.
+        /// 비교 시 threshold도 제곱하여 sqrt 비용을 회피.
+        /// </summary>
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static float DistanceSqToAABBSurfaceXZ(
+            float3 unitPos, float3 center, float halfW, float halfL)
+        {
+            float dx = math.max(0, math.abs(unitPos.x - center.x) - halfW);
+            float dz = math.max(0, math.abs(unitPos.z - center.z) - halfL);
+            return dx * dx + dz * dz;
+        }
+
+        /// <summary>
         /// 상호작용 범위 내 판정 (3D 거리)
         /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

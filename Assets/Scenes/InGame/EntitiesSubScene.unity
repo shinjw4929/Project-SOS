@@ -253,6 +253,29 @@ MonoBehaviour:
   wave2TriggerTime: 5
   wave2TriggerKillCount: 2
   maxEnemyCount: 4000
+  resourceNodeExclusionDistance: 9
+  maxBuildRetryCount: 3
+  unitSpawnOffset: 1
+  defaultProductionTime: 5
+  initialCurrency: 100
+  initialMaxPopulation: 300
+  aggroLockDuration: 3
+  targetHysteresisMultiplier: 1.3
+  targetSearchInterval: 4
+  separationStrength: 4
+  separationPadding: 0.3
+  separationForceCurve: 3
+  wallCollisionPadding: 0.25
+  stuckCheckInterval: 3
+  stuckThreshold: 2
+  dormantMinDuration: 5
+  dormantMaxDuration: 8
+  pathInvalidationRadius: 8
+  partialPathInvalidationRadius: 12
+  enemyBigSpawnRate: 0.85
+  enemySmallOnlyRate: 0.6
+  wave0SpawnSpacing: 1
+  periodicSpawnSpacing: 3
   wave1SpawnInterval: 0.5
   wave1SpawnCount: 15
   wave2SpawnInterval: 0.5
@@ -2649,6 +2672,29 @@ MonoBehaviour:
   wave2TriggerTime: 4000
   wave2TriggerKillCount: 1
   maxEnemyCount: 4000
+  resourceNodeExclusionDistance: 9
+  maxBuildRetryCount: 3
+  unitSpawnOffset: 1
+  defaultProductionTime: 5
+  initialCurrency: 100
+  initialMaxPopulation: 300
+  aggroLockDuration: 3
+  targetHysteresisMultiplier: 1.3
+  targetSearchInterval: 4
+  separationStrength: 4
+  separationPadding: 0.3
+  separationForceCurve: 3
+  wallCollisionPadding: 0
+  stuckCheckInterval: 3
+  stuckThreshold: 2
+  dormantMinDuration: 5
+  dormantMaxDuration: 8
+  pathInvalidationRadius: 8
+  partialPathInvalidationRadius: 12
+  enemyBigSpawnRate: 0.85
+  enemySmallOnlyRate: 0.6
+  wave0SpawnSpacing: 1
+  periodicSpawnSpacing: 3
   wave1SpawnInterval: 4
   wave1SpawnCount: 4
   wave2SpawnInterval: 4

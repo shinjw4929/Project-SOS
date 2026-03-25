@@ -106,8 +106,9 @@ MovementArrivalSystem → 도착 판정 → 이동 정지 + Intent.Idle 전환
 ---
 파일: FlowFieldSteeringSystem.cs
 그룹: SimulationSystemGroup (UpdateAfter: FlowFieldSystem, UpdateBefore: PredictedMovementSystem)
-역할: Flow Field 방향 조회 → MovementWaypoints 주입
+역할: Flow Field 방향 조회 → MovementWaypoints 주입 + BuildApproachRadius 조기 정지
 - 매 프레임 이동 중 유닛(MovementWaypoints enabled, WithNone<FlyingTag>) 순회
+- BuildApproachRadius 보유 시: AABB 표면 거리² < Value²이면 웨이포인트 생성 중단 (건설 조기 정지)
 - FlowFieldRef.Key로 캐시에서 Flow Field 조회, CellPadding으로 Small/Large 분기
 - 현재 셀 방향 → 다음 셀 좌표 변환 → CellCenterToWorld
 - 목적지 셀 판정: **좌표 비교** (currentCell == destCell), Current = Destination, HasNext = false
@@ -122,7 +123,7 @@ MovementArrivalSystem → 도착 판정 → 이동 정지 + Intent.Idle 전환
 - 가속/감속 적용 (MovementDynamics)
 - **Entity 기반 Separation**: SpatialMaps.MovementMap 사용 (셀 크기 3.0f)
   - 적-유닛 간 충돌 회피: 항상 활성화
-  - 유닛-유닛 간 충돌 회피: 둘 다 Gather 상태면 무시
+  - 유닛-유닛 간 충돌 회피: 한쪽이라도 작업 중(Gather/Build)이면 면제 (적 제외)
 - **공격 중 Separation 유지**: `IgnoreComponentEnabledState` + `EnabledRefRW<MovementWaypoints>`로 MovementWaypoints 비활성화 엔티티도 쿼리에 포함. 이동만 스킵하고 Separation은 계속 적용.
 - **비선형 Separation Force**: `forceMag = overlap * (1 + overlapRatio * 3)` — 깊이 침투 시 기하급수적 반발
 - 벽 충돌: GridCell.IsPathBlocked 기반 축 독립 검사 (X축/Z축 개별 차단 → 벽 미끄러짐). 유닛은 속력 보존, 적은 벡터 삭제
@@ -230,6 +231,7 @@ FlowFieldSystem (UpdateAfter: GridObstacleResponseSystem)
     → Phase 3: FlowFieldRef 할당, MovementWaypoints 활성화, Partial Path 판정
     ↓
 FlowFieldSteeringSystem (UpdateAfter: FlowFieldSystem, UpdateBefore: PredictedMovementSystem)
+    → BuildApproachRadius 기반 조기 정지 (AABB 표면 거리² < workRange²)
     → Flow Field 방향 조회 → MovementWaypoints.Current/Next 주입
     → 2단계 look-ahead, 캐시 미스 시 lazy re-pathing
     ↓
@@ -257,12 +259,11 @@ bool isPathPending = goal.IsPathDirty;  // 경로 미계산 시 (0,0,0) 이동 �
 bool skipMovement = isAttacking || isWaypointsDisabled || isPathPending;
 
 // 충돌 회피 조건
-bool shouldCollide = iAmEnemy || isEnemy || (!iAmGathering && !isGathering);
+bool shouldCollide = iAmEnemy || isEnemy || (!iAmWorking && !isWorking);
 
 // 적-유닛: 항상 충돌 회피
-// 유닛-유닛: 둘 다 Gather가 아닐 때만 충돌 회피 (자원 노드 큐잉 허용)
+// 유닛-유닛: 한쪽이라도 작업 중(Gather/Build)이면 면제
 // 적-적: 항상 충돌 회피
-// 참고: Intent.Build에는 면제 없음 → BuildArrivalSystem 재시도(max 3)로 보상
 ```
 
 ### 공격 중 Separation 유지
