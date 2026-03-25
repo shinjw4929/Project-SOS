@@ -11,16 +11,30 @@ $ARGUMENTS가 있으면 해당 내용을 리뷰 범위/관점으로 반영한다
 ### 1단계: 변경사항 수집
 
 다음을 병렬로 실행하여 리뷰 대상을 파악한다:
-- `git diff --name-only` (변경된 파일 목록)
-- `git diff` (전체 변경 내용)
+- `git diff HEAD --name-only` (staged + unstaged 변경 파일 목록)
+- `git diff HEAD` (staged + unstaged 전체 변경 내용)
+- `git status` (untracked 새 파일 확인, `-uall` 플래그 사용 금지)
 - 사용자가 특정 파일/커밋을 지정한 경우 해당 범위만 대상
 
-변경된 `.cs` 파일만 리뷰 대상으로 삼는다. 문서, 메타, 설정 파일은 제외.
+변경된 `.cs` 파일만 리뷰 대상으로 삼는다. untracked `.cs` 파일도 포함하여 전체 내용을 읽는다. 문서, 메타, 설정 파일은 제외.
 
 ### 2단계: 컨텍스트 파악
 
 변경된 파일이 속한 어셈블리(Client/Server/Shared/Authoring)와 관련 시스템을 파악한다.
-필요 시 `Docs/` 폴더에서 관련 문서를 읽어 현재 시스템 구조를 확인한다.
+
+**Docs 참조 (필수)**: `Docs/Documentation-Checklist.md`의 "변경 유형별 업데이트 대상" 테이블을 역으로 활용하여, 변경된 시스템에 대응하는 문서를 읽는다.
+
+| 변경 영역 | 읽어야 할 문서 |
+|-----------|---------------|
+| 이동 관련 | `Docs/Systems/엔티티 이동 시스템(navmesh).md` |
+| 전투 관련 | `Docs/Systems/엔티티 전투.md` |
+| 건설 관련 | `Docs/Systems/건설 시스템.md` |
+| 자원/채집 | `Docs/Systems/자원 채집 시스템.md` |
+| 선택 관련 | `Docs/Systems/엔티티 선택 시스템.md` |
+| UI 상태 | `Docs/Systems/Project-SOS 상태 시스템 설계.md` |
+| 시스템 추가 | `Docs/Systems/시스템 그룹 및 의존성.md` |
+| 공통 참조 | `Docs/Architecture.md` |
+
 변경된 코드 주변의 기존 코드도 함께 읽어 맥락을 파악한다.
 
 ### 3단계: 검토 항목
@@ -40,6 +54,7 @@ $ARGUMENTS가 있으면 해당 내용을 리뷰 범위/관점으로 반영한다
 | Tag 컴포넌트 | bool 필드로 상태 구분 (Tag + Query 필터링으로 대체 가능) |
 | bool blittable | Burst struct에 `bool` 필드 + `ref` 전달 시 `[MarshalAs(UnmanagedType.U1)]` 누락 |
 | BurstCompile static | `[BurstCompile]` static 메서드에서 struct 파라미터/반환 사용 (BC1064) |
+| Entity 안전성 | `Entity.Null` 비교 없이 Entity 사용, `EntityManager.Exists()` 미검증, `.IsCreated` 미확인 |
 
 #### B. 네트워크 아키텍처
 
@@ -57,9 +72,11 @@ $ARGUMENTS가 있으면 해당 내용을 리뷰 범위/관점으로 반영한다
 | 네이밍 - User | "Player" 사용 (Unity Player와 혼동, "User" 사용해야 함) |
 | 네이밍 - 변수명 | 의미 불명의 축약 변수명 (`var c`, `var t` 등). 단, `ecb`, `em`, `job` 등 DOTS 관용어는 허용 |
 | 네이밍 - 파일명 | 폴더별 네이밍 패턴 불일치 (Commands → `*InputSystem.cs`, RPCs → `*Rpc.cs` 등) |
+| GameSettings 패턴 | 밸런스/규칙 상수(거리, 시간, 확률, 횟수 등)를 시스템 코드에 직접 작성 (GameSettings 미사용). Job 내부에서 GameSettings를 직접 읽는 경우도 위반 (OnUpdate에서 읽어 구조체 필드로 전달해야 함) |
 | 중복 구현 | 기존 유틸리티(ArrivalUtility, CombatUtility, SpatialMaps 등)를 재구현 |
+| Work Range 패턴 | 작업 거리를 인라인 계산 (`distance - radius` 등). `ArrivalUtility.GetInteractionArrivalDistance`/`CombatUtility` 사용해야 함 |
 | 싱글톤 중복 | 기존 싱글톤을 확장할 수 있는데 새 싱글톤 생성 |
-| Authoring 패턴 | Authoring 조합 패턴 불일치 (유닛: Movement+UnitMovement+Unit 등) |
+| Authoring 패턴 | Authoring 조합 불일치 (유닛: `Movement`+`UnitMovement`+`Unit`, 적: `Movement`+`Enemy`, 건물: `Structure`) |
 
 #### D. 시스템 설계
 
@@ -106,7 +123,7 @@ $ARGUMENTS가 있으면 해당 내용을 리뷰 범위/관점으로 반영한다
 
 **심각도 기준**:
 - **치명**: 런타임 크래시, 데이터 레이스, 네트워크 비동기, Health 직접 수정
-- **경고**: 컨벤션 위반, Burst 누락, 성능 문제, 누락된 의존성 선언
+- **경고**: 컨벤션 위반, Burst 누락, 성능 문제, 누락된 의존성 선언, GameSettings 미사용
 - **제안**: 더 나은 대안 존재, 가독성 개선, 사소한 네이밍 문제
 
 ### 5단계: 후속 행동

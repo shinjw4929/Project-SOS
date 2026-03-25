@@ -6,11 +6,16 @@ allowed-tools: Read, Edit, Grep, Glob, Bash
 
 ## 주석 검토 실행
 
+$ARGUMENTS가 있으면 해당 내용을 검토 범위/대상으로 반영한다.
+
 ### 1단계: 변경된 파일 파악
 
-다음 중 하나로 검토 대상 파일을 결정한다:
-- `git diff --name-only`로 변경된 파일 목록 확인
+다음을 병렬로 실행하여 검토 대상 파일을 결정한다:
+- `git diff HEAD --name-only` (staged + unstaged 변경 파일 목록)
+- `git status` (untracked 새 파일 확인, `-uall` 플래그 사용 금지)
 - 사용자가 특정 파일을 지정한 경우 해당 파일만 대상
+
+변경된 `.cs` 파일만 검토 대상으로 삼는다. untracked `.cs` 파일도 포함한다. 문서, 메타, 설정 파일은 제외.
 
 ### 2단계: 파일별 주석 검토
 

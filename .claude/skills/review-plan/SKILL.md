@@ -1,6 +1,7 @@
 ---
 name: review-plan
 description: Plan 모드에서 생성된 구현 계획을 프로젝트 컨벤션과 코드베이스 기준으로 검토한 뒤, 문제가 있으면 수정된 계획을 다시 제출합니다.
+allowed-tools: Read, Grep, Glob, Bash, Edit, EnterPlanMode, ExitPlanMode
 ---
 
 ## 역할
@@ -19,8 +20,8 @@ description: Plan 모드에서 생성된 구현 계획을 프로젝트 컨벤션
 ### 1단계: 프로젝트 컨벤션 확인
 
 `Docs/` 폴더에서 계획과 관련된 문서를 읽고 현재 시스템 구조를 파악한다:
-- `Docs/코드베이스 구조.md` - 파일/폴더 구조, 네이밍 패턴
-- `Docs/시스템 그룹 및 의존성.md` - SystemGroup, 실행 순서
+- `Docs/Systems/코드베이스 구조.md` - 파일/폴더 구조, 네이밍 패턴
+- `Docs/Systems/시스템 그룹 및 의존성.md` - SystemGroup, 실행 순서
 - 계획 내용과 관련된 기능별 문서 (전투, 이동, 건설, 채집 등)
 
 계획에서 언급된 기존 시스템/컴포넌트가 실제로 존재하는지 Grep/Glob으로 확인한다.
@@ -45,6 +46,7 @@ description: Plan 모드에서 생성된 구현 계획을 프로젝트 컨벤션
 - ECB를 통한 구조적 변경
 - RefRO 선호, ReadOnly Lookup 사용
 - Tag 컴포넌트 + Query 필터링
+- GameSettings 패턴: 새 밸런스/규칙 상수를 도입하는 경우 GameSettings 싱글톤에 추가하는지 확인 (시스템 코드 하드코딩 금지)
 
 **D. 네트워크 고려사항**
 - Server Authority 원칙을 따르는가?

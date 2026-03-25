@@ -6,27 +6,33 @@ allowed-tools: Read, Edit, Grep, Glob, Bash
 
 ## 문서 업데이트 실행
 
+$ARGUMENTS가 있으면 해당 내용을 업데이트 범위/대상으로 반영한다.
+
 ### 1단계: 변경사항 파악
 
 다음을 병렬로 실행하여 변경 내용을 파악한다:
-- `git diff` 또는 `git diff --cached`로 코드 변경사항 확인
-- 변경된 파일 목록 확인
+- `git diff HEAD --name-only` (staged + unstaged 변경 파일 목록)
+- `git diff HEAD` (staged + unstaged 전체 변경 내용)
+- `git status` (untracked 새 파일 확인, `-uall` 플래그 사용 금지)
 
 ### 2단계: 업데이트 대상 문서 결정
 
-CLAUDE.md의 **문서 업데이트 규칙**을 따른다:
+`Docs/Documentation-Checklist.md`의 **변경 유형별 업데이트 대상** 테이블을 따른다:
 
 | 변경 유형 | 업데이트 대상 문서 |
 |----------|-------------------|
-| 새 시스템 추가 | `Docs/시스템 그룹 및 의존성.md`, `Docs/코드베이스 구조.md` |
-| 새 컴포넌트 추가 | `Docs/코드베이스 구조.md`, 관련 기능 문서 |
-| 선택 로직 변경 | `Docs/엔티티 선택 시스템.md` |
-| 이동 로직 변경 | `Docs/엔티티 이동 시스템(navmesh).md` |
-| 전투 로직 변경 | `Docs/엔티티 전투.md` |
-| 건설 로직 변경 | `Docs/건설 시스템.md` |
-| 자원/채집 변경 | `Docs/자원 채집 시스템.md`, `Docs/유저 자원, 인구수.md` |
-| UI 상태 변경 | `Docs/Project-SOS 상태 시스템 설계.md` |
-| 새 RPC 추가 | `Docs/코드베이스 구조.md` (RPCs 섹션), 관련 기능 문서 |
+| 새 시스템 추가 | `Docs/Systems/시스템 그룹 및 의존성.md`, `Docs/Systems/코드베이스 구조.md` |
+| 새 컴포넌트 추가 | `Docs/Systems/코드베이스 구조.md`, 관련 기능 문서 |
+| 선택 로직 변경 | `Docs/Systems/엔티티 선택 시스템.md` |
+| 이동 로직 변경 | `Docs/Systems/엔티티 이동 시스템(navmesh).md` |
+| 전투 로직 변경 | `Docs/Systems/엔티티 전투.md` |
+| 건설 로직 변경 | `Docs/Systems/건설 시스템.md` |
+| 자원/채집 변경 | `Docs/Systems/자원 채집 시스템.md`, `Docs/Systems/유저 자원, 인구수.md` |
+| UI 상태 변경 | `Docs/Systems/Project-SOS 상태 시스템 설계.md` |
+| 로깅 변경 | `Docs/Systems/로깅 시스템.md` |
+| 새 RPC 추가 | `Docs/Systems/코드베이스 구조.md` (RPCs 섹션), 관련 기능 문서 |
+
+주요 패턴, 시스템 플로우, 네이밍 규칙 등이 변경된 경우 `Docs/Architecture.md`와 `CLAUDE.md`도 함께 업데이트한다.
 
 ### 3단계: 대상 문서 읽기
 

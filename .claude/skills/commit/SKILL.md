@@ -10,8 +10,9 @@ allowed-tools: Bash, Read, Grep, Glob
 ### 1단계: 현재 변경사항 파악
 
 다음 명령을 병렬로 실행하여 변경 내용을 파악한다:
-- `git status` (untracked 파일 확인, -uall 플래그 사용 금지)
-- `git diff` (staged + unstaged 변경사항)
+- `git status` (untracked 파일 확인, `-uall` 플래그 사용 금지)
+- `git diff` (unstaged 변경사항)
+- `git diff --cached` (staged 변경사항)
 - `git log --oneline -5` (최근 커밋 스타일 참고)
 
 ### 2단계: 커밋 메시지 작성
