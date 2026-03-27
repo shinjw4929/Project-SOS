@@ -21,6 +21,8 @@ SoundManager Inspector에서 SoundType → AudioClip 매핑 할당:
 | BuildingComplete | `Audio/SFX/building_complete.wav` | 0.8 |
 | MoveCommand | `Audio/SFX/move_command.wav` | 0.6 |
 
+> **MoveCommand/BuildingPlace/BuildingComplete**: SoundEventEmitSystem(엔티티 상태 변화 기반)으로는 발생하지 않음. 입력 시스템/건설 시스템에서 SoundEvent 버퍼에 직접 추가해야 하며, Phase 6 범위 외. SoundType enum에 미리 정의만 해둔다.
+
 ### 파라미터 튜닝
 
 | 파라미터 | 기본값 | 조정 범위 | 비고 |
@@ -48,7 +50,7 @@ SoundManager Inspector에서 SoundType → AudioClip 매핑 할당:
    [9.5] 커맨드 마커 다음에 삽입:
 
    [9.7. 애니메이션+사운드] SimulationSystemGroup (Client)
-       VATAnimationInitSystem → VATAnimationPlaybackSystem → SoundEventEmitSystem
+       VATAnimationInitSystem → VATAnimationPlaybackSystem → CombatTiltSystem → SoundEventEmitSystem
        → SoundManager (MonoBehaviour, 매 프레임 버퍼 소비 + AudioSource 풀 재생)
    ```
 
@@ -75,11 +77,11 @@ SoundManager Inspector에서 SoundType → AudioClip 매핑 할당:
 
 신규 파일 목록 반영:
 - `Editor/VATBaker/` (2개)
-- `Shared/Components/Animation/` (2개)
-- `Shared/Components/Animation/` 내 VATClipDataAsset 포함 (위 2개에 합산)
+- `Shared/Components/Animation/` (3개: VATAnimationState, VATClipLibrary, VATClipDataAsset)
 - `Client/Component/Animation/` (3개: VATAnimParam, VATAnimTarget, PreviousClipIndex)
+- `Client/Component/State/` (2개: PreviousActionState, PreviousEnemyContext)
 - `Client/Component/Sound/` (1개)
-- `Client/Systems/Animation/` (2개)
+- `Client/Systems/Animation/` (3개: VATAnimationInitSystem, VATAnimationPlaybackSystem, CombatTiltSystem)
 - `Client/Systems/Sound/` (1개)
 - `Client/Controller/Sound/` (1개)
 - `Server/Systems/Animation/` (1개)
@@ -92,9 +94,11 @@ SoundManager Inspector에서 SoundType → AudioClip 매핑 할당:
 
 - [ ] PreviousActionState/PreviousEnemyContext 초기값 처리 확인 (첫 프레임 불필요 이벤트 없음)
 - [ ] SoundEvent.Position이 엔티티 LocalToWorld.Position을 올바르게 사용하는지 확인
-- [ ] VAT 적용 유닛(Hero) 상태 사이클: Idle → Moving → Working (걷기 VAT + 사운드)
-- [ ] VAT 미적용 유닛(Worker/Striker 등) 상태 사이클: Idle → Attacking (기울임 + 사운드)
-- [ ] 적(EnemySmall) 상태 사이클: Idle → Moving → Attacking → Dying (VAT + 사운드)
+- [ ] VAT 적용 유닛(Hero) 상태 사이클: Idle → Moving → Working (걷기 VAT + 사운드), Attacking (기울임 폴백)
+- [ ] VAT 미적용 유닛(Worker/Striker/Tank/Archer) 상태 사이클: Idle → Moving → Working → Attacking (기울임 + 사운드, Worker는 Working 채집 포함)
+- [ ] VAT 미적용 적(EnemyBig) 상태 사이클: Idle → Attacking (기울임 + 사운드, EnemyState 경로 별도 확인)
+- [ ] VAT 적용 적(EnemySmall) 상태 사이클: Idle → Moving → Attacking → Dying (VAT + 사운드)
+- [ ] VAT 적용 적(EnemyFlying) 상태 사이클: EnemySmall과 동일 동작 확인 (같은 FBX, 동일 클립)
 - [ ] 각 상태 전환 시 SoundEvent 발생 확인 (MeleeHit/RangedShot, UnitDeath, EnemyDeath, WorkerGather)
 - [ ] Dying/Dead 상태 애니메이션 재생 여부 확인 (ClientDeathSystem과의 상호작용)
 - [ ] 500+ 유닛 전투 시 사운드 성능 프로파일링:
@@ -120,6 +124,7 @@ SoundManager Inspector에서 SoundType → AudioClip 매핑 할당:
 
 ## Post-Implementation 체크리스트 (CLAUDE.md 준수)
 
+- [ ] 문서 업데이트: 위 "문서 업데이트 체크리스트" 항목 전부 완료 확인 (Architecture.md, 코드베이스 구조.md)
 - [ ] 주석 정합성 점검: Phase 1~5에서 변경된 파일의 기존 주석이 코드 동작과 일치하는지 확인
-- [ ] CLAUDE.md 동기화: Development Guidelines > Key Patterns에 VAT Animation 패턴 (MaterialProperty + 셰이더 연동), SoundEvent 패턴 (ECS 버퍼 → MonoBehaviour 브릿지) 추가
+- [ ] CLAUDE.md 동기화: Development Guidelines > Key Patterns에 VAT Animation 패턴 (MaterialProperty + 셰이더 연동), SoundEvent 패턴 (ECS 버퍼 → MonoBehaviour 브릿지), CombatTilt 패턴 추가
 - [ ] WorkLog 기록: `Docs/WorkLog/YYYY-MM-DD/VAT 애니메이션 + 사운드 시스템 구현.md` 작성

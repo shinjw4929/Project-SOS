@@ -1,0 +1,37 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f6978209f10bf054196b4eddbbb032e8, type: 3}
+  m_Name: Hero_ClipData
+  m_EditorClassIdentifier: 
+  PositionTexture: {fileID: 2800000, guid: 0fc74c72daabde841a462e4a5881d423, type: 2}
+  StaticMesh: {fileID: 4300000, guid: 94ade1eada9e146468f835c33818ba51, type: 2}
+  Clips:
+  - Name: 02_Idle_Squirrel
+    StartRow: 0
+    RowCount: 30
+    Fps: 30
+    Loop: 1
+  - Name: 03_Walk_Squirrel
+    StartRow: 30
+    RowCount: 30
+    Fps: 30
+    Loop: 1
+  - Name: 07_Eat_Squirrel
+    StartRow: 60
+    RowCount: 30
+    Fps: 30
+    Loop: 1
+  - Name: 09_Sleep02_Squirrel
+    StartRow: 90
+    RowCount: 30
+    Fps: 30
+    Loop: 0

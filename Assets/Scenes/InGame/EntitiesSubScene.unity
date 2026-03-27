@@ -265,7 +265,6 @@ MonoBehaviour:
   separationStrength: 4
   separationPadding: 0.3
   separationForceCurve: 3
-  wallCollisionPadding: 0.25
   stuckCheckInterval: 3
   stuckThreshold: 2
   dormantMinDuration: 5
@@ -276,6 +275,8 @@ MonoBehaviour:
   enemySmallOnlyRate: 0.6
   wave0SpawnSpacing: 1
   periodicSpawnSpacing: 3
+  combatTiltAngle: 0.3
+  combatTiltSpeed: 8
   wave1SpawnInterval: 0.5
   wave1SpawnCount: 15
   wave2SpawnInterval: 0.5
@@ -2665,11 +2666,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: dc5414274d42d0c4cb2f6f07ea5b57f9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  initialWallDecayTime: 50
-  wave0InitialSpawnCount: 5
-  wave1TriggerTime: 4000
+  initialWallDecayTime: 10
+  wave0InitialSpawnCount: 0
+  wave1TriggerTime: 5
   wave1TriggerKillCount: 1
-  wave2TriggerTime: 4000
+  wave2TriggerTime: 10
   wave2TriggerKillCount: 1
   maxEnemyCount: 4000
   resourceNodeExclusionDistance: 9
@@ -2684,17 +2685,18 @@ MonoBehaviour:
   separationStrength: 4
   separationPadding: 0.3
   separationForceCurve: 3
-  wallCollisionPadding: 0
   stuckCheckInterval: 3
   stuckThreshold: 2
   dormantMinDuration: 5
   dormantMaxDuration: 8
   pathInvalidationRadius: 8
   partialPathInvalidationRadius: 12
-  enemyBigSpawnRate: 0.85
-  enemySmallOnlyRate: 0.6
+  enemyBigSpawnRate: 0
+  enemySmallOnlyRate: 0.8
   wave0SpawnSpacing: 1
   periodicSpawnSpacing: 3
+  combatTiltAngle: 0.3
+  combatTiltSpeed: 8
   wave1SpawnInterval: 4
   wave1SpawnCount: 4
   wave2SpawnInterval: 4

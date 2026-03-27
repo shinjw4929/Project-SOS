@@ -129,5 +129,12 @@ namespace Shared
         public float Wave0SpawnSpacing;
         /// <summary>주기적 스폰 원형 배치 간격 (월드 단위, m)</summary>
         public float PeriodicSpawnSpacing;
+
+        // === 애니메이션 ===
+
+        /// <summary>전투 기울임 각도 (라디안, 기본 0.3 ≈ 17도)</summary>
+        public float CombatTiltAngle;
+        /// <summary>전투 기울임 보간 속도 (높을수록 빠름)</summary>
+        public float CombatTiltSpeed;
     }
 }

@@ -1,0 +1,37 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f6978209f10bf054196b4eddbbb032e8, type: 3}
+  m_Name: EnemySmall_ClipData
+  m_EditorClassIdentifier: 
+  PositionTexture: {fileID: 2800000, guid: 76694a7b9915ac3479067b4da1b960ae, type: 2}
+  StaticMesh: {fileID: 4300000, guid: 07de3fe7b3f2f8147b81f630f899cb60, type: 2}
+  Clips:
+  - Name: ghost_attack
+    StartRow: 0
+    RowCount: 50
+    Fps: 60
+    Loop: 0
+  - Name: ghost_dissolve
+    StartRow: 50
+    RowCount: 80
+    Fps: 60
+    Loop: 0
+  - Name: ghost_idle
+    StartRow: 130
+    RowCount: 80
+    Fps: 60
+    Loop: 1
+  - Name: ghost_run
+    StartRow: 210
+    RowCount: 80
+    Fps: 60
+    Loop: 1

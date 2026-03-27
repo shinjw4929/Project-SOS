@@ -15,7 +15,7 @@
 | **Netcode for Entities** | 클라이언트-서버 동기화, Ghost 복제 |
 | **Burst Compiler + Job System** | 멀티스레드 병렬 처리 |
 | **Spatial Hashing** | O(1) 인접 엔티티 탐색 (타겟팅/충돌 회피) |
-| **NavMeshQuery + Funnel** | NavMeshQuery 기반 경로 탐색 + String-Pulling 알고리즘 |
+| **Flow Field 경로 탐색** | BFS 기반 Flow Field 계산 + Grid 장애물 시스템 |
 
 ## 주요 구현 사항
 
@@ -23,6 +23,7 @@
 - **Server-Authoritative**: 모든 게임 로직은 서버에서 처리, 클라이언트는 입력 전송 + 시각화만 담당
 - **RPC 기반 명령 체계**: 이동, 공격, 건설, 생산 등 모든 유저 명령은 RPC로 서버에 요청
 - **Ghost 기반 상태 동기화**: 유닛/건물/적의 위치, 체력 등 실시간 복제
+- **Ghost Relevancy**: 뷰포트 기반 AABB 필터링으로 불필요한 Ghost 전송 제외
 
 ### 전투 시스템
 - **DamageEvent 버퍼 패턴**: 여러 시스템에서 발생하는 데미지를 버퍼에 누적 후 일괄 적용 (Job 스케줄링 충돌 방지)
@@ -30,11 +31,10 @@
 - **시각 전용 투사체**: 원거리 공격은 필중 + 별도의 시각 투사체 생성으로 네트워크 트래픽 최적화
 
 ### 이동 및 경로 탐색
-- **NavMeshQuery 기반 Pathfinding**: `BeginFindPath` → `UpdateFindPath` → `EndFindPath` 비동기 파이프라인, ISystem(unmanaged) 구조
-- **Funnel 알고리즘 (String-Pulling)**: 폴리곤 경로를 최적 직선 웨이포인트로 변환 (`NavMeshPathUtils`)
-- **동적 NavMesh Obstacle**: 건물 배치 시 런타임 장애물 생성/제거
+- **Flow Field 기반 Pathfinding**: BFS 기반 Flow Field 계산, LRU 캐시(32x2풀) + 8 IJob 병렬 처리
+- **Grid 기반 장애물 시스템**: 건물 배치 시 그리드 셀 차단, 경로 무효화 및 재계산
 - **Spatial Partitioning 충돌 회피**: 인접 유닛 간 밀어내기로 자연스러운 군집 이동
-- **가속/감속 기반 이동**: 부드러운 출발과 정지
+- **Flow Field Steering**: Flow Field 방향 벡터 기반 조향 + 도착 판정
 
 ### 건설 및 생산
 - **프리뷰 시스템**: 그리드 기반 배치 가능 여부 실시간 표시
@@ -66,7 +66,7 @@ Assets/Scripts/
 └── Authoring/       # GameObject → Entity 변환
 ```
 
-자세한 코드 구조는 [Docs/코드베이스 구조.md](Docs/코드베이스%20구조.md) 참조.
+자세한 코드 구조는 [Docs/Systems/코드베이스 구조.md](Docs/Systems/코드베이스%20구조.md) 참조.
 
 ## 시스템 흐름
 
@@ -97,14 +97,18 @@ Assets/Scripts/
 
 | 문서 | 내용 |
 |------|------|
-| [코드베이스 구조](Docs/코드베이스%20구조.md) | 전체 파일/폴더 구조 |
-| [시스템 그룹 및 의존성](Docs/시스템%20그룹%20및%20의존성.md) | 시스템 실행 순서 |
-| [엔티티 선택 시스템](Docs/엔티티%20선택%20시스템.md) | 유닛/건물 선택 로직 |
-| [엔티티 이동 시스템](Docs/엔티티%20이동%20시스템(navmesh).md) | NavMeshQuery + Funnel 기반 이동 |
-| [엔티티 전투](Docs/엔티티%20전투.md) | 전투 로직 상세 |
-| [건설 시스템](Docs/건설%20시스템.md) | 건물 배치 및 건설 |
-| [자원 채집 시스템](Docs/자원%20채집%20시스템.md) | Worker 자원 수집 |
-| [유저 자원, 인구수](Docs/유저%20자원,%20인구수.md) | 경제 시스템 |
-| [상태 시스템 설계](Docs/Project-SOS%20상태%20시스템%20설계.md) | UI 상태 머신 |
+| [Architecture](Docs/Architecture.md) | 프로젝트 구조, 시스템 플로우, 핵심 패턴 |
+| [코드베이스 구조](Docs/Systems/코드베이스%20구조.md) | 전체 파일/폴더 구조 |
+| [시스템 그룹 및 의존성](Docs/Systems/시스템%20그룹%20및%20의존성.md) | 시스템 실행 순서 |
+| [엔티티 선택 시스템](Docs/Systems/엔티티%20선택%20시스템.md) | 유닛/건물 선택 로직 |
+| [엔티티 이동 시스템](Docs/Systems/엔티티%20이동%20시스템(FlowField).md) | Flow Field 기반 이동 |
+| [엔티티 전투](Docs/Systems/엔티티%20전투.md) | 전투 로직 상세 |
+| [건설 시스템](Docs/Systems/건설%20시스템.md) | 건물 배치 및 건설 |
+| [자원 채집 시스템](Docs/Systems/자원%20채집%20시스템.md) | Worker 자원 수집 |
+| [유저 자원, 인구수](Docs/Systems/유저%20자원,%20인구수.md) | 경제 시스템 |
+| [상태 시스템 설계](Docs/Systems/Project-SOS%20상태%20시스템%20설계.md) | UI 상태 머신 |
+| [미니맵 및 Ghost Relevancy](Docs/Systems/미니맵%20및%20Ghost%20Relevancy.md) | Ghost Relevancy, 미니맵 RPC |
+| [팀 색상 시스템](Docs/Systems/팀%20색상%20시스템.md) | 팀별 색상 틴트 |
+| [로깅 시스템](Docs/Systems/로깅%20시스템.md) | 로깅 카테고리, SOSLog |
 
 ---

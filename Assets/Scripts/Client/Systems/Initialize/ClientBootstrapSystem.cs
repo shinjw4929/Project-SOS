@@ -98,6 +98,17 @@ namespace Client
 #endif
             }
 
+            // 6. SoundEventState 싱글톤 + SoundEvent 버퍼 생성
+            if (!SystemAPI.HasSingleton<SoundEventState>())
+            {
+                var entity = entityManager.CreateEntity(typeof(SoundEventState));
+                entityManager.AddBuffer<SoundEvent>(entity);
+
+#if UNITY_EDITOR
+                entityManager.SetName(entity, "Singleton_SoundEventState");
+#endif
+            }
+
             // UserTechState는 이제 UserEconomy 엔티티에 포함됨 (유저별 관리)
             // 서버에서 Ghost로 동기화되므로 클라이언트에서 초기화 불필요
         }

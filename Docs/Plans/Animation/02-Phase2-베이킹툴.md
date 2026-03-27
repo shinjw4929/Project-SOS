@@ -7,10 +7,11 @@
 ## 오프라인 베이킹 파이프라인
 
 **입력**: SkinnedMeshRenderer + AnimationClip이 있는 FBX 모델
-**출력**:
+**출력** (4개 에셋):
 - Position Texture (RGBAHalf): 행=프레임, 열=버텍스, 값=XYZ 좌표
 - VATClipDataAsset (ScriptableObject): 클립별 메타데이터
 - Static Mesh: 바인드포즈 정적 메시 (런타임 MeshFilter용)
+- VAT Material: VATAnimation 셰이더 기반 머티리얼 (`_VATPositionTex` + `_VATTexelSize` 자동 설정)
 
 ### 베이킹 알고리즘
 
@@ -142,19 +143,19 @@ AssetDatabase.CreateAsset(material, $"{outputPath}/{modelName}_VAT.mat");
 
 ## 체크리스트
 
-- [ ] `VATBakerWindow.cs` EditorWindow UI 구현 (FBX 슬롯, 클립 자동 추출, Fps/Loop 편집, 출력 경로)
-- [ ] `VATBakeUtility.cs` 베이킹 로직 구현
-- [ ] FBX에서 SkinnedMeshRenderer + AnimationClip 추출
-- [ ] 각 클립별 프레임 수 산출: `round(clipLength × fps)`
-- [ ] AnimationMode 기반 샘플링 (StartAnimationMode → SampleAnimation → BakeMesh → StopAnimationMode)
-- [ ] BakeMesh 호출 시 `useScale: false` (로컬 좌표 유지)
-- [ ] Position Texture (RGBAHalf) 생성 — `GetRawTextureData<half4>()`로 NativeArray 직접 쓰기
-- [ ] R=X, G=Y, B=Z, 행=프레임, 열=버텍스 레이아웃 확인
-- [ ] Static Mesh 추출 (바인드포즈, 프레임 0)
-- [ ] UV2 채널에 버텍스 인덱스 인코딩 (정규화 금지: `uv2[i] = new Vector2((float)i, 0)`)
-- [ ] VATClipDataAsset 자동 생성 (클립별 StartRow, RowCount, Fps, Loop + 텍스처/메시 참조)
-- [ ] VAT Material 자동 생성 (`_VATPositionTex` + `_VATTexelSize` 자동 설정)
-- [ ] 파일 저장 경로 규약 적용 (`Assets/VATData/{모델명}/` — 4개 에셋)
-- [ ] 텍스처 크기 한계(4096) 초과 시 경고 표시
-- [ ] EditorUtility.DisplayProgressBar 진행률 표시
-- [ ] 에러 핸들링: SMR 미발견, 복수 SMR 경고, 폴더 자동 생성
+- [x] `VATBakerWindow.cs` EditorWindow UI 구현 (FBX 슬롯, 클립 자동 추출, Fps/Loop 편집, 출력 경로)
+- [x] `VATBakeUtility.cs` 베이킹 로직 구현
+- [x] FBX에서 SkinnedMeshRenderer + AnimationClip 추출
+- [x] 각 클립별 프레임 수 산출: `round(clipLength × fps)`
+- [x] AnimationMode 기반 샘플링 (StartAnimationMode → SampleAnimation → BakeMesh → StopAnimationMode)
+- [x] BakeMesh 호출 시 `useScale: false` (로컬 좌표 유지)
+- [x] Position Texture (RGBAHalf) 생성 — `GetRawTextureData<half4>()`로 NativeArray 직접 쓰기
+- [x] R=X, G=Y, B=Z, 행=프레임, 열=버텍스 레이아웃 확인
+- [x] Static Mesh 추출 (바인드포즈, 프레임 0)
+- [x] UV2 채널에 버텍스 인덱스 인코딩 (정규화 금지: `uv2[i] = new Vector2((float)i, 0)`)
+- [x] VATClipDataAsset 자동 생성 (클립별 StartRow, RowCount, Fps, Loop + 텍스처/메시 참조)
+- [x] VAT Material 자동 생성 (`_VATPositionTex` + `_VATTexelSize` 자동 설정)
+- [x] 파일 저장 경로 규약 적용 (`Assets/VATData/{모델명}/` — 4개 에셋)
+- [x] 텍스처 크기 한계(4096) 초과 시 경고 표시
+- [x] EditorUtility.DisplayProgressBar 진행률 표시
+- [x] 에러 핸들링: SMR 미발견, 복수 SMR 경고, 폴더 자동 생성

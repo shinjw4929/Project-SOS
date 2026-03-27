@@ -17,6 +17,7 @@ GameObject:
   - component: {fileID: 144182510915702866}
   - component: {fileID: 3591145102254405203}
   - component: {fileID: 843709809492544232}
+  - component: {fileID: 5233427008118242629}
   m_Layer: 11
   m_Name: Hero
   m_TagString: Untagged
@@ -118,7 +119,7 @@ MonoBehaviour:
   cost: 10000
   populationCost: 1
   trainingTime: 10000
-  maxHealth: 50
+  maxHealth: 50000
   defense: 0
   visionRange: 12
   workRange: 1
@@ -195,11 +196,24 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fa5b9120047d80f4ab8813c7304de74b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  MaxSpeed: 6
-  Acceleration: 30
-  Deceleration: 30
+  MaxSpeed: 1
+  Acceleration: 5
+  Deceleration: 5
   RotationSpeed: 12
   PathfindingSize: 0
+--- !u!114 &5233427008118242629
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4751367205981193261}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bb196e78c32a55a43a4058981f0acd07, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  ClipData: {fileID: 11400000, guid: 24070f5e245911341932a14265fd4878, type: 2}
 --- !u!1001 &4837877035269938942
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -208,6 +222,34 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 1510443590538901492}
     m_Modifications:
+    - target: {fileID: -7376400488412547179, guid: 9443f37985a557843a81b1ee41a25ed2, type: 3}
+      propertyPath: m_Materials.Array.size
+      value: 5
+      objectReference: {fileID: 0}
+    - target: {fileID: -7376400488412547179, guid: 9443f37985a557843a81b1ee41a25ed2, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 831ef014ac0c0d14788dcef147779443, type: 2}
+    - target: {fileID: -7376400488412547179, guid: 9443f37985a557843a81b1ee41a25ed2, type: 3}
+      propertyPath: 'm_Materials.Array.data[1]'
+      value: 
+      objectReference: {fileID: 2100000, guid: b3310058d75f4944c91b17d3e28a8896, type: 2}
+    - target: {fileID: -7376400488412547179, guid: 9443f37985a557843a81b1ee41a25ed2, type: 3}
+      propertyPath: 'm_Materials.Array.data[2]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 011b49f527805214b86a05b281aa3a6f, type: 2}
+    - target: {fileID: -7376400488412547179, guid: 9443f37985a557843a81b1ee41a25ed2, type: 3}
+      propertyPath: 'm_Materials.Array.data[3]'
+      value: 
+      objectReference: {fileID: 2100000, guid: a5e29fbe879350242b02ca5099eeba8a, type: 2}
+    - target: {fileID: -7376400488412547179, guid: 9443f37985a557843a81b1ee41a25ed2, type: 3}
+      propertyPath: 'm_Materials.Array.data[4]'
+      value: 
+      objectReference: {fileID: 2100000, guid: 57d768b975e04f04998d0f2eee4d3737, type: 2}
+    - target: {fileID: -6219275652950689647, guid: 9443f37985a557843a81b1ee41a25ed2, type: 3}
+      propertyPath: m_Mesh
+      value: 
+      objectReference: {fileID: 4300000, guid: 94ade1eada9e146468f835c33818ba51, type: 2}
     - target: {fileID: 86546097685258906, guid: 9443f37985a557843a81b1ee41a25ed2, type: 3}
       propertyPath: m_Layer
       value: 11
@@ -296,6 +338,10 @@ PrefabInstance:
       propertyPath: m_Layer
       value: 11
       objectReference: {fileID: 0}
+    - target: {fileID: 2859410176306306157, guid: 9443f37985a557843a81b1ee41a25ed2, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: b3310058d75f4944c91b17d3e28a8896, type: 2}
     - target: {fileID: 3290677195833793579, guid: 9443f37985a557843a81b1ee41a25ed2, type: 3}
       propertyPath: m_Layer
       value: 11
@@ -373,7 +419,11 @@ PrefabInstance:
       value: 11
       objectReference: {fileID: 0}
     m_RemovedComponents: []
-    m_RemovedGameObjects: []
+    m_RemovedGameObjects:
+    - {fileID: 1540037809822486954, guid: 9443f37985a557843a81b1ee41a25ed2, type: 3}
+    - {fileID: 6808344274535995589, guid: 9443f37985a557843a81b1ee41a25ed2, type: 3}
+    - {fileID: 5936458252133074862, guid: 9443f37985a557843a81b1ee41a25ed2, type: 3}
+    - {fileID: 6322415253913131204, guid: 9443f37985a557843a81b1ee41a25ed2, type: 3}
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 9443f37985a557843a81b1ee41a25ed2, type: 3}

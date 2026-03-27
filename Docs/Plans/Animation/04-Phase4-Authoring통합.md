@@ -86,33 +86,43 @@ Hero (Root)                             Hero (Root)
   - `_VATPositionTex`, `_VATTexelSize` 자동 설정 완료
   - 모델별 머티리얼이 이미 존재하므로 Phase 4에서는 프리팹에 할당만 수행
 
-### 대상 프리팹 (8개)
+### VAT 적용 대상 프리팹 (3개)
 
-| 프리팹 | VATClipDataAsset | 비고 |
-|--------|-----------------|------|
-| Hero | `Assets/VATData/Hero/Hero_ClipData.asset` | |
-| Worker | `Assets/VATData/Worker/Worker_ClipData.asset` | Working 클립 포함 |
-| Striker | `Assets/VATData/Striker/Striker_ClipData.asset` | |
-| Archer | `Assets/VATData/Archer/Archer_ClipData.asset` | |
-| Tank | `Assets/VATData/Tank/Tank_ClipData.asset` | |
-| EnemySmall | `Assets/VATData/EnemySmall/EnemySmall_ClipData.asset` | |
-| EnemyBig | `Assets/VATData/EnemyBig/EnemyBig_ClipData.asset` | |
-| EnemyFlying | `Assets/VATData/EnemyFlying/EnemyFlying_ClipData.asset` | |
+에셋 조사 결과([00-에셋조사.md](00-에셋조사.md))에 따라, 스켈레탈 애니메이션 + 걷기 클립이 있는 프리팹만 VAT 적용.
+
+| 프리팹 | 원본 에셋 | VATClipDataAsset | 베이킹 클립 |
+|--------|----------|-----------------|------------|
+| Hero | LittleSquirrel (Humanoid) | `Assets/VATData/Hero/Hero_ClipData.asset` | Idle, Walk, Eat |
+| EnemySmall | Ghost (Generic) | `Assets/VATData/EnemySmall/EnemySmall_ClipData.asset` | ghost_idle, ghost_run, ghost_attack, ghost_dissolve |
+| EnemyFlying | Ghost (Generic) | `Assets/VATData/EnemyFlying/EnemyFlying_ClipData.asset` | EnemySmall과 동일 (같은 FBX) |
+
+### VAT 미적용 프리팹 (5개) — 변경 없음
+
+| 프리팹 | 원본 에셋 | 미적용 사유 |
+|--------|----------|-----------|
+| Worker | Origami Rabbit | 리깅 없음 (정적 메시) |
+| Striker | Origami Ox | 리깅 없음 (정적 메시) |
+| Tank | Origami Dragon | 리깅 없음 (정적 메시) |
+| Archer | Origami Crane | 리깅 없음 (정적 메시) |
+| EnemyBig | Monster Ghost | 걷기 클립 없음 (idle_up_down만) |
+
+이 5종은 기존 정적 메시/머티리얼을 유지하며, 전투 기울임(CombatTiltSystem)만 적용된다.
 
 ---
 
 ## 체크리스트
 
-- [ ] Phase 2 출력물 존재 확인 (`Assets/VATData/{모델명}/` 내 4개: `*_ClipData.asset`, `*_Positions.asset`, `*_BindPose.asset`, `*_VAT.mat`)
-- [ ] `VATAnimationAuthoring.cs` 구현 (MonoBehaviour + Baker)
-- [ ] Baker: ClipData null 시 `Debug.LogError` 진단 + 조기 반환
-- [ ] Baker: VATAnimationState 초기화 (CurrentClipIndex=0, AnimStartTime=0)
-- [ ] Baker: BlobBuilder로 VATClipBlobData 생성 (ScriptableObject → BlobAsset)
-- [ ] Baker: VATClipLibrary 컴포넌트 부착
-- [ ] Phase 2에서 자동 생성된 VAT 머티리얼(`*_VAT.mat`)의 `_VATPositionTex`, `_VATTexelSize` 확인
-- [ ] 유닛/적 프리팹 8개에 VATAnimationAuthoring 추가 (ClipData 참조 설정)
-- [ ] 각 프리팹의 Inspector에서 ClipData 할당 확인
-- [ ] 프리팹 MeshFilter → VAT 정적 메시(`_BindPose.asset`)로 교체
-- [ ] 프리팹 MeshRenderer 머티리얼 → VAT 머티리얼로 교체
-- [ ] 기존 UnitAuthoring/EnemyAuthoring 수정 불필요 확인 (Composition 패턴)
-- [ ] Bake 실행 후 에러 메시지 없음 확인
+- [x] Phase 2 출력물 존재 확인 (`Assets/VATData/{모델명}/` 내 4개: `*_ClipData.asset`, `*_Positions.asset`, `*_BindPose.asset`, `*_VAT.mat`)
+- [x] `VATAnimationAuthoring.cs` 구현 (MonoBehaviour + Baker)
+- [x] Baker: ClipData null 시 `Debug.LogError` 진단 + 조기 반환
+- [x] Baker: VATAnimationState 초기화 (CurrentClipIndex=0, AnimStartTime=0)
+- [x] Baker: BlobBuilder로 VATClipBlobData 생성 (ScriptableObject → BlobAsset)
+- [x] Baker: VATClipLibrary 컴포넌트 부착
+- [x] Phase 2에서 자동 생성된 VAT 머티리얼(`*_VAT.mat`)의 `_VATPositionTex`, `_VATTexelSize` 확인
+- [x] VAT 적용 프리팹 **3개**에 VATAnimationAuthoring 추가: Hero, EnemySmall, EnemyFlying
+- [x] 각 프리팹의 Inspector에서 ClipData 할당 확인
+- [x] 프리팹 MeshFilter → VAT 정적 메시(`_BindPose.asset`)로 교체 (3개만)
+- [x] 프리팹 MeshRenderer 머티리얼 → VAT 머티리얼로 교체 (3개만)
+- [x] VAT 미적용 프리팹 5개는 변경하지 않음 확인
+- [x] 기존 UnitAuthoring/EnemyAuthoring 수정 불필요 확인 (Composition 패턴)
+- [x] Bake 실행 후 에러 메시지 없음 확인

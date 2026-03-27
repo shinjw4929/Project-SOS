@@ -1,7 +1,9 @@
 # Phase 5: 사운드 시스템 (설계 + 구조)
 
-**전제 조건**: Phase 3 (VATAnimationInitSystem에서 PreviousClipIndex 부착)
+**전제 조건**: Phase 1 (SoundType enum)
 사운드 에셋 미확보 상태이므로 **시스템 설계만** 진행. 에셋 확보 후 즉시 통합 가능한 구조.
+
+> **설계 변경**: 원래 VAT 클립 인덱스(PreviousClipIndex) 기반으로 사운드 이벤트를 감지했으나, VAT 미적용 유닛 5종(Origami 4종 + EnemyBig)에서 사운드가 발생하지 않는 문제가 있었음. **UnitActionState/EnemyState를 직접 감지**하는 방식으로 변경하여 VAT 유무와 무관하게 전체 유닛/적에서 사운드 이벤트 발생.
 
 ---
 
@@ -10,9 +12,9 @@
 ECS 이벤트 → MonoBehaviour AudioSource 풀 (Hybrid 브릿지)
 
 ```
-VATAnimationPlaybackSystem (Phase 3)
-    ↓ 상태 변화 감지
-SoundEventEmitSystem (ECS, 클라이언트)
+UnitActionState / EnemyState 변화 (서버 → Ghost 동기화)
+    ↓ 클라이언트에서 직접 감지 (VAT 유무 무관)
+SoundEventEmitSystem (ECS, 클라이언트, PreviousActionState/PreviousEnemyContext 비교)
     ↓ SoundEvent 버퍼에 이벤트 추가
 SoundManager (MonoBehaviour)
     ↓ 매 프레임 버퍼 소비
@@ -91,7 +93,7 @@ public struct SoundEvent : IBufferElementData { ... }
 **파일**: `Assets/Scripts/Client/Systems/Sound/SoundEventEmitSystem.cs`
 
 ```csharp
-[BurstCompile]  // SoundType(byte), float3, float만 사용 → Burst 호환
+[BurstCompile]
 [UpdateInGroup(typeof(SimulationSystemGroup))]
 [UpdateAfter(typeof(VATAnimationPlaybackSystem))]
 [UpdateBefore(typeof(TeamColorSystem))]
@@ -99,100 +101,123 @@ public struct SoundEvent : IBufferElementData { ... }
 partial struct SoundEventEmitSystem : ISystem
 ```
 
-#### 상태 변화 → 사운드 매핑
+#### 설계 변경: VAT 독립 방식
 
-이전 프레임의 `CurrentClipIndex`를 추적하기 위해 `PreviousClipIndex` 컴포넌트를 사용 (Phase 1에서 정의, Phase 3 InitSystem에서 부착).
+~~원래 VATAnimTarget + PreviousClipIndex 기반~~ → **UnitActionState/EnemyState 직접 감지** 방식으로 변경.
+
+이유: VAT 미적용 유닛 5종(Origami Worker/Striker/Tank/Archer + EnemyBig)은 VATAnimTarget이 없어 사운드 이벤트가 발생하지 않는 문제. ActionState/EnemyState는 모든 유닛/적에 존재하므로 VAT 유무와 무관하게 동작.
+
+#### 추가 컴포넌트
+
+```csharp
+// 유닛 상태 변화 감지용 (Client)
+// 파일: Assets/Scripts/Client/Component/State/PreviousActionState.cs
+public struct PreviousActionState : IComponentData
+{
+    public Action Value;
+}
+
+// 적 상태 변화 감지용 (Client)
+// 파일: Assets/Scripts/Client/Component/State/PreviousEnemyContext.cs
+public struct PreviousEnemyContext : IComponentData
+{
+    public EnemyContext Value;
+}
+```
+
+이 컴포넌트들은 ClientBootstrapSystem 또는 SoundEventEmitSystem 내에서 `WithNone` 쿼리 + ECB로 초기 부착.
 
 #### 전체 쿼리 구조
 
 ```csharp
-// 1. 메시 엔티티 쿼리 (VATAnimTarget + PreviousClipIndex 보유)
-foreach (var (target, prevClip, entity) in
-    SystemAPI.Query<RefRO<VATAnimTarget>, RefRW<PreviousClipIndex>>()
+// 1. 유닛 사운드 이벤트
+foreach (var (actionState, prevAction, ltw, entity) in
+    SystemAPI.Query<RefRO<UnitActionState>, RefRW<PreviousActionState>, RefRO<LocalToWorld>>()
         .WithEntityAccess())
 {
-    // 2. 루트 엔티티에서 현재 ClipIndex 읽기
-    if (!animStateLookup.TryGetComponent(target.ValueRO.RootEntity, out var animState)) continue;
-    byte currentClip = animState.CurrentClipIndex;
-    byte previousClip = prevClip.ValueRO.Value;
+    var current = actionState.ValueRO.State;
+    var previous = prevAction.ValueRO.Value;
 
-    if (currentClip == previousClip) continue;  // 변화 없으면 스킵
+    if (current == previous) continue;
 
-    // 3. 유닛/적 구분 (UnitTag/EnemyTag 확인)
-    bool isUnit = unitTagLookup.HasComponent(target.ValueRO.RootEntity);
-    bool isEnemy = enemyTagLookup.HasComponent(target.ValueRO.RootEntity);
+    bool isRanged = rangedTagLookup.HasComponent(entity);
+    SoundType soundType = GetUnitSoundType(current, isRanged);
 
-    // 4. ClipIndex → SoundType 매핑 (유닛/적에 따라 다른 매핑 적용)
-    SoundType soundType = isUnit
-        ? GetUnitSoundType(currentClip, rangedTagLookup.HasComponent(target.ValueRO.RootEntity))
-        : isEnemy
-            ? GetEnemySoundType(currentClip, rangedEnemyTagLookup.HasComponent(target.ValueRO.RootEntity))
-            : SoundType.None;
+    if (soundType != SoundType.None)
+        soundBuffer.Add(new SoundEvent { Type = soundType, Position = ltw.ValueRO.Position, Volume = 1.0f });
 
-    if (soundType == SoundType.None) { prevClip.ValueRW.Value = currentClip; continue; }
+    prevAction.ValueRW.Value = current;
+}
 
-    // 5. 싱글톤 버퍼에 이벤트 추가
-    var ltw = ltwLookup[target.ValueRO.RootEntity];
-    soundBuffer.Add(new SoundEvent { Type = soundType, Position = ltw.Position, Volume = 1.0f });
+// 2. 적 사운드 이벤트
+foreach (var (enemyState, prevCtx, ltw, entity) in
+    SystemAPI.Query<RefRO<EnemyState>, RefRW<PreviousEnemyContext>, RefRO<LocalToWorld>>()
+        .WithEntityAccess())
+{
+    var current = enemyState.ValueRO.CurrentState;
+    var previous = prevCtx.ValueRO.Value;
 
-    prevClip.ValueRW.Value = currentClip;
+    if (current == previous) continue;
+
+    bool isRanged = rangedEnemyTagLookup.HasComponent(entity);
+    SoundType soundType = GetEnemySoundType(current, isRanged);
+
+    if (soundType != SoundType.None)
+        soundBuffer.Add(new SoundEvent { Type = soundType, Position = ltw.ValueRO.Position, Volume = 1.0f });
+
+    prevCtx.ValueRW.Value = current;
 }
 ```
 
 #### ComponentLookup 선언
 
 ```csharp
-[ReadOnly] ComponentLookup<VATAnimationState> animStateLookup;
-[ReadOnly] ComponentLookup<UnitTag> unitTagLookup;
-[ReadOnly] ComponentLookup<EnemyTag> enemyTagLookup;
 [ReadOnly] ComponentLookup<RangedUnitTag> rangedTagLookup;
 [ReadOnly] ComponentLookup<RangedEnemyTag> rangedEnemyTagLookup;
-[ReadOnly] ComponentLookup<LocalToWorld> ltwLookup;
 ```
+
+> VATAnimationState, VATAnimTarget, UnitTag/EnemyTag Lookup은 불필요 — 쿼리 자체가 UnitActionState/EnemyState로 유닛/적을 구분.
 
 매핑 규칙:
 
 | 전환 조건 | SoundType |
 |----------|-----------|
-| 유닛: ClipIndex → 3 (Attacking) | MeleeHit (근접) 또는 RangedShot (원거리) |
-| 유닛: ClipIndex → 4 (Dying) | UnitDeath |
-| 유닛: ClipIndex → 2 (Working) | WorkerGather |
-| 적: ClipIndex → 2 (Attacking) | MeleeHit (근접) 또는 RangedShot (원거리, EnemyFlying) |
-| 적: ClipIndex → 3 (Dying) | EnemyDeath |
+| 유닛: Action → Attacking | MeleeHit (근접) 또는 RangedShot (원거리) |
+| 유닛: Action → Dying | UnitDeath |
+| 유닛: Action → Working | WorkerGather |
+| 적: EnemyContext → Attacking | MeleeHit (근접) 또는 RangedShot (원거리) |
+| 적: EnemyContext → Dying | EnemyDeath |
 
 근접/원거리 구분: 유닛은 `RangedUnitTag`, 적은 `RangedEnemyTag` 유무로 판별.
-- `RangedUnitTag`: `Shared/Components/Tags/RangedUnitTag.cs`
-- `RangedEnemyTag`: `Shared/Components/Tags/RangedEnemyTag.cs`
-유닛/적 구분: 루트 엔티티의 `UnitTag`/`EnemyTag` 확인 (`Shared/Components/Tags/IdentityTags.cs`에 정의).
 
 #### GetUnitSoundType / GetEnemySoundType 구현
 
 ```csharp
-static SoundType GetUnitSoundType(byte clipIndex, bool isRanged) => clipIndex switch
+static SoundType GetUnitSoundType(Action action, bool isRanged) => action switch
 {
-    3 => isRanged ? SoundType.RangedShot : SoundType.MeleeHit,  // Attacking
-    4 => SoundType.UnitDeath,                                    // Dying
-    2 => SoundType.WorkerGather,                                 // Working
-    _ => SoundType.None,
+    Action.Attacking => isRanged ? SoundType.RangedShot : SoundType.MeleeHit,
+    Action.Dying     => SoundType.UnitDeath,
+    Action.Working   => SoundType.WorkerGather,
+    _                => SoundType.None,
 };
 
-static SoundType GetEnemySoundType(byte clipIndex, bool isRanged) => clipIndex switch
+static SoundType GetEnemySoundType(EnemyContext ctx, bool isRanged) => ctx switch
 {
-    2 => isRanged ? SoundType.RangedShot : SoundType.MeleeHit,  // Attacking
-    3 => SoundType.EnemyDeath,                                   // Dying
-    _ => SoundType.None,
+    EnemyContext.Attacking => isRanged ? SoundType.RangedShot : SoundType.MeleeHit,
+    EnemyContext.Dying     => SoundType.EnemyDeath,
+    _                      => SoundType.None,
 };
 ```
 
-> **BuildingPlace/BuildingComplete**: 이 SoundType들은 VAT 애니메이션 상태 변화에서 발생하지 않는다. 건설 시스템에서 별도로 SoundEvent를 직접 발행해야 하며, Phase 5 범위 외이다. SoundType enum에 미리 정의만 해둔다.
+> **BuildingPlace/BuildingComplete**: 건설 시스템에서 별도로 SoundEvent를 직접 발행해야 하며, Phase 5 범위 외. SoundType enum에 미리 정의만 해둔다.
 
 #### SoundEvent.Position 계산
 
-위 전체 쿼리 구조 코드에서 `ltwLookup[target.ValueRO.RootEntity]`로 엔티티의 `LocalToWorld.Position`을 사용한다.
+쿼리에서 `RefRO<LocalToWorld>`를 직접 읽으므로 별도 Lookup 불필요.
 
 #### 첫 프레임 중복 이벤트 방지
 
-VATAnimationInitSystem에서 PreviousClipIndex = 0으로 초기화하고, 초기 CurrentClipIndex도 0(Idle)이므로 첫 프레임에 불필요한 SoundEvent가 생성되지 않는다 (변화 없음). 단, 스폰 직후 즉시 이동/공격 명령이 내려진 경우 정상적으로 이벤트가 발생한다.
+PreviousActionState는 `Action.Idle`(0)으로 초기화, UnitActionState 초기값도 Idle이므로 첫 프레임에 불필요한 SoundEvent 없음. PreviousEnemyContext도 동일.
 
 ### MonoBehaviour: SoundManager
 
@@ -200,7 +225,7 @@ VATAnimationInitSystem에서 PreviousClipIndex = 0으로 초기화하고, 초기
 
 #### 초기화
 
-- MinimapRenderer 패턴 참조: `World.All`에서 `WorldFlags.GameClient` 월드 탐색
+- MinimapRenderer 패턴 참조: `World.All`에서 `world.IsClient()` 확인으로 클라이언트 월드 탐색
 - `SystemAPI.TryGetSingletonBuffer<SoundEvent>` 접근 불가 (MonoBehaviour) → `EntityManager.GetBuffer<SoundEvent>` 사용
 - SoundEventState 싱글톤 엔티티의 DynamicBuffer<SoundEvent> 직접 읽기
 
@@ -266,20 +291,21 @@ if (!SystemAPI.HasSingleton<SoundEventState>())
 
 ## 체크리스트
 
-- [ ] `SoundType` enum 정의 (Shared, byte 기반, 카테고리별 번호 대역)
-- [ ] `SoundEvent` IBufferElementData 구현 (Client, `[InternalBufferCapacity(8)]`)
-- [ ] `SoundEventState` 싱글톤 구현 (Client, 태그 역할)
-- [ ] `PreviousClipIndex` 컴포넌트 정의 (변화 감지용, Phase 1에서 정의)
-- [ ] `SoundEventEmitSystem` 구현 (Client, `[BurstCompile]` 적용)
-- [ ] 상태 변화 감지: PreviousClipIndex vs CurrentClipIndex 비교
-- [ ] SoundEvent.Position: `LocalToWorld.Position` 사용
-- [ ] 첫 프레임 중복 이벤트 방지 확인 (PreviousClipIndex=0, CurrentClipIndex=0)
-- [ ] 클립 전환 → SoundType 매핑 규칙 구현 (유닛/적 구분: UnitTag/EnemyTag + 근접/원거리 구분: RangedUnitTag/RangedEnemyTag)
-- [ ] `SoundManager` MonoBehaviour 구현
-- [ ] AudioSource 풀 (32개, 라운드로빈)
-- [ ] 3D AudioSource 설정 (spatialBlend=1, minDistance=5, maxDistance=80)
-- [ ] 카메라 거리 컬링 (80m, 컬링 후 카운트 증가)
-- [ ] 동일 SoundType 동시 재생 제한 (최대 3개)
-- [ ] 버퍼 Clear 타이밍: SoundManager.Update() 마지막에 수행
-- [ ] OnDestroy에서 AudioSource 풀 정리
-- [ ] `ClientBootstrapSystem` 수정 — SoundEventState 싱글톤 + SoundEvent 버퍼 생성
+- [x] `SoundType` enum 정의 (Shared, byte 기반, 카테고리별 번호 대역)
+- [x] `SoundEvent` IBufferElementData 구현 (Client, `[InternalBufferCapacity(8)]`)
+- [x] `SoundEventState` 싱글톤 구현 (Client, 태그 역할)
+- [x] `PreviousActionState` 컴포넌트 정의 (유닛 상태 변화 감지용, Client)
+- [x] `PreviousEnemyContext` 컴포넌트 정의 (적 상태 변화 감지용, Client)
+- [x] `SoundEventEmitSystem` 구현 (Client, `[BurstCompile]` 적용)
+- [x] 상태 변화 감지: UnitActionState/EnemyState 직접 비교 (VAT 독립)
+- [x] SoundEvent.Position: `LocalToWorld.Position` 사용 (쿼리에서 직접 읽기)
+- [x] 첫 프레임 중복 이벤트 방지 확인 (PreviousActionState=Idle, CurrentAction=Idle)
+- [x] Action/EnemyContext → SoundType 매핑 규칙 구현 (근접/원거리 구분: RangedUnitTag/RangedEnemyTag)
+- [x] `SoundManager` MonoBehaviour 구현
+- [x] AudioSource 풀 (32개, 라운드로빈)
+- [x] 3D AudioSource 설정 (spatialBlend=1, minDistance=5, maxDistance=80)
+- [x] 카메라 거리 컬링 (80m, 컬링 후 카운트 증가)
+- [x] 동일 SoundType 동시 재생 제한 (최대 3개)
+- [x] 버퍼 Clear 타이밍: SoundManager.Update() 마지막에 수행
+- [x] OnDestroy에서 AudioSource 풀 정리
+- [x] `ClientBootstrapSystem` 수정 — SoundEventState 싱글톤 + SoundEvent 버퍼 생성

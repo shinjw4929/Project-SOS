@@ -62,7 +62,7 @@ float3 animatedPos = lerp(posA, posB, frac(frameFloat));
 [GhostComponent]
 public struct VATAnimationState : IComponentData
 {
-    [GhostField] public byte CurrentClipIndex;   // 클립 인덱스 (유닛: 0-6, 적: 0-5)
+    [GhostField] public byte CurrentClipIndex;   // 클립 인덱스 (Hero: 0-2, Ghost 적: 0-3, math.clamp로 바운드 보호)
     [GhostField(Quantization = 100)] public float AnimStartTime;  // 클립 전환 시점의 ElapsedTime (0.01초 정밀도)
 }
 ```
@@ -160,23 +160,25 @@ public struct PreviousClipIndex : IComponentData
 }
 ```
 
-SoundEventEmitSystem(Phase 5)에서 상태 변화 감지용. VATAnimationInitSystem에서 VATAnimParam과 함께 부착.
+VAT 클립 전환 감지용 (향후 VAT 전용 이벤트가 필요한 경우 활용). VATAnimationInitSystem에서 VATAnimParam과 함께 부착.
+
+> **참고**: 사운드 이벤트 시스템(Phase 5)은 VAT 독립 방식으로 변경됨 — UnitActionState/EnemyState를 직접 감지하므로 PreviousClipIndex 대신 `PreviousActionState`/`PreviousEnemyContext` 컴포넌트를 사용. 상세: [05-Phase5-사운드시스템.md](05-Phase5-사운드시스템.md)
 
 ---
 
 ## 체크리스트
 
-- [ ] URP Lit 기반 `VATAnimation.shader` 작성
-- [ ] `_VATPositionTex`, `_VATTexelSize` 셰이더 프로퍼티 선언
-- [ ] `_VATAnimParam` float4 per-entity 프로퍼티 구현
-- [ ] UV2.x에서 버텍스 인덱스 읽기 로직
-- [ ] 텍셀 중심 샘플링 (+0.5 오프셋)
-- [ ] 프레임 간 보간 (floor/ceil + lerp) 구현
-- [ ] `_BaseColor` 프로퍼티 유지 (TeamColorSystem 호환)
-- [ ] `VATAnimationState` 컴포넌트 (Shared, GhostField)
-- [ ] `VATClipBlobData` + `VATClipInfo` BlobAsset 구조 정의
-- [ ] `VATClipLibrary` 컴포넌트 (Shared, BlobAssetReference)
-- [ ] `VATClipDataAsset` ScriptableObject (Shared, CreateAssetMenu)
-- [ ] `VATAnimParam` MaterialProperty 컴포넌트 (Client)
-- [ ] `VATAnimTarget` 컴포넌트 (Client, 메시→루트 참조)
-- [ ] `PreviousClipIndex` 컴포넌트 (Client, 사운드 변화 감지용)
+- [x] URP Lit 기반 `VATAnimation.shader` 작성
+- [x] `_VATPositionTex`, `_VATTexelSize` 셰이더 프로퍼티 선언
+- [x] `_VATAnimParam` float4 per-entity 프로퍼티 구현
+- [x] UV2.x에서 버텍스 인덱스 읽기 로직
+- [x] 텍셀 중심 샘플링 (+0.5 오프셋)
+- [x] 프레임 간 보간 (floor/ceil + lerp) 구현
+- [x] `_BaseColor` 프로퍼티 유지 (TeamColorSystem 호환)
+- [x] `VATAnimationState` 컴포넌트 (Shared, GhostField)
+- [x] `VATClipBlobData` + `VATClipInfo` BlobAsset 구조 정의
+- [x] `VATClipLibrary` 컴포넌트 (Shared, BlobAssetReference)
+- [x] `VATClipDataAsset` ScriptableObject (Shared, CreateAssetMenu)
+- [x] `VATAnimParam` MaterialProperty 컴포넌트 (Client)
+- [x] `VATAnimTarget` 컴포넌트 (Client, 메시→루트 참조)
+- [x] `PreviousClipIndex` 컴포넌트 (Client, VAT 클립 전환 감지용 — 사운드는 Phase 5에서 PreviousActionState/PreviousEnemyContext 사용)

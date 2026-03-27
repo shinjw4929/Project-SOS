@@ -119,6 +119,14 @@ namespace Authoring
         [Min(0.5f)]
         public float periodicSpawnSpacing = 3f;
 
+        [Header("Animation")]
+        [Tooltip("전투 기울임 각도 (라디안, 0.3 ≈ 17도)")]
+        [Min(0f)]
+        public float combatTiltAngle = 0.3f;
+        [Tooltip("전투 기울임 보간 속도 (높을수록 빠름)")]
+        [Min(0.1f)]
+        public float combatTiltSpeed = 8.0f;
+
         [Header("Wave1+ Spawn Settings")]
         [Tooltip("Wave1 적 스폰 주기 (초)")]
         [Min(0.5f)]
@@ -172,7 +180,9 @@ namespace Authoring
                     EnemyBigSpawnRate = authoring.enemyBigSpawnRate,
                     EnemySmallOnlyRate = authoring.enemySmallOnlyRate,
                     Wave0SpawnSpacing = authoring.wave0SpawnSpacing,
-                    PeriodicSpawnSpacing = authoring.periodicSpawnSpacing
+                    PeriodicSpawnSpacing = authoring.periodicSpawnSpacing,
+                    CombatTiltAngle = authoring.combatTiltAngle,
+                    CombatTiltSpeed = authoring.combatTiltSpeed
                 });
             }
         }
