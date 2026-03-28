@@ -15,23 +15,23 @@ MonoBehaviour:
   PositionTexture: {fileID: 2800000, guid: 76694a7b9915ac3479067b4da1b960ae, type: 2}
   StaticMesh: {fileID: 4300000, guid: 07de3fe7b3f2f8147b81f630f899cb60, type: 2}
   Clips:
-  - Name: ghost_attack
-    StartRow: 0
-    RowCount: 50
-    Fps: 60
-    Loop: 0
-  - Name: ghost_dissolve
-    StartRow: 50
-    RowCount: 80
-    Fps: 60
-    Loop: 0
   - Name: ghost_idle
-    StartRow: 130
+    StartRow: 0
     RowCount: 80
     Fps: 60
     Loop: 1
   - Name: ghost_run
-    StartRow: 210
+    StartRow: 80
     RowCount: 80
     Fps: 60
     Loop: 1
+  - Name: ghost_attack
+    StartRow: 160
+    RowCount: 50
+    Fps: 60
+    Loop: 1
+  - Name: ghost_dissolve
+    StartRow: 210
+    RowCount: 80
+    Fps: 60
+    Loop: 0

@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Unity.Burst;
 using Unity.Entities;
 using Unity.Mathematics;
@@ -10,7 +11,7 @@ namespace Server
     /// <summary>
     /// 이동 도착 판정 시스템
     /// - 거리 조건으로 도착 판정 (마지막 웨이포인트 + 반경 이내)
-    /// - 2차 판정: 확장 반경 내에서 Separation에 의해 밀려나는 경우 도착 처리
+    /// - 2차 판정: 확장 반경 내에서 저속 상태(Steering 회피 진동) 시 도착 처리
     /// - 서버에서만 실행 (클라이언트는 Ghost 보간)
     /// </summary>
     [UpdateInGroup(typeof(SimulationSystemGroup))]
@@ -39,14 +40,15 @@ namespace Server
                 }
             }
 
-            // 유닛 이동 도착 처리 (Intent 변경 필요)
-            foreach (var (destination, transform, obstacle, velocity, intentState, enabledRef) in
+            // 유닛 이동 도착 처리 (Intent + ActionState 변경 필요)
+            foreach (var (destination, transform, obstacle, velocity, intentState, actionState, enabledRef) in
                      SystemAPI.Query<
                              RefRO<MovementWaypoints>,
                              RefRO<LocalTransform>,
                              RefRO<ObstacleRadius>,
                              RefRW<PhysicsVelocity>,
                              RefRW<UnitIntentState>,
+                             RefRW<UnitActionState>,
                              EnabledRefRW<MovementWaypoints>>()
                      .WithAll<UnitTag>())
             {
@@ -60,6 +62,7 @@ namespace Server
                     {
                         intentState.ValueRW.State = Intent.Idle;
                         intentState.ValueRW.TargetEntity = Entity.Null;
+                        actionState.ValueRW.State = Action.Idle;
                     }
                 }
             }
@@ -70,7 +73,7 @@ namespace Server
         /// - 1차: 도착 반경 이내 + 마지막 웨이포인트
         /// - 2차: 확장 반경(2배) 이내 + 목적지 방향으로 이동하지 않는 경우
         /// </summary>
-        [BurstCompile]
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static bool CheckArrival(
             in MovementWaypoints destination,
             in LocalTransform transform,
@@ -96,13 +99,12 @@ namespace Server
             if (distanceSq < arrivalRadiusSq)
                 return true;
 
-            // 2차 판정: 확장 반경(2배) 이내에서 목적지 방향으로 이동하지 않는 경우
-            // Separation Force가 도착 반경 진입을 방해하여 진동하는 유닛 포착
+            // 2차 판정: 확장 반경(2배) 이내에서 거의 정지 상태이면 도착 처리
+            // Steering 회피로 인한 미세 진동 안전망
             float expandedRadiusSq = arrivalRadiusSq * 4f;
             if (distanceSq < expandedRadiusSq)
             {
-                float3 toTarget = targetPos - transform.Position;
-                if (math.dot(velocity.Linear, toTarget) <= 0)
+                if (math.lengthsq(velocity.Linear) < 0.01f)
                     return true;
             }
 

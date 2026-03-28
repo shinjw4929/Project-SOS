@@ -18,6 +18,7 @@ namespace Server
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     [UpdateAfter(typeof(FlowFieldSteeringSystem))]
     [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
+    [BurstCompile]
     public partial struct PredictedMovementSystem : ISystem
     {
         private EntityQuery _movingQuery;
@@ -27,7 +28,7 @@ namespace Server
             state.RequireForUpdate<GridSettings>();
             state.RequireForUpdate<SpatialMaps>();
 
-            // 이동 그룹 (Waypoint 보유, 비활성 포함 - 공격 중 Separation 유지)
+            // 이동 그룹 (Waypoint 보유, 비활성 포함)
             _movingQuery = state.GetEntityQuery(new EntityQueryDesc
             {
                 All = new[]
@@ -78,9 +79,8 @@ namespace Server
                 ActionStateLookup = actionStateLookup,
                 FlyingTagLookup = flyingTagLookup,
                 CellSize = SpatialHashUtility.MovementCellSize,
-                SeparationStrength = SystemAPI.TryGetSingleton<GameSettings>(out var gs) ? gs.SeparationStrength : 4.0f,
-                SeparationPadding = SystemAPI.HasSingleton<GameSettings>() ? gs.SeparationPadding : 0.3f,
-                SeparationForceCurve = SystemAPI.HasSingleton<GameSettings>() ? gs.SeparationForceCurve : 3.0f,
+                AvoidanceStrength = SystemAPI.TryGetSingleton<GameSettings>(out var movGS) ? movGS.AvoidanceStrength : 2.0f,
+                AvoidancePadding = movGS.AvoidancePadding > 0 ? movGS.AvoidancePadding : 0.3f,
                 GridCells = gridCells,
                 GridSettings = gridSettings
             };
@@ -108,9 +108,8 @@ namespace Server
         [ReadOnly] public ComponentLookup<FlyingTag> FlyingTagLookup;
 
         public float CellSize;
-        public float SeparationStrength;
-        public float SeparationPadding;
-        public float SeparationForceCurve;
+        public float AvoidanceStrength;
+        public float AvoidancePadding;
 
         [ReadOnly] public NativeArray<GridCell> GridCells;
         public GridSettings GridSettings;
@@ -125,7 +124,7 @@ namespace Server
             in ObstacleRadius obstacleRadius,
             in MovementGoal goal)
         {
-            // 공격 중이거나 waypoints 비활성화 시 이동은 스킵하되 Separation은 유지
+            // 공격 중이거나 waypoints 비활성화 시 이동 스킵 (정지 유닛은 제자리 유지)
             bool isEnemyAttacking = EnemyTagLookup.HasComponent(entity) &&
                                     EnemyStateLookup.TryGetComponent(entity, out EnemyState enemyState) &&
                                     enemyState.CurrentState == EnemyContext.Attacking;
@@ -190,7 +189,7 @@ namespace Server
                 desiredVelocity.y = 0;
             }
 
-            // Separation (Avoidance) - 공격 중에도 실행
+            // Steering 회피 (밀림 없이 방향만 조정)
             bool iAmEnemy = EnemyTagLookup.HasComponent(entity);
             bool iAmFlying = FlyingTagLookup.HasComponent(entity);
             bool iAmWorking = false;
@@ -198,8 +197,10 @@ namespace Server
                 && (intent.State == Intent.Gather || intent.State == Intent.Build))
                 iAmWorking = true;
 
-            float3 separationForce = CalculateSeparation(currentPos, obstacleRadius.Radius, entity, iAmEnemy, iAmFlying, iAmWorking);
-            float3 finalVelocity = desiredVelocity + (separationForce * SeparationStrength);
+            float3 finalVelocity = skipMovement
+                ? float3.zero
+                : CalculateSteeringAvoidance(currentPos, obstacleRadius.Radius,
+                    desiredVelocity, entity, iAmEnemy, iAmFlying, iAmWorking);
 
             // Cap Velocity
             float maxLimit = dynamics.MaxSpeed * 1.5f;
@@ -214,28 +215,23 @@ namespace Server
                 finalVelocity = ResolveWallCollision(currentPos, finalVelocity, obstacleRadius.Radius, DeltaTime, iAmEnemy);
             }
 
-            // Separation 진동 감지: 최종 목적지 근처에서 밀려나는 경우 정지
-            if (!skipMovement && !waypoints.HasNext)
+            // Apply — 이동 전 벽 검증
+            float3 newPos = currentPos + finalVelocity * DeltaTime;
+            if (!iAmFlying && IsOverlappingBlockedCell(newPos, obstacleRadius.Radius))
             {
-                float3 tp = waypoints.Current;
-                tp.y = currentPos.y;
-                float3 toTarget = tp - currentPos;
-                float dSq = math.lengthsq(toTarget);
-                float aR = waypoints.ArrivalRadius > 0 ? waypoints.ArrivalRadius : obstacleRadius.Radius + 0.1f;
-                float expandedR = aR * 2f;
-
-                if (dSq < expandedR * expandedR && math.dot(finalVelocity, toTarget) <= 0)
-                {
-                    velocity.Linear = float3.zero;
-                    velocity.Angular = float3.zero;
-                    return;
-                }
+                // 축별 분리 시도
+                float3 xOnly = currentPos + new float3(finalVelocity.x * DeltaTime, 0, 0);
+                float3 zOnly = currentPos + new float3(0, 0, finalVelocity.z * DeltaTime);
+                if (!IsOverlappingBlockedCell(xOnly, obstacleRadius.Radius))
+                    newPos = xOnly;
+                else if (!IsOverlappingBlockedCell(zOnly, obstacleRadius.Radius))
+                    newPos = zOnly;
+                else
+                    newPos = currentPos; // 둘 다 blocked → 정지
             }
+            transform.Position = newPos;
 
-            // Apply
-            transform.Position += finalVelocity * DeltaTime;
-
-            // 이동 후 벽 관통 차단 (안전망, 3회 반복)
+            // 이동 후 벽 관통 차단 (안전망, 5회 반복)
             if (!iAmFlying)
             {
                 ClampToWall(ref transform.Position, obstacleRadius.Radius);
@@ -251,11 +247,20 @@ namespace Server
             }
         }
 
-        private float3 CalculateSeparation(
-            float3 myPos, float myRadius, Entity myEntity,
-            bool iAmEnemy, bool iAmFlying, bool iAmWorking)
+        /// <summary>
+        /// Steering 기반 회피: 이동 방향만 조정, 위치 직접 변경 없음 (밀림 없음).
+        /// 이웃과 겹칠 때 방향을 편향하여 우회. entityIndex 기반 결정론적 좌/우 분산.
+        /// </summary>
+        private float3 CalculateSteeringAvoidance(
+            float3 myPos, float myRadius, float3 desiredVelocity,
+            Entity myEntity, bool iAmEnemy, bool iAmFlying, bool iAmWorking)
         {
-            float3 separation = float3.zero;
+            if (math.lengthsq(desiredVelocity) < 0.001f) return desiredVelocity;
+
+            float3 adjustedDir = math.normalizesafe(desiredVelocity);
+            float desiredSpeed = math.length(desiredVelocity);
+            float avoidWeight = 0f;
+            float3 avoidDir = float3.zero;
 
             for (int x = -1; x <= 1; x++)
             {
@@ -269,50 +274,57 @@ namespace Server
                         {
                             if (neighbor.Entity == myEntity) continue;
 
-                            // Flying <-> Ground 충돌 스킵
                             bool neighborIsFlying = FlyingTagLookup.HasComponent(neighbor.Entity);
                             if (iAmFlying != neighborIsFlying) continue;
 
-                            // Lookup을 통해 이웃 데이터 조회
                             bool isEnemy = EnemyTagLookup.HasComponent(neighbor.Entity);
                             bool isWorking = false;
                             if (IntentLookup.TryGetComponent(neighbor.Entity, out UnitIntentState nIntent)
                                 && (nIntent.State == Intent.Gather || nIntent.State == Intent.Build))
                                 isWorking = true;
 
-                            bool shouldCollide = iAmEnemy || isEnemy || (!iAmWorking && !isWorking);
-                            if (!shouldCollide) continue;
+                            bool shouldAvoid = iAmEnemy || isEnemy || (!iAmWorking && !isWorking);
+                            if (!shouldAvoid) continue;
 
                             if (!TransformLookup.TryGetComponent(neighbor.Entity, out LocalTransform neighborTransform))
                                 continue;
                             if (!RadiusLookup.TryGetComponent(neighbor.Entity, out ObstacleRadius neighborRadius))
                                 continue;
 
-                            float3 otherPos = neighborTransform.Position;
-                            float otherRadius = neighborRadius.Radius;
-
-                            float3 toOther = myPos - otherPos;
+                            float3 toOther = neighborTransform.Position - myPos;
                             toOther.y = 0;
 
                             float distSq = math.lengthsq(toOther);
-                            float combinedRadius = myRadius + otherRadius + SeparationPadding;
+                            float combinedRadius = myRadius + neighborRadius.Radius + AvoidancePadding;
 
-                            if (distSq < combinedRadius * combinedRadius && distSq > 0.0001f)
-                            {
-                                float dist = math.sqrt(distSq);
-                                float overlap = combinedRadius - dist;
+                            if (distSq >= combinedRadius * combinedRadius || distSq < 0.0001f) continue;
 
-                                // 비선형 force: 깊이 침투 시 기하급수적으로 강해짐
-                                float overlapRatio = overlap / combinedRadius;
-                                float forceMag = overlap * (1.0f + overlapRatio * SeparationForceCurve);
-                                separation += (toOther / dist) * forceMag;
-                            }
+                            float dist = math.sqrt(distSq);
+                            float3 awayDir = math.normalizesafe(myPos - neighborTransform.Position);
+                            awayDir.y = 0;
+
+                            // 결정론적 좌/우 편향 (entityIndex 비교)
+                            float3 perpDir = math.cross(awayDir, math.up());
+                            if (myEntity.Index < neighbor.Entity.Index)
+                                perpDir = -perpDir;
+
+                            float overlap = 1.0f - (dist / combinedRadius);
+                            avoidDir += math.normalizesafe(awayDir + perpDir) * overlap;
+                            avoidWeight += overlap;
 
                         } while (SpatialMap.TryGetNextValue(out neighbor, ref it));
                     }
                 }
             }
-            return separation;
+
+            if (avoidWeight > 0.001f)
+            {
+                avoidDir = math.normalizesafe(avoidDir);
+                float blendFactor = math.saturate(avoidWeight * AvoidanceStrength);
+                adjustedDir = math.normalizesafe(math.lerp(adjustedDir, avoidDir, blendFactor));
+            }
+
+            return adjustedDir * desiredSpeed;
         }
 
         /// <summary>
@@ -350,7 +362,7 @@ namespace Server
         /// <summary>
         /// 이동 후 벽 관통 보정 (안전망).
         /// 유닛 AABB가 path-blocked 셀과 겹치면 최소 침투 축 방향으로 밀어냄.
-        /// 코너(두 벽 교차)를 위해 3회 반복.
+        /// 코너(두 벽 교차)를 위해 5회 반복.
         /// </summary>
         private void ClampToWall(ref float3 position, float radius)
         {
@@ -358,7 +370,7 @@ namespace Server
             float2 origin = GridSettings.GridOrigin;
             int2 gridSize = GridSettings.GridSize;
 
-            for (int iter = 0; iter < 3; iter++)
+            for (int iter = 0; iter < 5; iter++)
             {
                 float unitMinX = position.x - radius;
                 float unitMaxX = position.x + radius;

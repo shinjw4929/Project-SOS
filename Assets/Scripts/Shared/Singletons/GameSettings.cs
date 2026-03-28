@@ -94,12 +94,22 @@ namespace Shared
 
         // === 이동 ===
 
-        /// <summary>충돌 회피 힘 배수</summary>
-        public float SeparationStrength;
-        /// <summary>분리 거리 계산 시 추가 패딩 (월드 단위, m)</summary>
-        public float SeparationPadding;
-        /// <summary>침투 깊이 비례 힘 곡선 배수</summary>
-        public float SeparationForceCurve;
+        /// <summary>Steering 회피 블렌딩 강도 (높을수록 강한 회피)</summary>
+        public float AvoidanceStrength;
+        /// <summary>회피 거리 추가 패딩 (월드 단위, m)</summary>
+        public float AvoidancePadding;
+
+        // === 경로탐색 ===
+
+        /// <summary>프레임당 최대 FlowField BFS 계산 수 (캐시 miss 폭주 방지)</summary>
+        public int MaxBFSPerFrame;
+
+        // === 배회 ===
+
+        /// <summary>Wandering 방향 맵 중심 편향 (0=랜덤, 1=중심 직진)</summary>
+        public float WanderBiasFactor;
+        /// <summary>Wandering 최대 이동 거리 (m)</summary>
+        public float WanderMaxDistance;
 
         // === 적 AI ===
 

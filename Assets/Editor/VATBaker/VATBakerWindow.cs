@@ -60,6 +60,7 @@ namespace VATBaker
             EditorGUILayout.LabelField($"클립 목록 ({extractedClips.Length}개)", EditorStyles.boldLabel);
             scrollPos = EditorGUILayout.BeginScrollView(scrollPos, GUILayout.MaxHeight(300));
 
+            int swapA = -1, swapB = -1;
             for (int i = 0; i < extractedClips.Length; i++)
             {
                 var clip = extractedClips[i];
@@ -77,8 +78,20 @@ namespace VATBaker
 
                 setting.Loop = EditorGUILayout.ToggleLeft("Loop", setting.Loop, GUILayout.Width(50));
 
+                GUI.enabled = i > 0;
+                if (GUILayout.Button("\u25b2", GUILayout.Width(22))) { swapA = i; swapB = i - 1; }
+                GUI.enabled = i < extractedClips.Length - 1;
+                if (GUILayout.Button("\u25bc", GUILayout.Width(22))) { swapA = i; swapB = i + 1; }
+                GUI.enabled = true;
+
                 EditorGUILayout.EndHorizontal();
                 clipSettings[i] = setting;
+            }
+
+            if (swapA >= 0)
+            {
+                (extractedClips[swapA], extractedClips[swapB]) = (extractedClips[swapB], extractedClips[swapA]);
+                (clipSettings[swapA], clipSettings[swapB]) = (clipSettings[swapB], clipSettings[swapA]);
             }
 
             EditorGUILayout.EndScrollView();

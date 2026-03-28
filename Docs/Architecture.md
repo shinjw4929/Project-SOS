@@ -259,7 +259,7 @@ Assets/Scenes/
 | 컨텍스트 | 패턴 | 예시 |
 |---------|------|------|
 | Main Thread (OnUpdate) | `TryGetSingleton` + fallback | `SystemAPI.TryGetSingleton<GameSettings>(out var gs) ? gs.Field : DEFAULT` |
-| Job 구조체 | OnUpdate에서 읽어 필드 전달 | `new MyJob { SeparationStrength = gs.SeparationStrength }` |
+| Job 구조체 | OnUpdate에서 읽어 필드 전달 | `new MyJob { AvoidanceStrength = gs.AvoidanceStrength }` |
 | Utility static 메서드 | 기본값 파라미터 | `CheckStuck(..., float interval = DefaultInterval)` |
 | Baker | Authoring 필드 사용 (bake 시 GameSettings 미존재) | 주석으로 GameSettings 동기화 표시 |
 
@@ -268,7 +268,7 @@ Assets/Scenes/
 - **경제**: InitialCurrency, InitialMaxPopulation
 - **건설**: ResourceNodeExclusionDistance, MaxBuildRetryCount, UnitSpawnOffset, DefaultProductionTime
 - **전투/AI**: AggroLockDuration, TargetHysteresisMultiplier, TargetSearchInterval
-- **이동**: SeparationStrength, SeparationPadding, SeparationForceCurve
+- **이동**: AvoidanceStrength, AvoidancePadding, MaxBFSPerFrame
 - **적 AI**: StuckCheckInterval, StuckThreshold, DormantMinDuration, DormantMaxDuration
 - **장애물**: PathInvalidationRadius, PartialPathInvalidationRadius
 - **스폰**: EnemyBigSpawnRate, EnemySmallOnlyRate, Wave0SpawnSpacing, PeriodicSpawnSpacing

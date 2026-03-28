@@ -262,16 +262,18 @@ MonoBehaviour:
   aggroLockDuration: 3
   targetHysteresisMultiplier: 1.3
   targetSearchInterval: 4
-  separationStrength: 4
-  separationPadding: 0.3
-  separationForceCurve: 3
+  avoidanceStrength: 2
+  avoidancePadding: 0.3
+  maxBFSPerFrame: 16
+  wanderBiasFactor: 0.5
+  wanderMaxDistance: 40
   stuckCheckInterval: 3
   stuckThreshold: 2
   dormantMinDuration: 5
   dormantMaxDuration: 8
   pathInvalidationRadius: 8
   partialPathInvalidationRadius: 12
-  enemyBigSpawnRate: 0.85
+  enemyBigSpawnRate: 0.7
   enemySmallOnlyRate: 0.6
   wave0SpawnSpacing: 1
   periodicSpawnSpacing: 3
@@ -2666,12 +2668,12 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: dc5414274d42d0c4cb2f6f07ea5b57f9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  initialWallDecayTime: 10
-  wave0InitialSpawnCount: 0
-  wave1TriggerTime: 5
+  initialWallDecayTime: 50
+  wave0InitialSpawnCount: 5
+  wave1TriggerTime: 100
   wave1TriggerKillCount: 1
-  wave2TriggerTime: 10
-  wave2TriggerKillCount: 1
+  wave2TriggerTime: 180
+  wave2TriggerKillCount: 5
   maxEnemyCount: 4000
   resourceNodeExclusionDistance: 9
   maxBuildRetryCount: 3
@@ -2682,17 +2684,19 @@ MonoBehaviour:
   aggroLockDuration: 3
   targetHysteresisMultiplier: 1.3
   targetSearchInterval: 4
-  separationStrength: 4
-  separationPadding: 0.3
-  separationForceCurve: 3
+  avoidanceStrength: 2
+  avoidancePadding: 0.3
+  maxBFSPerFrame: 16
+  wanderBiasFactor: 0.5
+  wanderMaxDistance: 40
   stuckCheckInterval: 3
   stuckThreshold: 2
   dormantMinDuration: 5
   dormantMaxDuration: 8
   pathInvalidationRadius: 8
   partialPathInvalidationRadius: 12
-  enemyBigSpawnRate: 0
-  enemySmallOnlyRate: 0.8
+  enemyBigSpawnRate: 0.4
+  enemySmallOnlyRate: 0.4
   wave0SpawnSpacing: 1
   periodicSpawnSpacing: 3
   combatTiltAngle: 0.3

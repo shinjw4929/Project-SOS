@@ -4,6 +4,7 @@
 ```
 Docs/
 ├── Architecture.md                # 프로젝트 구조, 시스템 플로우, 핵심 패턴
+├── GameDesign.md                  # 기획 방향성 (게임 컨셉, 설계 원칙, 감정 곡선)
 ├── Documentation-Checklist.md     # 이 파일
 │
 ├── Systems/                       # ECS 시스템 기능 문서
@@ -19,6 +20,9 @@ Docs/
 │   ├── 팀 색상 시스템.md                # TeamColorSystem, TeamColorPalette, 팀별 틴트
 │   ├── 미니맵 및 Ghost Relevancy.md    # Ghost Relevancy, 미니맵 RPC 시스템, 대역폭
 │   └── 로깅 시스템.md                  # LogCategory, SOSLog, 로깅 규칙
+│
+├── Checklists/                    # 스킬 참조용 체크리스트
+│   └── review-code-checklist.md   # 코드 리뷰 상세 검토 항목 (A~E)
 │
 ├── Plans/                         # 구현 계획 문서
 │   ├── FlowField/                 # NavMesh→Flow Field 전환 계획 (Phase 0~5)
@@ -45,6 +49,7 @@ Docs/
 | 건설 로직 변경 | `건설 시스템.md` |
 | 자원/채집 변경 | `자원 채집 시스템.md`, `유저 자원, 인구수.md` |
 | UI 상태 변경 | `Project-SOS 상태 시스템 설계.md` |
+| 게임 규칙/밸런스 방향 변경 | `GameDesign.md` |
 | 로깅 변경 | `로깅 시스템.md` |
 | 새 RPC 추가 | `코드베이스 구조.md` (RPCs 섹션), 관련 기능 문서 |
 

@@ -1,7 +1,7 @@
 ---
 name: plan-create
 description: 사용자 요구사항을 분석하여 오케스트레이션 + Phase 파일로 구성된 구현 계획을 Docs/Plans/ 아래에 생성합니다.
-allowed-tools: Read, Grep, Glob, Bash, Write, Edit, Agent, EnterPlanMode, ExitPlanMode
+allowed-tools: Read, Grep, Glob, Bash, Write, Edit, Agent, EnterPlanMode, ExitPlanMode, Skill
 ---
 
 ## 역할
@@ -66,24 +66,32 @@ AS-IS와 요구사항을 기반으로 TO-BE를 설계한다:
 
 기능명은 사용자 요구사항에서 추출하되, 간결하고 명확한 한국어 또는 영어로 명명한다.
 
-### 6단계: Plan 모드로 계획 제출
+### 6단계: 자동 리뷰
 
-EnterPlanMode로 진입하여 생성된 계획의 요약을 제출한다:
+계획 생성 후 `/review-plan [기능명]` 스킬을 호출하여 자동 검증한다.
+
+review-plan이 "재계획 필요"로 판정하면 내부적으로 `/plan-edit`를 호출하여 수정한 뒤 재검토까지 수행한다 (review-plan 내부 루프 최대 3회).
+
+review-plan이 "승인 가능"을 반환하면 다음 단계로 진행한다.
+
+### 7단계: Plan 모드로 최종 계획 제출
+
+EnterPlanMode로 진입하여 검증 완료된 계획의 요약을 제출한다:
 - 문제 정의 핵심
 - Phase 구성 요약
 - 예상 영향 범위
-- 사용자에게 `/review-plan`으로 검토를 권장
+- 자동 리뷰 통과 여부 (N회차에 승인)
 
 ExitPlanMode로 종료한다.
 
-### 7단계: 사용자에게 결과 보고
+### 8단계: 사용자에게 결과 보고
 
 생성된 문서 목록과 각 문서의 핵심 내용을 간략히 보고한다.
-다음 단계로 `/review-plan` 실행 또는 `/plan-execute [기능명]`을 안내한다.
+다음 단계로 `/plan-execute [기능명]`을 안내한다.
 
 ## 주의사항
 
 - AS-IS는 반드시 코드를 직접 읽고 작성한다. 문서만 참조하지 않는다.
 - Phase 파일의 작업 목록은 구현 가능한 수준으로 구체적으로 작성한다 (파일명, 메서드명, 컴포넌트명 포함).
 - 기존 `Docs/Plans/` 아래에 동일 기능의 계획이 있으면 사용자에게 알리고 덮어쓸지 확인한다.
-- GameSettings 패턴: 새 밸런스/규칙 상수가 도입되면 Phase에 GameSettings 추가 작업을 반드시 포함한다.
+- CLAUDE.md의 Development Guidelines를 따른다 (GameSettings 패턴, Burst 제약 등).

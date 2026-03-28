@@ -1,21 +1,27 @@
 ---
 name: review-plan
-description: Plan 모드에서 생성된 구현 계획을 프로젝트 컨벤션과 코드베이스 기준으로 검토한 뒤, 문제가 있으면 수정된 계획을 다시 제출합니다.
-allowed-tools: Read, Grep, Glob, Bash, Edit, EnterPlanMode, ExitPlanMode
+description: 구현 계획을 프로젝트 컨벤션과 코드베이스 기준으로 검토합니다. 문제가 있으면 사용자 확인 후 /plan-edit로 수정하고 재검토합니다 (최대 3회).
+allowed-tools: Read, Grep, Glob, Bash, Edit, Write, EnterPlanMode, ExitPlanMode, Skill
 ---
 
 ## 역할
 
-**현재 대화에서 생성된 구현 계획을 직접 검토하고, 문제가 있으면 수정된 계획을 다시 Plan 모드로 제출한다.**
+구현 계획을 프로젝트 컨벤션과 코드베이스 기준으로 검토한다. 문제가 있으면 사용자 확인 후 `/plan-edit`를 호출하여 수정하고 재검토한다.
 
-이 스킬은 fork하지 않는다. 현재 에이전트가 자신이 만든 계획을 스스로 검토하고 수정한다.
+이 스킬은 fork하지 않는다. 현재 에이전트가 직접 검토하고 후속 행동을 수행한다.
 
 ## Plan 검토 절차
 
 ### 0단계: 검토 대상 확인
 
-현재 대화에서 가장 최근에 생성한 구현 계획을 검토 대상으로 삼는다.
-`$ARGUMENTS`가 있으면 해당 내용을 추가 검토 관점으로 반영한다.
+$ARGUMENTS를 다음 순서로 해석한다:
+
+1. **경로 매칭**: $ARGUMENTS가 파일 경로이면 해당 파일을 읽는다.
+2. **기능명 매칭**: `Docs/Plans/[$ARGUMENTS]/orchestration.md`가 존재하면 해당 계획을 로드한다.
+3. **현재 대화 매칭**: 위에 해당하지 않으면, 현재 대화에서 가장 최근에 생성한 구현 계획을 대상으로 삼는다.
+4. **탐색**: 어디에도 해당하지 않으면 `Docs/Plans/*/orchestration.md`를 Glob으로 탐색하여 목록을 보여주고 사용자에게 선택을 요청한다.
+
+$ARGUMENTS에서 경로/기능명 외 추가 텍스트가 있으면 추가 검토 관점으로 반영한다.
 
 ### 1단계: 프로젝트 컨벤션 확인
 
@@ -28,35 +34,13 @@ allowed-tools: Read, Grep, Glob, Bash, Edit, EnterPlanMode, ExitPlanMode
 
 ### 2단계: 검토 기준
 
-다음 항목을 순서대로 검증한다:
+CLAUDE.md의 Development Guidelines와 `Docs/Checklists/review-code-checklist.md`를 기준으로 다음 관점에서 검증한다:
 
-**A. 아키텍처 적합성**
-- 새 시스템의 SystemGroup 배치가 올바른가? (실행 순서, UpdateAfter/UpdateBefore)
-- Client/Server/Shared 분리가 올바른가?
-- 기존 패턴과 일관되는가? (DamageEvent 버퍼, Authoring 조합, Spatial Partitioning 등)
-
-**B. 중복/충돌 검사**
-- 이미 존재하는 컴포넌트, 시스템, 유틸리티를 재구현하고 있지 않은가?
-- 기존 시스템과 Job 스케줄링 충돌 가능성은 없는가?
-- 싱글톤을 새로 만들기 전에 기존 싱글톤을 확장할 수 있는가?
-
-**C. DOTS 규칙 준수**
-- BurstCompile 적용 여부
-- Health 직접 수정 대신 DamageEvent 버퍼 사용
-- ECB를 통한 구조적 변경
-- RefRO 선호, ReadOnly Lookup 사용
-- Tag 컴포넌트 + Query 필터링
-- GameSettings 패턴: 새 밸런스/규칙 상수를 도입하는 경우 GameSettings 싱글톤에 추가하는지 확인 (시스템 코드 하드코딩 금지)
-
-**D. 네트워크 고려사항**
-- Server Authority 원칙을 따르는가?
-- Ghost 동기화가 필요한 컴포넌트가 빠져있지 않은가?
-- RPC 방향(Client→Server, Server→Client)이 올바른가?
-
-**E. 누락 사항**
-- 필요한 Authoring 컴포넌트가 계획에 포함되어 있는가?
-- 관련 문서 업데이트 계획이 있는가?
-- 엣지 케이스 처리가 고려되어 있는가? (엔티티 파괴, 연결 끊김 등)
+- **아키텍처 적합성**: SystemGroup 배치, Client/Server/Shared 분리, 기존 패턴 일관성
+- **중복/충돌 검사**: 기존 컴포넌트/시스템/유틸리티 재구현 여부, Job 스케줄링 충돌, 싱글톤 중복
+- **DOTS/컨벤션/품질**: 체크리스트 A~E 항목 전체 적용
+- **네트워크 고려사항**: Server Authority, Ghost 동기화, RPC 방향
+- **누락 사항**: Authoring 컴포넌트, 문서 업데이트 계획, 엣지 케이스 처리
 
 ### 3단계: 검토 결과 출력
 
@@ -84,5 +68,20 @@ allowed-tools: Read, Grep, Glob, Bash, Edit, EnterPlanMode, ExitPlanMode
 
 ### 4단계: 판단별 후속 행동
 
-- **"승인 가능"**: 계획 구조가 올바른 경우. 검토 결과를 출력하고, 수정 항목이 있으면 플랜 파일에 직접 반영(Edit)한 뒤 종료한다. Plan 모드 재진입 없이 사용자가 계획을 승인할 수 있도록 한다.
-- **"재계획 필요"**: 시스템 배치/의존성/접근 방식 등 계획 구조 자체에 문제가 있는 경우. 검토 결과 출력 후, 수정 사항을 반영한 새로운 계획을 Plan 모드(EnterPlanMode → ExitPlanMode)로 다시 제출한다.
+- **"승인 가능"**: 계획 구조가 올바른 경우. 검토 결과를 출력하고, 수정 항목이 있으면 플랜 파일에 직접 반영(Edit)한 뒤 종료한다.
+- **"재계획 필요"**: 시스템 배치/의존성/접근 방식 등 계획 구조 자체에 문제가 있는 경우:
+  1. 검토 결과를 출력한다.
+  2. 수정이 필요한 항목을 요약하고, `/plan-edit`로 수정을 진행할지 사용자에게 확인을 요청한다.
+  3. 사용자가 승인하면 `/plan-edit` 스킬을 호출하여 계획을 수정한다. 이때 검토에서 발견된 수정 항목을 $ARGUMENTS로 전달한다.
+  4. `/plan-edit` 완료 후, 수정된 계획에 대해 1단계부터 재검토를 수행한다.
+
+### 재검토 루프 제한
+
+`review-plan → plan-edit → review-plan` 루프는 **최대 3회**까지 반복한다.
+
+각 회차의 검토 결과를 간략히 출력한다:
+```
+리뷰 회차 N/3: [승인 가능 / 재계획 필요] - [주요 지적 요약]
+```
+
+3회 검토 후에도 "재계획 필요"이면 루프를 중단하고, 남은 문제를 사용자에게 보고하여 수동 판단을 요청한다.

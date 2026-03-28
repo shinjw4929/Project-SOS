@@ -15,13 +15,15 @@ GridObstacleResponseSystem → 건물 건설 시 IsPathBlocked 마킹 + 유닛 �
     ↓
 GridObstacleCleanupSystem → 건물 파괴 시 IsPathBlocked 해제 + 캐시 무효화
     ↓
-FlowFieldSystem → BFS 기반 Flow Field 계산 (LRU 캐시, 8 IJob 병렬) → FlowFieldRef 할당
+FlowFieldSystem → BFS 기반 Flow Field 계산 (LRU 캐시 128슬롯, 8 IJob 병렬, 프레임당 BFS 상한)
+    ↓                Wandering 적은 BFS 바이패스 (직선 이동)
+    ↓
     ↓
 FlowFieldSteeringSystem → Flow Field 방향 조회 → MovementWaypoints.Current/Next 공급
     ↓
-PredictedMovementSystem → LocalTransform 직접 이동 (SpatialMaps.MovementMap 사용)
+PredictedMovementSystem → LocalTransform 직접 이동 (Steering 회피, 벽 투과 방지)
     ↓
-MovementArrivalSystem → 도착 판정 → 이동 정지 + Intent.Idle 전환
+MovementArrivalSystem → 도착 판정 → 이동 정지 + Intent.Idle + Action.Idle 전환
 ```
 
 # 핵심 설계 포인트
@@ -61,8 +63,10 @@ MovementArrivalSystem → 도착 판정 → 이동 정지 + Intent.Idle 전환
 역할: MoveRequestRpc 수신 → 소유권 검증 → MovementGoal.Destination 설정
 - IsPathDirty=true
 - UnitIntentState = rpc.IsAttackMove ? Intent.AttackMove : Intent.Move
+- UnitActionState = Action.Moving (걷기 애니메이션 트리거)
 - AggroTarget 초기화 (공격 대상 제거)
 - MovementWaypoints 활성화 (SetComponentEnabled)
+- **군집 이동 (Group Formation)**: 동일 프레임+소유자+목적지(1m이내) 유닛을 그룹화 → FormationUtility로 격자 오프셋 적용 → 유닛별 개별 도착 좌표
 
 ---
 
@@ -121,22 +125,20 @@ MovementArrivalSystem → 도착 판정 → 이동 정지 + Intent.Idle 전환
 역할: 핵심 이동 시스템
 - Kinematic 방식: LocalTransform.Position 직접 수정
 - 가속/감속 적용 (MovementDynamics)
-- **Entity 기반 Separation**: SpatialMaps.MovementMap 사용 (셀 크기 3.0f)
-  - 적-유닛 간 충돌 회피: 항상 활성화
-  - 유닛-유닛 간 충돌 회피: 한쪽이라도 작업 중(Gather/Build)이면 면제 (적 제외)
-- **공격 중 Separation 유지**: `IgnoreComponentEnabledState` + `EnabledRefRW<MovementWaypoints>`로 MovementWaypoints 비활성화 엔티티도 쿼리에 포함. 이동만 스킵하고 Separation은 계속 적용.
-- **비선형 Separation Force**: `forceMag = overlap * (1 + overlapRatio * 3)` — 깊이 침투 시 기하급수적 반발
-- 벽 충돌: GridCell.IsPathBlocked 기반 축 독립 검사 (X축/Z축 개별 차단 → 벽 미끄러짐). 유닛은 속력 보존, 적은 벡터 삭제
-- 벽 관통 보정: `ClampToWall` — 이동 후 유닛 AABB vs IsPathBlocked 셀 겹침 검사, 최소 침투 축 방향으로 밀어냄 (3회 반복, 코너 대응)
-- Separation 진동 감지: 최종 목적지 확장 반경(2배) 내에서 밀려나는 경우 즉시 정지
+- **Steering 기반 회피**: SpatialMaps.MovementMap 사용 (셀 크기 3.0f). 이동 방향만 조정, 위치 직접 변경 없음 (밀림 없음). entityIndex 기반 결정론적 좌/우 분산
+  - 적-유닛 간 회피: 항상 활성화
+  - 유닛-유닛 간 회피: 한쪽이라도 작업 중(Gather/Build)이면 면제 (적 제외)
+  - skipMovement=true (공격 중/정지) 시: Steering도 skip → 정지 유닛 완전 고정
+- 벽 충돌: 이동 전 벽 검증 + 축별 분리 시도 + ResolveWallCollision (축 독립 검사, 벽 미끄러짐)
+- 벽 관통 보정: `ClampToWall` — 이동 후 유닛 AABB vs IsPathBlocked 셀 겹침 검사, 최소 침투 축 방향으로 밀어냄 (5회 반복, 코너 대응)
 ---
 파일: MovementArrivalSystem.cs
 그룹: SimulationSystemGroup (UpdateAfter: PredictedMovementSystem)
 역할: 도착 판정 및 상태 전환
 - 1차 도착 조건: 거리 < ArrivalRadius && !HasNext
-- 2차 도착 조건: 거리 < ArrivalRadius*2 && !HasNext && 목적지 방향으로 이동하지 않음 (Separation 진동 포착)
+- 2차 도착 조건: 거리 < ArrivalRadius*2 && !HasNext && 거의 정지 상태 (저속 감지)
 - 적(EnemyTag): MovementWaypoints 비활성화, 속도 0
-- 유닛(UnitTag): 추가로 Intent.Move → Intent.Idle 전환 (자동 타겟팅 활성화)
+- 유닛(UnitTag): 추가로 Intent.Move → Intent.Idle 전환 (자동 타겟팅 활성화) + UnitActionState → Action.Idle (Idle 애니메이션 복귀)
 
 ## Authoring (Authoring/Movement/)
 

@@ -73,15 +73,25 @@ namespace Authoring
         public uint targetSearchInterval = 4;
 
         [Header("Movement")]
-        [Tooltip("충돌 회피 힘 배수")]
+        [Tooltip("Steering 회피 블렌딩 강도")]
         [Min(0f)]
-        public float separationStrength = 4.0f;
-        [Tooltip("분리 거리 추가 패딩 (m)")]
+        public float avoidanceStrength = 2.0f;
+        [Tooltip("회피 거리 추가 패딩 (m)")]
         [Min(0f)]
-        public float separationPadding = 0.3f;
-        [Tooltip("침투 깊이 비례 힘 곡선 배수")]
-        [Min(0f)]
-        public float separationForceCurve = 3.0f;
+        public float avoidancePadding = 0.3f;
+
+        [Header("Pathfinding")]
+        [Tooltip("프레임당 최대 FlowField BFS 계산 수")]
+        [Min(1)]
+        public int maxBFSPerFrame = 16;
+
+        [Header("Wandering")]
+        [Tooltip("맵 중심 편향 (0=랜덤, 1=중심 직진)")]
+        [Range(0f, 1f)]
+        public float wanderBiasFactor = 0.5f;
+        [Tooltip("최대 배회 거리 (m)")]
+        [Min(5f)]
+        public float wanderMaxDistance = 40.0f;
 
         [Header("Enemy AI")]
         [Tooltip("위치 정체 체크 간격 (초)")]
@@ -168,9 +178,11 @@ namespace Authoring
                     AggroLockDuration = authoring.aggroLockDuration,
                     TargetHysteresisMultiplier = authoring.targetHysteresisMultiplier,
                     TargetSearchInterval = authoring.targetSearchInterval,
-                    SeparationStrength = authoring.separationStrength,
-                    SeparationPadding = authoring.separationPadding,
-                    SeparationForceCurve = authoring.separationForceCurve,
+                    AvoidanceStrength = authoring.avoidanceStrength,
+                    AvoidancePadding = authoring.avoidancePadding,
+                    MaxBFSPerFrame = authoring.maxBFSPerFrame,
+                    WanderBiasFactor = authoring.wanderBiasFactor,
+                    WanderMaxDistance = authoring.wanderMaxDistance,
                     StuckCheckInterval = authoring.stuckCheckInterval,
                     StuckThreshold = authoring.stuckThreshold,
                     DormantMinDuration = authoring.dormantMinDuration,

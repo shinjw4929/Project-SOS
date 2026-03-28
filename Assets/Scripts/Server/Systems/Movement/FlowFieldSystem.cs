@@ -68,7 +68,7 @@ namespace Server
     [UpdateAfter(typeof(GridObstacleResponseSystem))]
     public partial struct FlowFieldSystem : ISystem
     {
-        const int MaxFields = 32;
+        const int MaxFields = 128;
         const int WorkerCount = 8;
 
         // 워커 메모리 (Persistent, flat)
@@ -157,7 +157,32 @@ namespace Server
             int gridSizeX = _gridSize.x;
             int gridSizeY = _gridSize.y;
 
-            // 지상 유닛 수집 (FlyingTag 제외)
+            // Wandering 적 별도 처리: FlowField BFS 없이 직선 이동 (캐시 부하 방지)
+            var enemyStateLookup = SystemAPI.GetComponentLookup<EnemyState>(true);
+
+            foreach (var (goal, waypoints, enemyState, entity) in
+                SystemAPI.Query<RefRW<MovementGoal>, RefRW<MovementWaypoints>, RefRO<EnemyState>>()
+                    .WithNone<FlyingTag>()
+                    .WithAll<EnemyTag>()
+                    .WithEntityAccess())
+            {
+                if (!goal.ValueRO.IsPathDirty)
+                    continue;
+                if (enemyState.ValueRO.CurrentState != EnemyContext.Wandering)
+                    continue;
+
+                goal.ValueRW.IsPathDirty = false;
+                waypoints.ValueRW.Current = goal.ValueRO.Destination;
+                waypoints.ValueRW.HasNext = false;
+                state.EntityManager.SetComponentEnabled<MovementWaypoints>(entity, true);
+            }
+
+            // BFS 상한: 프레임당 최대 계산 수
+            int maxBFSPerFrame = SystemAPI.TryGetSingleton<GameSettings>(out var gameSettings)
+                ? gameSettings.MaxBFSPerFrame : 16;
+            int totalBFSCount = 0;
+
+            // 지상 유닛 수집 (FlyingTag 제외, Wandering 적 제외)
             foreach (var (goal, transform, pathSize, entity) in
                 SystemAPI.Query<RefRO<MovementGoal>, RefRO<LocalTransform>, RefRO<GridPathfindingSize>>()
                     .WithNone<FlyingTag>()
@@ -165,6 +190,11 @@ namespace Server
                     .WithEntityAccess())
             {
                 if (!goal.ValueRO.IsPathDirty)
+                    continue;
+
+                // Wandering 적은 위에서 이미 처리됨
+                if (enemyStateLookup.TryGetComponent(entity, out EnemyState es)
+                    && es.CurrentState == EnemyContext.Wandering)
                     continue;
 
                 int2 destCell = GridUtility.WorldToGrid(goal.ValueRO.Destination, gridSettings);
@@ -207,20 +237,32 @@ namespace Server
 
                 if (cellPadding == 0)
                 {
+                    bool isCacheHit = cache.SmallKeyToPoolIndex.ContainsKey(destKey)
+                                      || smallMissKeySet.Contains(destKey);
+                    if (!isCacheHit && totalBFSCount >= maxBFSPerFrame)
+                        continue; // BFS 상한 초과 → IsPathDirty 유지, 다음 프레임에 재수집
+
                     smallUnits.Add(pending);
-                    if (!cache.SmallKeyToPoolIndex.ContainsKey(destKey) && smallMissKeySet.Add(destKey))
+                    if (!isCacheHit && smallMissKeySet.Add(destKey))
                     {
                         smallMissKeys.Add(destKey);
                         smallMissDests.Add(destCell);
+                        totalBFSCount++;
                     }
                 }
                 else
                 {
+                    bool isCacheHit = cache.LargeKeyToPoolIndex.ContainsKey(destKey)
+                                      || largeMissKeySet.Contains(destKey);
+                    if (!isCacheHit && totalBFSCount >= maxBFSPerFrame)
+                        continue;
+
                     largeUnits.Add(pending);
-                    if (!cache.LargeKeyToPoolIndex.ContainsKey(destKey) && largeMissKeySet.Add(destKey))
+                    if (!isCacheHit && largeMissKeySet.Add(destKey))
                     {
                         largeMissKeys.Add(destKey);
                         largeMissDests.Add(destCell);
+                        totalBFSCount++;
                     }
                 }
             }

@@ -152,7 +152,8 @@ namespace Tests.EditMode.Utilities
                 CellSize = 1f
             };
 
-            WanderUtility.GenerateWanderDestination(1, 100, 10f, 0f, gridSettings, out float3 result);
+            var pos = new float3(50f, 0f, 50f);
+            WanderUtility.GenerateWanderDestination(1, 100, 10f, in pos, gridSettings, out float3 result);
 
             // 맵 범위: (0,0) ~ (100,100), 내부 마진 5 → (5,5) ~ (95,95)
             Assert.GreaterOrEqual(result.x, 5f);
@@ -171,8 +172,9 @@ namespace Tests.EditMode.Utilities
                 CellSize = 1f
             };
             float expectedY = 5.5f;
+            var pos = new float3(50f, expectedY, 50f);
 
-            WanderUtility.GenerateWanderDestination(1, 100, 10f, expectedY, gridSettings, out float3 result);
+            WanderUtility.GenerateWanderDestination(1, 100, 10f, in pos, gridSettings, out float3 result);
 
             Assert.AreEqual(expectedY, result.y, 0.001f);
         }
@@ -187,8 +189,9 @@ namespace Tests.EditMode.Utilities
                 CellSize = 1f
             };
 
-            WanderUtility.GenerateWanderDestination(42, 200, 15f, 0f, gridSettings, out float3 result1);
-            WanderUtility.GenerateWanderDestination(42, 200, 15f, 0f, gridSettings, out float3 result2);
+            var pos = new float3(50f, 0f, 50f);
+            WanderUtility.GenerateWanderDestination(42, 200, 15f, in pos, gridSettings, out float3 result1);
+            WanderUtility.GenerateWanderDestination(42, 200, 15f, in pos, gridSettings, out float3 result2);
 
             Assert.AreEqual(result1.x, result2.x, 0.001f);
             Assert.AreEqual(result1.z, result2.z, 0.001f);
@@ -204,8 +207,9 @@ namespace Tests.EditMode.Utilities
                 CellSize = 1f
             };
 
-            WanderUtility.GenerateWanderDestination(1, 100, 10f, 0f, gridSettings, out float3 result1);
-            WanderUtility.GenerateWanderDestination(2, 100, 10f, 0f, gridSettings, out float3 result2);
+            var pos = new float3(50f, 0f, 50f);
+            WanderUtility.GenerateWanderDestination(1, 100, 10f, in pos, gridSettings, out float3 result1);
+            WanderUtility.GenerateWanderDestination(2, 100, 10f, in pos, gridSettings, out float3 result2);
 
             // 다른 entityIndex → (높은 확률로) 다른 위치
             bool different = math.abs(result1.x - result2.x) > 0.001f ||
@@ -226,7 +230,8 @@ namespace Tests.EditMode.Utilities
             // 맵 범위: (-50,-50) ~ (-50+200*1.0, -50+200*1.0) = (-50,-50) ~ (150,150)
             for (int i = 0; i < 50; i++)
             {
-                WanderUtility.GenerateWanderDestination(i, (uint)i * 7, i * 2f, 0f, gridSettings, out float3 result);
+                var pos = new float3(50f, 0f, 50f);
+                WanderUtility.GenerateWanderDestination(i, (uint)i * 7, i * 2f, in pos, gridSettings, out float3 result);
 
                 Assert.GreaterOrEqual(result.x, -45f); // -50 + 5
                 Assert.Less(result.x, 145f);            // 150 - 5

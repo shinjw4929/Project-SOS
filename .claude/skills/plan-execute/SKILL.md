@@ -1,7 +1,7 @@
 ---
 name: plan-execute
 description: Docs/Plans/ 아래의 구현 계획(오케스트레이션)을 읽고 Phase별로 순차 실행하며, 실행 기록을 자동 갱신합니다.
-allowed-tools: Read, Edit, Write, Grep, Glob, Bash, Agent, EnterPlanMode, ExitPlanMode
+allowed-tools: Read, Edit, Write, Grep, Glob, Bash, Agent, Skill, EnterPlanMode, ExitPlanMode
 ---
 
 ## 역할
@@ -33,23 +33,26 @@ $ARGUMENTS로 오케스트레이션 파일 경로 또는 기능명을 전달받�
 Phase 파일의 작업 목록을 순서대로 수행한다:
 
 1. **Docs 참조**: 작업 대상 시스템의 관련 문서를 먼저 읽는다.
-2. **병렬 작업**: Phase 파일에 subagent 병렬 구성이 명시된 경우, Agent 도구로 독립적인 작업을 병렬 실행한다. 같은 파일을 수정하는 작업은 병렬로 실행하지 않는다.
-3. **순차 작업**: 의존성이 있는 작업은 순서대로 실행한다.
-4. **DOTS 규칙 준수**: 구현 시 CLAUDE.md의 Development Guidelines를 따른다.
-5. **GameSettings 패턴**: 새 밸런스/규칙 상수는 GameSettings 싱글톤에 추가한다.
+2. **패턴 탐색**: 코드를 작성/수정하기 전에 `Docs/Checklists/pattern-search-guide.md`를 따라 기존 레퍼런스를 탐색하고 패턴을 추출한다.
+3. **병렬 작업**: Phase 파일에 subagent 병렬 구성이 명시된 경우, Agent 도구로 독립적인 작업을 병렬 실행한다. 같은 파일을 수정하는 작업은 병렬로 실행하지 않는다. 각 Agent에게 레퍼런스 코드와 패턴 가이드 경로를 함께 전달한다.
+4. **순차 작업**: 의존성이 있는 작업은 순서대로 실행한다.
+5. **CLAUDE.md 준수**: 구현 시 CLAUDE.md의 Development Guidelines를 따른다.
 
 ### 3단계: Phase 검증
 
 Phase 파일의 검증 방법과 완료 기준을 확인한다:
 
-1. 컴파일 확인 (해당 시)
-2. 테스트 실행 (Phase 파일에 명시된 테스트)
+1. 컴파일 확인: `.cs` 파일이 변경된 경우 `/build`로 빌드 검증을 권장한다.
+2. 테스트 실행: Phase 파일에 명시된 테스트가 있으면 `/test`로 실행한다.
 3. 완료 기준 체크리스트 점검
 
 검증 실패 시:
 - 실패 원인을 분석하고 수정한다.
 - 수정 후 재검증한다.
-- 반복 실패 시 사용자에게 보고하고 판단을 요청한다.
+- 반복 실패 시 사용자에게 보고하고, 다음 선택지를 안내한다:
+  - 직접 수정 후 재검증 시도
+  - `/plan-edit [기능명]`으로 남은 Phase를 재구성
+  - 현재 Phase를 Fail로 기록하고 중단
 
 ### 4단계: 기록 갱신
 
@@ -83,13 +86,16 @@ Phase 완료 후 다음을 수행한다:
 ### 5단계: 후속 처리
 
 1. 다음 Phase가 남아있으면 1단계로 돌아간다.
-2. 모든 Phase가 완료되면 사용자에게 최종 보고한다:
-   - 전체 변경 파일 수
-   - 주요 변경 사항 요약
+2. 모든 Phase가 완료되면:
+   - `/review-comments`를 자동 호출하여 주석 정합성을 점검한다.
+   - `/update-docs`를 자동 호출하여 Docs 문서를 동기화한다.
+   - 사용자에게 최종 보고 (변경 파일 수, 주요 변경 사항 요약)
    - `/review-code`로 최종 코드 리뷰를 권장
-   - `/update-docs`로 Docs/Systems/ 진리 문서 동기화를 권장
    - `/commit`으로 커밋을 권장
-   - 계획 폴더를 `Docs/Plans/Completed/`로 이동할지 확인
+   - 계획 폴더를 `Docs/Plans/Completed/`로 이동한다:
+     ```
+     mkdir -p "Docs/Plans/Completed" && mv "Docs/Plans/[기능명]" "Docs/Plans/Completed/"
+     ```
 
 ## 주의사항
 

@@ -70,6 +70,22 @@ namespace Server
             float hysteresis = hasGS ? gameSettings.TargetHysteresisMultiplier : 1.3f;
             uint searchInterval = hasGS ? gameSettings.TargetSearchInterval : 4u;
 
+            // 아군 유닛 위치 수집 (Wandering 편향 대상 — 랜덤 선택용)
+            var playerPositions = new NativeList<float3>(32, Allocator.TempJob);
+            foreach (var (transform, team) in
+                SystemAPI.Query<RefRO<LocalTransform>, RefRO<Team>>()
+                    .WithAny<UnitTag, StructureTag>())
+            {
+                if (team.ValueRO.teamId > 0)
+                    playerPositions.Add(transform.ValueRO.Position);
+            }
+
+            // 아군 없으면 맵 중심 fallback
+            float3 playerCenterFallback = new float3(
+                gridSettingsData.GridOrigin.x + gridSettingsData.GridSize.x * gridSettingsData.CellSize * 0.5f,
+                0f,
+                gridSettingsData.GridOrigin.y + gridSettingsData.GridSize.y * gridSettingsData.CellSize * 0.5f);
+
             var enemyTargetJob = new EnemyTargetJob
             {
                 TargetingMap = spatialMaps.TargetingMap,
@@ -80,7 +96,13 @@ namespace Server
                 CellSize = SpatialHashUtility.TargetingCellSize,
                 FrameCount = _frameCount,
                 HysteresisMultiplier = hysteresis,
-                TimeSliceDivisor = searchInterval
+                TimeSliceDivisor = searchInterval,
+                WanderBiasFactor = playerPositions.Length > 0
+                    ? (hasGS ? gameSettings.WanderBiasFactor : 0.5f)
+                    : 0f, // 아군 없으면 편향 비활성화 (순수 랜덤 배회)
+                WanderMaxDistance = hasGS ? gameSettings.WanderMaxDistance : 40.0f,
+                PlayerPositions = playerPositions.AsArray(),
+                PlayerCenterFallback = playerCenterFallback
             };
 
             var unitAutoTargetJob = new UnitAutoTargetJob
@@ -91,13 +113,18 @@ namespace Server
                 CellSize = SpatialHashUtility.TargetingCellSize,
                 FrameCount = _frameCount,
                 HysteresisMultiplier = hysteresis,
-                TimeSliceDivisor = searchInterval
+                TimeSliceDivisor = searchInterval,
+                WanderBiasFactor = 0f,
+                WanderMaxDistance = 0f
             };
 
             // 순차 실행 (AggroTarget 컴포넌트를 공유하므로 병렬 불가)
             // 내부적으로는 IJobEntity가 병렬 처리하므로 성능 영향 최소
             var handle1 = enemyTargetJob.ScheduleParallel(state.Dependency);
             state.Dependency = unitAutoTargetJob.ScheduleParallel(handle1);
+
+            // playerPositions는 TempJob 할당 → Job 완료 후 Dispose
+            playerPositions.Dispose(state.Dependency);
         }
     }
 
@@ -118,6 +145,10 @@ namespace Server
         public uint FrameCount;
         public float HysteresisMultiplier;
         public uint TimeSliceDivisor;
+        public float WanderBiasFactor;
+        public float WanderMaxDistance;
+        [ReadOnly] public NativeArray<float3> PlayerPositions;
+        public float3 PlayerCenterFallback;
 
         private const float DestinationThresholdSq = 1.0f;
 
@@ -273,8 +304,10 @@ namespace Server
 
             if (!hadTarget)
             {
+                // Idle 상태(스폰 직후)에서는 TimeSlice 무시하고 즉시 탐색
+                bool isIdle = enemyState.ValueRO.CurrentState == EnemyContext.Idle;
                 uint frameSlice = FrameCount % TimeSliceDivisor;
-                bool isMySearchFrame = ((uint)entity.Index % TimeSliceDivisor) == frameSlice;
+                bool isMySearchFrame = isIdle || ((uint)entity.Index % TimeSliceDivisor) == frameSlice;
                 if (!isMySearchFrame)
                 {
                     target.ValueRW.TargetEntity = Entity.Null;
@@ -304,8 +337,12 @@ namespace Server
                                                || !waypointsEnabled.ValueRO;
                     if (needNewWanderTarget)
                     {
+                        float3 biasTarget = PlayerPositions.Length > 0
+                            ? PlayerPositions[entity.Index % PlayerPositions.Length]
+                            : PlayerCenterFallback;
                         WanderUtility.GenerateWanderDestination(
-                            entity.Index, FrameCount, ElapsedTime, myPos.y, in GridSettings, out float3 wanderDest);
+                            entity.Index, FrameCount, ElapsedTime, in myPos, in GridSettings, out float3 wanderDest,
+                            WanderBiasFactor, WanderMaxDistance, biasTarget);
                         goal.ValueRW.Destination = wanderDest;
                         goal.ValueRW.IsPathDirty = true;
                         goal.ValueRW.DestinationSetTime = ElapsedTime;
@@ -417,8 +454,12 @@ namespace Server
 
                 if (needNewWanderTarget)
                 {
+                    float3 biasTarget = PlayerPositions.Length > 0
+                        ? PlayerPositions[entity.Index % PlayerPositions.Length]
+                        : PlayerCenterFallback;
                     WanderUtility.GenerateWanderDestination(
-                        entity.Index, FrameCount, ElapsedTime, myPos.y, in GridSettings, out float3 wanderDest);
+                        entity.Index, FrameCount, ElapsedTime, in myPos, in GridSettings, out float3 wanderDest,
+                        WanderBiasFactor, WanderMaxDistance, biasTarget);
 
                     goal.ValueRW.Destination = wanderDest;
                     goal.ValueRW.IsPathDirty = true;
@@ -450,6 +491,8 @@ namespace Server
         public uint FrameCount;
         public float HysteresisMultiplier;
         public uint TimeSliceDivisor;
+        public float WanderBiasFactor;
+        public float WanderMaxDistance;
 
         private const float DestinationThresholdSq = 1.0f;
 
@@ -717,7 +760,8 @@ namespace Server
             if (needNewWanderTarget)
             {
                 WanderUtility.GenerateWanderDestination(
-                    entity.Index, FrameCount, ElapsedTime, myPos.y, in GridSettings, out float3 wanderDest);
+                    entity.Index, FrameCount, ElapsedTime, in myPos, in GridSettings, out float3 wanderDest,
+                    biasTarget: default);
 
                 goal.ValueRW.Destination = wanderDest;
                 goal.ValueRW.IsPathDirty = true;

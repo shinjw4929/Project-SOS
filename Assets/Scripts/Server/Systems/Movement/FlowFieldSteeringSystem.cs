@@ -109,7 +109,7 @@ namespace Server
                 }
 
                 // 인접 셀(Chebyshev 거리 1)에서 월드 거리 기준 충분히 가까운 경우 도착 처리
-                // Separation에 의해 목적지 셀에서 밀린 유닛의 재수렴 진동 방지
+                // 목적지 셀 인근에서의 미세 진동 방지
                 int2 cellDiff = math.abs(currentCell - destCell);
                 if (cellDiff.x <= 1 && cellDiff.y <= 1)
                 {

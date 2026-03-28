@@ -122,10 +122,11 @@ MonoBehaviour:
   defense: 0
   visionRange: 20
   workRange: 2
-  radius: 0.8
+  obstacleRadius: 0.8
   attackPower: 20
   attackSpeed: 1
   attackRange: 15
+  projectileSpeed: 30
   maxCarryAmount: 1
   gatheringSpeed: 1
   buildableStructures: []
@@ -192,10 +193,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   MaxSpeed: 4
-  Acceleration: 30
-  Deceleration: 30
-  RotationSpeed: 12
-  ArrivalRadius: 0.5
+  Acceleration: 10
+  Deceleration: 10
+  RotationSpeed: 6
   PathfindingSize: 1
 --- !u!1001 &7990301822364543449
 PrefabInstance:

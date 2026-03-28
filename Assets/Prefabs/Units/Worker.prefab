@@ -158,8 +158,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   MaxSpeed: 5
-  Acceleration: 30
-  Deceleration: 30
+  Acceleration: 20
+  Deceleration: 20
   RotationSpeed: 12
   PathfindingSize: 0
 --- !u!114 &-3915132150347008814

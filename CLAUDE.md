@@ -27,13 +27,14 @@ Before implementing any request, ask yourself: "Is this the most efficient way t
 1. **문서 업데이트**: 변경된 시스템/컴포넌트/RPC/패턴에 대응하는 `Docs/` 문서를 찾아 실제 코드와 일치하도록 수정한다. 해당하는 문서가 없으면 생략한다.
 2. **주석 정합성 점검**: 변경된 파일 내 기존 주석이 수정된 코드 동작과 일치하는지 확인하고, 불일치하는 주석을 수정 또는 제거한다. 새 주석은 로직이 자명하지 않은 경우에만 추가한다.
 3. **CLAUDE.md 동기화**: 주요 패턴, 시스템 플로우, 네이밍 규칙 등 CLAUDE.md에 기재된 내용이 변경되었다면 함께 업데이트한다.
-4. **작업 내용 기록**: `Docs/WorkLog/<날짜>/` 폴더에 작업 내용을 정리한 `.md` 파일을 추가한다. 기존 파일(`Docs/WorkLog/2026-03-13/로깅 시스템 Tier1 구현.md`)의 형식을 따른다.
+4. **작업 내용 기록** (선택): 계획 기반 작업은 `execution-log.md`에 기록되므로 생략. 계획 없이 수행한 단발 작업(핫픽스, 즉석 수정)만 `Docs/WorkLog/<날짜>/`에 기록한다.
 
 ---
 
 ## Project Reference
 
 - **아키텍처 (구조, 시스템 플로우, 패턴, 게임 디자인)**: [Docs/Architecture.md](Docs/Architecture.md)
+- **기획 방향성 (게임 컨셉, 설계 원칙, 감정 곡선)**: [Docs/GameDesign.md](Docs/GameDesign.md)
 - **문서 업데이트 체크리스트 (Docs 폴더 구조, 업데이트 규칙)**: [Docs/Documentation-Checklist.md](Docs/Documentation-Checklist.md)
 
 ---
@@ -70,24 +71,3 @@ Before implementing any request, ask yourself: "Is this the most efficient way t
 2. **물리 충돌**: 그리드 셀(GridCell.IsPathBlocked) 기반. PredictedMovementSystem, GridObstacleResponseSystem 참조.
 3. **Collider 크기**: 유닛/적 Capsule 반지름 ≈ ObstacleRadius, 건물 Box ≈ Width × Length × CellSize.
 
----
-
-### 커밋 메시지 작성 가이드
-
-사용자가 커밋 메시지 작성을 요청하면 다음 형식을 따른다:
-
-```
-<제목: 작업 내용 요약 (한 줄)>
-
-<세부 작업 내용>
-- 변경된 파일/시스템 목록
-- 수정 의도 및 해결한 문제
-- 주요 변경 사항
-```
-
-**작성 원칙**:
-1. **제목**: 무엇을 했는지 명확하게 요약 (예: "자원 반납 시 ResourceCenter 소유권 검증 추가")
-2. **본문**: 제목과 두 줄 띄우고 세부 내용 작성
-3. **의도 명시**: 단순 변경 사항 나열이 아닌, 왜 이 변경이 필요했는지 드러나도록 작성
-4. **간결함**: 불필요한 설명 없이 핵심만 기술
-5. **Co-Authored-By 금지**: 커밋 메시지에 `Co-Authored-By` 트레일러를 절대 추가하지 않는다

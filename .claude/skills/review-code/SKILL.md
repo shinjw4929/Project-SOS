@@ -22,78 +22,20 @@ $ARGUMENTS가 있으면 해당 내용을 리뷰 범위/관점으로 반영한다
 
 변경된 파일이 속한 어셈블리(Client/Server/Shared/Authoring)와 관련 시스템을 파악한다.
 
-**Docs 참조 (필수)**: `Docs/Documentation-Checklist.md`의 "변경 유형별 업데이트 대상" 테이블을 역으로 활용하여, 변경된 시스템에 대응하는 문서를 읽는다.
+`Docs/Documentation-Checklist.md`의 "변경 유형별 업데이트 대상" 테이블을 역으로 활용하여, 변경된 시스템에 대응하는 문서를 읽는다. 변경된 코드 주변의 기존 코드도 함께 읽어 맥락을 파악한다.
 
-| 변경 영역 | 읽어야 할 문서 |
-|-----------|---------------|
-| 이동 관련 | `Docs/Systems/엔티티 이동 시스템(navmesh).md` |
-| 전투 관련 | `Docs/Systems/엔티티 전투.md` |
-| 건설 관련 | `Docs/Systems/건설 시스템.md` |
-| 자원/채집 | `Docs/Systems/자원 채집 시스템.md` |
-| 선택 관련 | `Docs/Systems/엔티티 선택 시스템.md` |
-| UI 상태 | `Docs/Systems/Project-SOS 상태 시스템 설계.md` |
-| 시스템 추가 | `Docs/Systems/시스템 그룹 및 의존성.md` |
-| 공통 참조 | `Docs/Architecture.md` |
+### 3단계: 검토 실행
 
-변경된 코드 주변의 기존 코드도 함께 읽어 맥락을 파악한다.
+**실제 변경된 코드에만 집중**하며, 기존 코드의 문제를 지적하지 않는다.
 
-### 3단계: 검토 항목
+`Docs/Checklists/review-code-checklist.md`를 Read하여 상세 검토 항목(A~E)을 확인한다. CLAUDE.md의 Development Guidelines도 함께 기준으로 적용한다.
 
-각 변경 파일에 대해 다음을 순서대로 검증한다. **실제 변경된 코드에만 집중**하며, 기존 코드의 문제를 지적하지 않는다.
+**서브에이전트 전략 (변경 파일 3개 이상)**:
+- 각 Agent에게 파일 경로 + 해당 파일의 diff + 체크리스트 경로를 전달하여 병렬 검토
+- Agent는 해당 파일과 주변 코드만 읽고, 체크리스트 기준으로 검토 후 `파일:라인 | 심각도 | 항목 | 설명` 형식으로 반환
+- 메인 에이전트가 결과를 취합하고, 파일 간 의존성/정합성 문제를 추가 검토
 
-#### A. DOTS 규칙
-
-| 검토 항목 | 위반 조건 |
-|-----------|-----------|
-| Burst 컴파일 | 새 시스템/Job에 `[BurstCompile]` 누락 (입력/managed 제외) |
-| Job System | 연산 로직이 메인 스레드에서 실행 (IJobEntity 미사용) |
-| DamageEvent 패턴 | Health를 직접 수정 (`health.CurrentValue` 등) |
-| ECB 사용 | 엔티티 생성/파괴/컴포넌트 추가·제거를 ECB 없이 수행 |
-| Safe Lookup | `ComponentLookup[entity]` 직접 접근 (TryGetComponent 미사용) |
-| 권한 최소화 | `RefRW<T>` 사용 시 `RefRO<T>`로 충분한 경우 |
-| Tag 컴포넌트 | bool 필드로 상태 구분 (Tag + Query 필터링으로 대체 가능) |
-| bool blittable | Burst struct에 `bool` 필드 + `ref` 전달 시 `[MarshalAs(UnmanagedType.U1)]` 누락 |
-| BurstCompile static | `[BurstCompile]` static 메서드에서 struct 파라미터/반환 사용 (BC1064) |
-| Entity 안전성 | `Entity.Null` 비교 없이 Entity 사용, `EntityManager.Exists()` 미검증, `.IsCreated` 미확인 |
-
-#### B. 네트워크 아키텍처
-
-| 검토 항목 | 위반 조건 |
-|-----------|-----------|
-| Server Authority | 게임 로직이 Client 어셈블리에서 실행 |
-| Ghost 동기화 | 네트워크 동기화 필요한 컴포넌트에 `[GhostField]` 누락 |
-| RPC 방향 | Client→Server 요청이 아닌 방향으로 게임 로직 RPC 전송 |
-| Client/Server 분리 | Server 전용 로직이 Shared에 위치하거나 그 반대 |
-
-#### C. 프로젝트 컨벤션
-
-| 검토 항목 | 위반 조건 |
-|-----------|-----------|
-| 네이밍 - User | "Player" 사용 (Unity Player와 혼동, "User" 사용해야 함) |
-| 네이밍 - 변수명 | 의미 불명의 축약 변수명 (`var c`, `var t` 등). 단, `ecb`, `em`, `job` 등 DOTS 관용어는 허용 |
-| 네이밍 - 파일명 | 폴더별 네이밍 패턴 불일치 (Commands → `*InputSystem.cs`, RPCs → `*Rpc.cs` 등) |
-| GameSettings 패턴 | 밸런스/규칙 상수(거리, 시간, 확률, 횟수 등)를 시스템 코드에 직접 작성 (GameSettings 미사용). Job 내부에서 GameSettings를 직접 읽는 경우도 위반 (OnUpdate에서 읽어 구조체 필드로 전달해야 함) |
-| 중복 구현 | 기존 유틸리티(ArrivalUtility, CombatUtility, SpatialMaps 등)를 재구현 |
-| Work Range 패턴 | 작업 거리를 인라인 계산 (`distance - radius` 등). `ArrivalUtility.GetInteractionArrivalDistance`/`CombatUtility` 사용해야 함 |
-| 싱글톤 중복 | 기존 싱글톤을 확장할 수 있는데 새 싱글톤 생성 |
-| Authoring 패턴 | Authoring 조합 불일치 (유닛: `Movement`+`UnitMovement`+`Unit`, 적: `Movement`+`Enemy`, 건물: `Structure`) |
-
-#### D. 시스템 설계
-
-| 검토 항목 | 위반 조건 |
-|-----------|-----------|
-| SystemGroup 배치 | 새 시스템의 Group 배치가 실행 순서상 부적절 |
-| 의존성 선언 | 필요한 `UpdateAfter`/`UpdateBefore` 누락으로 데이터 레이스 가능 |
-| CompleteDependency | 같은 SystemGroup 내에서 `CompleteDependency` 사용 (UpdateAfter로 대체 가능) |
-| Job 스케줄링 충돌 | 동일 컴포넌트에 대한 ReadWrite 접근이 다른 시스템과 충돌 가능 |
-
-#### E. 코드 품질
-
-| 검토 항목 | 위반 조건 |
-|-----------|-----------|
-| 보안 | 커맨드 인젝션, 검증 없는 외부 입력 처리 |
-| 성능 | Structural Change를 루프 내에서 반복, 불필요한 할당, O(n²) 탐색 (Spatial Map 사용 가능 시) |
-| 엣지 케이스 | 엔티티 파괴, 연결 끊김, null Entity 미처리 |
+**직접 검토 (변경 파일 2개 이하)**: 서브에이전트 오버헤드 없이 직접 검토한다.
 
 ### 4단계: 리뷰 결과 출력
 
@@ -129,7 +71,7 @@ $ARGUMENTS가 있으면 해당 내용을 리뷰 범위/관점으로 반영한다
 ### 5단계: 후속 행동
 
 - **승인 가능**: 리뷰 결과만 출력하고 종료한다.
-- **수정 필요**: 리뷰 결과 출력 후, 사용자에게 자동 수정 여부를 확인한다. 확인 시 치명/경고 항목을 코드에 직접 반영한다.
+- **수정 필요**: 리뷰 결과 출력 후, 사용자에게 자동 수정 여부를 확인한다. 확인 시 치명/경고 항목을 코드에 직접 반영한다. 단, 패턴 불일치가 주요 원인인 경우 `/implement`로 기존 패턴을 참조하여 재구현하는 것을 권장한다.
 
 ### 주의사항
 
