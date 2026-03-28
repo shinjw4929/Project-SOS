@@ -74,7 +74,6 @@
 - **PathfindingSize=1 (Large)** 유지 필수. 벽 사이 좁은 틈을 통과하면 안 됨
 - 벽으로 완전히 둘러싸인 유닛을 타겟으로 발견하면, **벽 바로 바깥까지 접근하여 대기**
 - 벽이 파괴되면 즉시 진입 (경로 재계산)
-- Large passability에서 목적지 unreachable 시 Small passability로 fallback하여 벽 근처 셀로 유도
 
 ---
 

@@ -157,9 +157,14 @@ namespace Server
             int gridSizeX = _gridSize.x;
             int gridSizeY = _gridSize.y;
 
-            // Wandering 적 별도 처리: FlowField BFS 없이 직선 이동 (캐시 부하 방지)
+            // Lookup 사전 생성 (Wandering 바이패스 + Collect 실패 처리 + Apply에서 재사용)
+            var goalLookup = SystemAPI.GetComponentLookup<MovementGoal>();
+            var waypointsLookup = SystemAPI.GetComponentLookup<MovementWaypoints>();
+            var flowFieldRefLookup = SystemAPI.GetComponentLookup<FlowFieldRef>();
             var enemyStateLookup = SystemAPI.GetComponentLookup<EnemyState>(true);
 
+
+            // Wandering 적 별도 처리: FlowField BFS 없이 직선 이동 (캐시 부하 방지)
             foreach (var (goal, waypoints, enemyState, entity) in
                 SystemAPI.Query<RefRW<MovementGoal>, RefRW<MovementWaypoints>, RefRO<EnemyState>>()
                     .WithNone<FlyingTag>()
@@ -176,6 +181,9 @@ namespace Server
                 waypoints.ValueRW.Current = goal.ValueRO.Destination;
                 waypoints.ValueRW.HasNext = false;
                 state.EntityManager.SetComponentEnabled<MovementWaypoints>(entity, true);
+                // FlowField 키 무효화: FlowFieldSteeringSystem이 이전 Chasing 키로 waypoints 덮어쓰기 방지
+                if (flowFieldRefLookup.HasComponent(entity))
+                    flowFieldRefLookup[entity] = new FlowFieldRef { Key = -1 };
             }
 
             // BFS 상한: 프레임당 최대 계산 수
@@ -225,6 +233,16 @@ namespace Server
                         destCell = nearest;
                         destKey = destCell.y * gridSizeX + destCell.x;
                         isDestAdjusted = 1;
+                    }
+                    else
+                    {
+                        // 반경 내 passable 셀 없음 → BFS 무의미, 무한 재요청 차단
+                        var g = goalLookup[entity];
+                        g.IsPathDirty = false;
+                        g.IsPathPartial = true;
+                        goalLookup[entity] = g;
+                        waypointsLookup.SetComponentEnabled(entity, false);
+                        continue;
                     }
                 }
 
@@ -351,13 +369,15 @@ namespace Server
             }
 
             // === Phase 3: Apply ===
-            var goalLookup = SystemAPI.GetComponentLookup<MovementGoal>();
-            var waypointsLookup = SystemAPI.GetComponentLookup<MovementWaypoints>();
-            var flowFieldRefLookup = SystemAPI.GetComponentLookup<FlowFieldRef>();
+            // Lookup은 Wandering 바이패스 전에 생성됨 — Collect에서 변경했으므로 동기화
+            goalLookup.Update(ref state);
+            waypointsLookup.Update(ref state);
+            flowFieldRefLookup.Update(ref state);
 
             // Small 유닛 Apply
             ApplyFlowFieldResults(ref state, smallUnits, cache.SmallKeyToPoolIndex,
-                cache.SmallFieldPool, goalLookup, waypointsLookup, flowFieldRefLookup, gridSettings);
+                cache.SmallFieldPool, cache.SmallPassabilityMap,
+                goalLookup, waypointsLookup, flowFieldRefLookup, gridSettings);
 
             // Apply 후 Lookup 갱신 (Small Apply가 데이터 변경했을 수 있음)
             goalLookup.Update(ref state);
@@ -366,7 +386,8 @@ namespace Server
 
             // Large 유닛 Apply
             ApplyFlowFieldResults(ref state, largeUnits, cache.LargeKeyToPoolIndex,
-                cache.LargeFieldPool, goalLookup, waypointsLookup, flowFieldRefLookup, gridSettings);
+                cache.LargeFieldPool, cache.LargePassabilityMap,
+                goalLookup, waypointsLookup, flowFieldRefLookup, gridSettings);
 
             SystemAPI.SetSingleton(cache);
         }
@@ -441,12 +462,12 @@ namespace Server
         }
 
         /// <summary>
-        /// 목적지 셀이 blocked일 때 인근 passable 셀을 탐색 (링 방식, 최대 반경 10)
+        /// 목적지 셀이 blocked일 때 인근 passable 셀을 탐색 (링 방식, 최대 반경 30)
         /// 찾지 못하면 (-1, -1) 반환
         /// </summary>
         static int2 FindNearestPassableCell(int2 center, NativeArray<byte> passMap, int gridSizeX, int gridSizeY)
         {
-            for (int radius = 1; radius <= 10; radius++)
+            for (int radius = 1; radius <= 30; radius++)
             {
                 // 링의 네 변을 순회 (중복 없이)
                 for (int d = -radius; d <= radius; d++)
@@ -475,6 +496,57 @@ namespace Server
         {
             if (x < 0 || y < 0 || x >= gridSizeX || y >= gridSizeY) return false;
             return passMap[y * gridSizeX + x] == 0;
+        }
+
+        /// <summary>
+        /// 엔티티 위치에서 가장 가까운 벽 경계 셀을 탐색
+        /// 벽 경계 = passable이지만 8방향 이웃 중 blocked 셀이 존재하는 셀
+        /// 찾지 못하면 (-1, -1) 반환
+        /// </summary>
+        static int2 FindNearestWallEdgeCell(int2 center, NativeArray<byte> passMap, int gridSizeX, int gridSizeY)
+        {
+            for (int radius = 1; radius <= 30; radius++)
+            {
+                for (int d = -radius; d <= radius; d++)
+                {
+                    if (CheckWallEdge(center.x + d, center.y + radius, passMap, gridSizeX, gridSizeY))
+                        return new int2(center.x + d, center.y + radius);
+                    if (CheckWallEdge(center.x + d, center.y - radius, passMap, gridSizeX, gridSizeY))
+                        return new int2(center.x + d, center.y - radius);
+                }
+                for (int d = -radius + 1; d < radius; d++)
+                {
+                    if (CheckWallEdge(center.x + radius, center.y + d, passMap, gridSizeX, gridSizeY))
+                        return new int2(center.x + radius, center.y + d);
+                    if (CheckWallEdge(center.x - radius, center.y + d, passMap, gridSizeX, gridSizeY))
+                        return new int2(center.x - radius, center.y + d);
+                }
+            }
+            return new int2(-1, -1);
+        }
+
+        /// <summary>
+        /// 해당 셀이 "벽 경계"인지 판정: 자신은 passable이고 8방향 이웃 중 blocked가 있는 셀
+        /// </summary>
+        static bool CheckWallEdge(int x, int y, NativeArray<byte> passMap, int gridSizeX, int gridSizeY)
+        {
+            if (!CheckPassable(x, y, passMap, gridSizeX, gridSizeY))
+                return false;
+
+            // 8방향 이웃 중 blocked가 있으면 벽 경계
+            for (int dy = -1; dy <= 1; dy++)
+            {
+                for (int dx = -1; dx <= 1; dx++)
+                {
+                    if (dx == 0 && dy == 0) continue;
+                    int nx = x + dx;
+                    int ny = y + dy;
+                    if (nx < 0 || ny < 0 || nx >= gridSizeX || ny >= gridSizeY) continue;
+                    if (passMap[ny * gridSizeX + nx] != 0)
+                        return true; // blocked 이웃 발견 → 벽 경계
+                }
+            }
+            return false;
         }
 
         JobHandle ScheduleComputeJobs(
@@ -523,6 +595,7 @@ namespace Server
             NativeList<PendingFlowFieldUnit> units,
             NativeHashMap<int, int> keyToPoolIndex,
             NativeArray<byte> fieldPool,
+            NativeArray<byte> passabilityMap,
             ComponentLookup<MovementGoal> goalLookup,
             ComponentLookup<MovementWaypoints> waypointsLookup,
             ComponentLookup<FlowFieldRef> flowFieldRefLookup,
@@ -583,7 +656,10 @@ namespace Server
                     int2 nextCell = currentCell + FlowFieldCore.GetDirectionOffset(currentDir);
                     waypoints.Current = GridUtility.CellCenterToWorld(nextCell, gridSettings);
                     waypoints.HasNext = false;
-                    goal.IsPathPartial = false;
+                    // IsPathPartial: 이번 패스에서 조정된 경우만 true 설정
+                    // 기존 true(벽 경계 fallback)는 유지하여 2프레임 진동 방지
+                    if (pending.IsDestAdjusted == 1)
+                        goal.IsPathPartial = true;
                     goalLookup[entity] = goal;
                     waypointsLookup[entity] = waypoints;
                     waypointsLookup.SetComponentEnabled(entity, true);
@@ -617,10 +693,28 @@ namespace Server
 
                     if (!foundReachable)
                     {
-                        // 8방향 모두 도달 불가 — 유닛 정지
-                        goal.IsPathPartial = true;
-                        goalLookup[entity] = goal;
-                        waypointsLookup.SetComponentEnabled(entity, false);
+                        // BFS 결과가 엔티티 위치에 도달 불가 — 벽 안쪽 셀이 목적지로 잡힌 경우
+                        // 엔티티 위치에서 가장 가까운 벽 경계(blocked 인접 passable 셀)를 찾아 유도
+                        int2 wallEdge = FindNearestWallEdgeCell(currentCell, passabilityMap, gridSizeX, gridSizeY);
+                        if (wallEdge.x >= 0)
+                        {
+                            var waypoints = waypointsLookup[entity];
+                            waypoints.Current = GridUtility.CellCenterToWorld(wallEdge, gridSettings);
+                            waypoints.HasNext = false;
+                            goal.Destination = GridUtility.CellCenterToWorld(wallEdge, gridSettings);
+                            goal.IsPathPartial = true;
+                            goal.IsPathDirty = true;
+                            goalLookup[entity] = goal;
+                            waypointsLookup[entity] = waypoints;
+                            waypointsLookup.SetComponentEnabled(entity, true);
+                        }
+                        else
+                        {
+                            goal.IsPathPartial = true;
+                            goal.IsPathDirty = false;
+                            goalLookup[entity] = goal;
+                            waypointsLookup.SetComponentEnabled(entity, false);
+                        }
                     }
                 }
             }

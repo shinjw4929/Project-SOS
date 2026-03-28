@@ -100,7 +100,7 @@ namespace Server
                 TimeSliceDivisor = searchInterval,
                 WanderBiasFactor = playerPositions.Length > 0
                     ? (hasGS ? gameSettings.WanderBiasFactor : 0.5f)
-                    : 0f, // 아군 없으면 편향 비활성화 (순수 랜덤 배회)
+                    : 0f,
                 WanderMaxDistance = hasGS ? gameSettings.WanderMaxDistance : 40.0f,
                 PlayerPositions = playerPositions.AsArray(),
                 PlayerCenterFallback = playerCenterFallback
@@ -287,14 +287,22 @@ namespace Server
                     {
                         target.ValueRW.LastTargetPosition = targetPos;
 
+                        // 벽 파괴 등으로 실제 타겟에 도달 가능해진 경우 IsPathPartial 클리어
+                        if (goal.ValueRO.IsPathPartial
+                            && math.distancesq(goal.ValueRO.Destination, targetPos) < DestinationThresholdSq)
+                        {
+                            goal.ValueRW.IsPathPartial = false;
+                        }
+
                         float3 currentDest = goal.ValueRO.Destination;
                         if (math.distancesq(currentDest, targetPos) > DestinationThresholdSq)
                         {
-                            goal.ValueRW.Destination = targetPos;
-                            goal.ValueRW.IsPathDirty = true;
-                            // Partial Path 상태가 아닐 때만 타이머 리셋
+                            // IsPathPartial이면 목적지가 벽 경계로 조정된 상태 — 매 프레임 리셋 방지
+                            // ShouldRetryPartialPath에서 주기적으로 재시도 (벽 파괴 시 통과 가능)
                             if (!goal.ValueRO.IsPathPartial)
                             {
+                                goal.ValueRW.Destination = targetPos;
+                                goal.ValueRW.IsPathDirty = true;
                                 goal.ValueRW.DestinationSetTime = ElapsedTime;
                             }
                         }
@@ -303,6 +311,8 @@ namespace Server
                                 goal.ValueRO.IsPathPartial, goal.ValueRO.DestinationSetTime,
                                 ElapsedTime, entity.Index, FrameCount, TimeSliceDivisor))
                         {
+                            // 타겟 원래 위치로 재경로 — 벽 파괴 시 직접 접근 전환
+                            goal.ValueRW.Destination = targetPos;
                             goal.ValueRW.IsPathDirty = true;
                             goal.ValueRW.DestinationSetTime = ElapsedTime;
                         }
