@@ -86,6 +86,11 @@ namespace Authoring
                 // PhysicsMass를 베이킹합니다. 프리팹에서 Rigidbody.isKinematic=true로
                 // 설정하는 것이 권장됩니다.
                 // Rigidbody가 없는 경우에만 수동으로 Kinematic Mass를 추가합니다.
+                // ==========================================================
+                // 7. Cached Avoidance Direction (Steering TimeSlice)
+                // ==========================================================
+                AddComponent(entity, new CachedAvoidanceDir());
+
                 var rigidbody = authoring.GetComponent<Rigidbody>();
                 if (rigidbody == null)
                 {

@@ -164,6 +164,7 @@ namespace Server
                 SystemAPI.Query<RefRW<MovementGoal>, RefRW<MovementWaypoints>, RefRO<EnemyState>>()
                     .WithNone<FlyingTag>()
                     .WithAll<EnemyTag>()
+                    .WithOptions(EntityQueryOptions.IgnoreComponentEnabledState)
                     .WithEntityAccess())
             {
                 if (!goal.ValueRO.IsPathDirty)

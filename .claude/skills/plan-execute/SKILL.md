@@ -86,16 +86,16 @@ Phase 완료 후 다음을 수행한다:
 ### 5단계: 후속 처리
 
 1. 다음 Phase가 남아있으면 1단계로 돌아간다.
-2. 모든 Phase가 완료되면:
-   - `/review-comments`를 자동 호출하여 주석 정합성을 점검한다.
-   - `/update-docs`를 자동 호출하여 Docs 문서를 동기화한다.
-   - 사용자에게 최종 보고 (변경 파일 수, 주요 변경 사항 요약)
-   - `/review-code`로 최종 코드 리뷰를 권장
-   - `/commit`으로 커밋을 권장
-   - 계획 폴더를 `Docs/Plans/Completed/`로 이동한다:
-     ```
-     mkdir -p "Docs/Plans/Completed" && mv "Docs/Plans/[기능명]" "Docs/Plans/Completed/"
-     ```
+2. 모든 Phase가 완료되면 다음을 **순서대로 모두** 수행한다:
+   1. `/review-comments`를 자동 호출하여 주석 정합성을 점검한다.
+   2. `/update-docs`를 자동 호출하여 Docs 문서를 동기화한다.
+   3. **(필수)** 계획 폴더를 `Docs/Plans/Completed/`로 이동한다. 이 단계를 건너뛰지 않는다:
+      ```
+      mkdir -p "Docs/Plans/Completed" && mv "Docs/Plans/[기능명]" "Docs/Plans/Completed/"
+      ```
+   4. 사용자에게 최종 보고 (변경 파일 수, 주요 변경 사항 요약)
+   5. `/review-code`로 최종 코드 리뷰를 권장
+   6. `/commit`으로 커밋을 권장
 
 ## 주의사항
 
@@ -105,3 +105,4 @@ Phase 완료 후 다음을 수행한다:
 - **실행 기록 즉시 갱신**: Phase 완료 즉시 execution-log.md를 갱신한다. 여러 Phase를 묶어서 나중에 기록하지 않는다.
 - **기존 코드 존중**: Phase 파일에 명시되지 않은 리팩토링이나 개선을 임의로 수행하지 않는다.
 - **WorkLog 미사용**: 계획 실행 기록은 execution-log.md에 기록한다. WorkLog는 계획 밖 단발 작업 전용이다.
+- **완료된 계획 이동 필수**: 모든 Phase 완료 후 계획 폴더를 반드시 `Docs/Plans/Completed/`로 이동한다. 이 단계를 누락하면 다음 `/plan-execute` 호출 시 완료된 계획이 재탐색된다.

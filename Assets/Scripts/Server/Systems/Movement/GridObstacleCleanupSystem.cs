@@ -95,6 +95,7 @@ namespace Server
                     if (enemyState.ValueRO.CurrentState == EnemyContext.Dormant)
                     {
                         enemyState.ValueRW.CurrentState = EnemyContext.Idle;
+                        goal.ValueRW.IsPathDirty = true;
                     }
                     else if (goal.ValueRO.IsPathPartial)
                     {

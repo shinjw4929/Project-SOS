@@ -36,6 +36,7 @@ namespace Server
                     ComponentType.ReadWrite<LocalTransform>(),
                     ComponentType.ReadWrite<PhysicsVelocity>(),
                     ComponentType.ReadWrite<MovementWaypoints>(),
+                    ComponentType.ReadWrite<CachedAvoidanceDir>(),
                     ComponentType.ReadOnly<MovementDynamics>(),
                     ComponentType.ReadOnly<ObstacleRadius>(),
                     ComponentType.ReadOnly<MovementGoal>()
@@ -82,7 +83,9 @@ namespace Server
                 AvoidanceStrength = SystemAPI.TryGetSingleton<GameSettings>(out var movGS) ? movGS.AvoidanceStrength : 2.0f,
                 AvoidancePadding = movGS.AvoidancePadding > 0 ? movGS.AvoidancePadding : 0.3f,
                 GridCells = gridCells,
-                GridSettings = gridSettings
+                GridSettings = gridSettings,
+                FrameCount = (uint)state.GlobalSystemVersion,
+                SteeringSliceDivisor = movGS.SteeringSliceDivisor >= 1 ? movGS.SteeringSliceDivisor : 4u
             };
 
             state.Dependency = moveJob.ScheduleParallel(_movingQuery, state.Dependency);
@@ -110,6 +113,8 @@ namespace Server
         public float CellSize;
         public float AvoidanceStrength;
         public float AvoidancePadding;
+        public uint FrameCount;
+        public uint SteeringSliceDivisor;
 
         [ReadOnly] public NativeArray<GridCell> GridCells;
         public GridSettings GridSettings;
@@ -119,6 +124,7 @@ namespace Server
             ref LocalTransform transform,
             ref PhysicsVelocity velocity,
             ref MovementWaypoints waypoints,
+            ref CachedAvoidanceDir cachedAvoidance,
             EnabledRefRW<MovementWaypoints> waypointsEnabled,
             in MovementDynamics dynamics,
             in ObstacleRadius obstacleRadius,
@@ -197,10 +203,54 @@ namespace Server
                 && (intent.State == Intent.Gather || intent.State == Intent.Build))
                 iAmWorking = true;
 
-            float3 finalVelocity = skipMovement
-                ? float3.zero
-                : CalculateSteeringAvoidance(currentPos, obstacleRadius.Radius,
-                    desiredVelocity, entity, iAmEnemy, iAmFlying, iAmWorking);
+            float3 finalVelocity;
+            if (skipMovement)
+            {
+                finalVelocity = float3.zero;
+            }
+            else
+            {
+                bool isMySteeringFrame = (SteeringSliceDivisor <= 1)
+                    || ((uint)entity.Index % SteeringSliceDivisor) == (FrameCount % SteeringSliceDivisor);
+
+                if (isMySteeringFrame || cachedAvoidance.Strength < 0.001f)
+                {
+                    finalVelocity = CalculateSteeringAvoidance(currentPos, obstacleRadius.Radius,
+                        desiredVelocity, entity, iAmEnemy, iAmFlying, iAmWorking);
+
+                    // 캐시 갱신
+                    float desiredSpeed = math.length(desiredVelocity);
+                    if (desiredSpeed > 0.001f)
+                    {
+                        float3 desiredDir = desiredVelocity / desiredSpeed;
+                        float3 actualDir = math.normalizesafe(finalVelocity);
+                        float deviation = 1.0f - math.dot(desiredDir, actualDir);
+                        cachedAvoidance.Direction = actualDir;
+                        cachedAvoidance.Strength = math.saturate(deviation * 2.0f);
+                    }
+                    else
+                    {
+                        cachedAvoidance.Direction = float3.zero;
+                        cachedAvoidance.Strength = 0f;
+                    }
+                }
+                else
+                {
+                    // 캐시된 방향 재사용
+                    float desiredSpeed = math.length(desiredVelocity);
+                    if (cachedAvoidance.Strength > 0.001f && desiredSpeed > 0.001f)
+                    {
+                        float3 desiredDir = math.normalizesafe(desiredVelocity);
+                        float3 adjustedDir = math.normalizesafe(
+                            math.lerp(desiredDir, cachedAvoidance.Direction, cachedAvoidance.Strength));
+                        finalVelocity = adjustedDir * desiredSpeed;
+                    }
+                    else
+                    {
+                        finalVelocity = desiredVelocity;
+                    }
+                }
+            }
 
             // Cap Velocity
             float maxLimit = dynamics.MaxSpeed * 1.5f;

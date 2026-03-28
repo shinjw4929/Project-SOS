@@ -84,6 +84,9 @@ namespace Authoring
         [Tooltip("프레임당 최대 FlowField BFS 계산 수")]
         [Min(1)]
         public int maxBFSPerFrame = 16;
+        [Tooltip("Steering 회피 계산 분산 주기 (N프레임에 1회)")]
+        [Min(1)]
+        public uint steeringSliceDivisor = 4;
 
         [Header("Wandering")]
         [Tooltip("맵 중심 편향 (0=랜덤, 1=중심 직진)")]
@@ -92,6 +95,11 @@ namespace Authoring
         [Tooltip("최대 배회 거리 (m)")]
         [Min(5f)]
         public float wanderMaxDistance = 40.0f;
+
+        [Header("Target Propagation")]
+        [Tooltip("타겟 전파 반경 (m)")]
+        [Min(1f)]
+        public float targetPropagationRadius = 9.0f;
 
         [Header("Enemy AI")]
         [Tooltip("위치 정체 체크 간격 (초)")]
@@ -181,8 +189,10 @@ namespace Authoring
                     AvoidanceStrength = authoring.avoidanceStrength,
                     AvoidancePadding = authoring.avoidancePadding,
                     MaxBFSPerFrame = authoring.maxBFSPerFrame,
+                    SteeringSliceDivisor = authoring.steeringSliceDivisor,
                     WanderBiasFactor = authoring.wanderBiasFactor,
                     WanderMaxDistance = authoring.wanderMaxDistance,
+                    TargetPropagationRadius = authoring.targetPropagationRadius,
                     StuckCheckInterval = authoring.stuckCheckInterval,
                     StuckThreshold = authoring.stuckThreshold,
                     DormantMinDuration = authoring.dormantMinDuration,

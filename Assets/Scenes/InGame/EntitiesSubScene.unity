@@ -265,8 +265,10 @@ MonoBehaviour:
   avoidanceStrength: 2
   avoidancePadding: 0.3
   maxBFSPerFrame: 16
+  steeringSliceDivisor: 4
   wanderBiasFactor: 0.5
   wanderMaxDistance: 40
+  targetPropagationRadius: 9
   stuckCheckInterval: 3
   stuckThreshold: 2
   dormantMinDuration: 5
@@ -2687,17 +2689,19 @@ MonoBehaviour:
   avoidanceStrength: 2
   avoidancePadding: 0.3
   maxBFSPerFrame: 16
+  steeringSliceDivisor: 4
   wanderBiasFactor: 0.5
   wanderMaxDistance: 40
+  targetPropagationRadius: 20
   stuckCheckInterval: 3
   stuckThreshold: 2
   dormantMinDuration: 5
   dormantMaxDuration: 8
   pathInvalidationRadius: 8
   partialPathInvalidationRadius: 12
-  enemyBigSpawnRate: 0.4
-  enemySmallOnlyRate: 0.4
-  wave0SpawnSpacing: 1
+  enemyBigSpawnRate: 1
+  enemySmallOnlyRate: 0
+  wave0SpawnSpacing: 0.8
   periodicSpawnSpacing: 3
   combatTiltAngle: 0.3
   combatTiltSpeed: 8

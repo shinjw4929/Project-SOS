@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using Unity.Burst;
 using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Jobs;
 using Unity.Mathematics;
@@ -118,10 +119,25 @@ namespace Server
                 WanderMaxDistance = 0f
             };
 
-            // 순차 실행 (AggroTarget 컴포넌트를 공유하므로 병렬 불가)
-            // 내부적으로는 IJobEntity가 병렬 처리하므로 성능 영향 최소
+            // Pass 1: 적 타겟 탐색
             var handle1 = enemyTargetJob.ScheduleParallel(state.Dependency);
-            state.Dependency = unitAutoTargetJob.ScheduleParallel(handle1);
+
+            // Pass 2: 타겟 전파 (타겟 없는 적이 주변 적의 타겟 복사)
+            float propagationRadius = hasGS ? gameSettings.TargetPropagationRadius : 9.0f;
+            var propagationJob = new TargetPropagationJob
+            {
+                MovementMap = spatialMaps.MovementMap,
+                AggroTargetLookup = SystemAPI.GetComponentLookup<AggroTarget>(true),
+                TransformLookup = _transformLookup,
+                HealthLookup = _healthLookup,
+                EnemyTagLookup = SystemAPI.GetComponentLookup<EnemyTag>(true),
+                CellSize = SpatialHashUtility.MovementCellSize,
+                PropagationRadius = propagationRadius
+            };
+            var handle2 = propagationJob.ScheduleParallel(handle1);
+
+            // Pass 3: 유닛 자동 타겟팅
+            state.Dependency = unitAutoTargetJob.ScheduleParallel(handle2);
 
             // playerPositions는 TempJob 할당 → Job 완료 후 Dispose
             playerPositions.Dispose(state.Dependency);
@@ -792,6 +808,100 @@ namespace Server
             GameLogger.Pos(ref msg, "dest", in dest);
             GameLogger.Field(ref msg, "cause", in cause);
             GameLogger.Warning(LogWorld.Server, LogCategory.Movement, in msg);
+        }
+    }
+
+    // =========================================================================
+    // 타겟 전파 Job (타겟 없는 적 → 주변 적의 타겟 복사)
+    // =========================================================================
+
+    [BurstCompile]
+    [WithAll(typeof(EnemyTag))]
+    [WithOptions(EntityQueryOptions.IgnoreComponentEnabledState)]
+    public partial struct TargetPropagationJob : IJobEntity
+    {
+        [ReadOnly] public NativeParallelMultiHashMap<int, SpatialMovementEntry> MovementMap;
+
+        [ReadOnly]
+        [NativeDisableContainerSafetyRestriction]
+        public ComponentLookup<AggroTarget> AggroTargetLookup;
+
+        [ReadOnly] public ComponentLookup<LocalTransform> TransformLookup;
+        [ReadOnly] public ComponentLookup<Health> HealthLookup;
+        [ReadOnly] public ComponentLookup<EnemyTag> EnemyTagLookup;
+
+        public float CellSize;
+        public float PropagationRadius;
+
+        void Execute(
+            Entity entity,
+            ref AggroTarget target,
+            ref EnemyState enemyState,
+            ref MovementGoal goal,
+            EnabledRefRW<MovementWaypoints> waypointsEnabled,
+            in LocalTransform transform)
+        {
+            // 이미 타겟 있으면 skip
+            if (target.TargetEntity != Entity.Null) return;
+            // Dormant/Dying/Dead는 skip
+            if (enemyState.CurrentState == EnemyContext.Dormant ||
+                enemyState.CurrentState == EnemyContext.Dying ||
+                enemyState.CurrentState == EnemyContext.Dead) return;
+
+            float3 myPos = transform.Position;
+            float propagationRadiusSq = PropagationRadius * PropagationRadius;
+            Entity bestTarget = Entity.Null;
+            float3 bestTargetPos = float3.zero;
+            float bestDistSq = propagationRadiusSq;
+
+            for (int x = -1; x <= 1; x++)
+            {
+                for (int z = -1; z <= 1; z++)
+                {
+                    int hash = SpatialHashUtility.GetCellHash(myPos, x, z, CellSize);
+                    if (!MovementMap.TryGetFirstValue(hash, out var neighbor, out var it))
+                        continue;
+                    do
+                    {
+                        if (neighbor.Entity == entity) continue;
+                        if (!EnemyTagLookup.HasComponent(neighbor.Entity)) continue;
+                        if (!AggroTargetLookup.TryGetComponent(neighbor.Entity, out AggroTarget neighborTarget))
+                            continue;
+                        if (neighborTarget.TargetEntity == Entity.Null) continue;
+
+                        // 이웃의 타겟이 살아있는지 확인
+                        if (!HealthLookup.TryGetComponent(neighborTarget.TargetEntity, out Health h)
+                            || h.CurrentValue <= 0) continue;
+
+                        // 이웃과의 거리 확인
+                        if (!TransformLookup.TryGetComponent(neighbor.Entity, out LocalTransform neighborTransform))
+                            continue;
+                        float3 diff = myPos - neighborTransform.Position;
+                        diff.y = 0;
+                        float distSq = math.lengthsq(diff);
+                        if (distSq >= bestDistSq) continue;
+
+                        // 타겟 위치 확인
+                        if (!TransformLookup.TryGetComponent(neighborTarget.TargetEntity, out LocalTransform targetTransform))
+                            continue;
+
+                        bestDistSq = distSq;
+                        bestTarget = neighborTarget.TargetEntity;
+                        bestTargetPos = targetTransform.Position;
+
+                    } while (MovementMap.TryGetNextValue(out neighbor, ref it));
+                }
+            }
+
+            if (bestTarget == Entity.Null) return;
+
+            // 타겟 전파
+            target.TargetEntity = bestTarget;
+            target.LastTargetPosition = bestTargetPos;
+            enemyState.CurrentState = EnemyContext.Chasing;
+            goal.Destination = bestTargetPos;
+            goal.IsPathDirty = true;
+            waypointsEnabled.ValueRW = true;
         }
     }
 }

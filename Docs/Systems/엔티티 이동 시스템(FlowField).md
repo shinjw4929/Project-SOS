@@ -125,7 +125,8 @@ MovementArrivalSystem → 도착 판정 → 이동 정지 + Intent.Idle + Action
 역할: 핵심 이동 시스템
 - Kinematic 방식: LocalTransform.Position 직접 수정
 - 가속/감속 적용 (MovementDynamics)
-- **Steering 기반 회피**: SpatialMaps.MovementMap 사용 (셀 크기 3.0f). 이동 방향만 조정, 위치 직접 변경 없음 (밀림 없음). entityIndex 기반 결정론적 좌/우 분산
+- **Steering 기반 회피 (TimeSlice)**: SpatialMaps.MovementMap 사용 (셀 크기 3.0f). 이동 방향만 조정, 위치 직접 변경 없음 (밀림 없음). entityIndex 기반 결정론적 좌/우 분산
+  - **TimeSlice**: `SteeringSliceDivisor`(기본 4) 프레임 주기로 회피 계산 분산. `entity.Index % Divisor == FrameCount % Divisor`인 프레임에만 이웃 탐색 실행, 나머지는 `CachedAvoidanceDir` 캐시 방향 재사용. 첫 프레임(Strength < 0.001f)은 즉시 계산
   - 적-유닛 간 회피: 항상 활성화
   - 유닛-유닛 간 회피: 한쪽이라도 작업 중(Gather/Build)이면 면제 (적 제외)
   - skipMovement=true (공격 중/정지) 시: Steering도 skip → 정지 유닛 완전 고정
@@ -144,7 +145,7 @@ MovementArrivalSystem → 도착 판정 → 이동 정지 + Intent.Idle + Action
 
 | 파일 | 베이킹 컴포넌트 |
 | --- | --- |
-| MovementAuthoring.cs | MovementDynamics, MovementGoal, MovementWaypoints(비활성화), GridPathfindingSize, FlowFieldRef(Key=-1), Kinematic Mass (Rigidbody 없을 때만) |
+| MovementAuthoring.cs | MovementDynamics, MovementGoal, MovementWaypoints(비활성화), GridPathfindingSize, FlowFieldRef(Key=-1), CachedAvoidanceDir, Kinematic Mass (Rigidbody 없을 때만) |
 | UnitMovementAuthoring.cs | UnitIntentState, UnitActionState, UnitCommand 버퍼. RequireComponent(MovementAuthoring) |
 
 ### MovementAuthoring 인스펙터 설정

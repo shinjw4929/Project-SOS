@@ -103,6 +103,8 @@ namespace Shared
 
         /// <summary>프레임당 최대 FlowField BFS 계산 수 (캐시 miss 폭주 방지)</summary>
         public int MaxBFSPerFrame;
+        /// <summary>Steering 회피 계산 분산 주기 (N프레임에 1회, 나머지는 캐시 재사용)</summary>
+        public uint SteeringSliceDivisor;
 
         // === 배회 ===
 
@@ -110,6 +112,11 @@ namespace Shared
         public float WanderBiasFactor;
         /// <summary>Wandering 최대 이동 거리 (m)</summary>
         public float WanderMaxDistance;
+
+        // === 타겟 전파 ===
+
+        /// <summary>타겟 전파 반경 (적이 주변 적의 타겟을 복사하는 범위, m)</summary>
+        public float TargetPropagationRadius;
 
         // === 적 AI ===
 

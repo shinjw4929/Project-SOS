@@ -18,7 +18,7 @@ Before implementing any request, ask yourself: "Is this the most efficient way t
 
 ## Pre-Implementation Checklist
 0. **Docs 폴더 참조 (필수)**: 작업을 시작하기 전에 반드시 `Docs/` 폴더의 관련 문서를 먼저 읽고 현재 시스템 구조와 동작 방식을 파악한다. 문서를 참조하지 않고 구현에 착수하지 않는다.
-1. **Verify Existing Patterns**: Before implementing new logic (especially singletons), check if similar patterns or components already exist in the codebase to avoid duplication.
+1. **Verify Existing Patterns**: Before implementing new logic (especially singletons), check if similar patterns or components already exist in the codebase to avoid duplication. 탐색 절차는 [`Docs/Checklists/pattern-search-guide.md`](Docs/Checklists/pattern-search-guide.md)를 따른다.
 2. **Validate User Instructions**: Critically evaluate whether the user's instruction aligns with actual facts in the codebase. If the user's assumption is incorrect or outdated, inform them of the discrepancy.
 3. **Assess Efficiency**: Determine if the user's proposed approach is the most efficient solution. If a more performant or maintainable alternative exists, suggest it proactively.
 
