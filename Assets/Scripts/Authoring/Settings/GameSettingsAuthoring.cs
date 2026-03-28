@@ -114,6 +114,9 @@ namespace Authoring
         [Tooltip("Dormant 최대 지속 시간 (초)")]
         [Min(0f)]
         public float dormantMaxDuration = 8.0f;
+        [Tooltip("도달 불가 타겟 차단 지속 시간 (초)")]
+        [Min(1f)]
+        public float targetAbandonDuration = 30f;
 
         [Header("Obstacle")]
         [Tooltip("건물 건설 시 주변 유닛 경로 무효화 반지름 (m)")]
@@ -197,6 +200,7 @@ namespace Authoring
                     StuckThreshold = authoring.stuckThreshold,
                     DormantMinDuration = authoring.dormantMinDuration,
                     DormantMaxDuration = authoring.dormantMaxDuration,
+                    TargetAbandonDuration = authoring.targetAbandonDuration,
                     PathInvalidationRadius = authoring.pathInvalidationRadius,
                     PartialPathInvalidationRadius = authoring.partialPathInvalidationRadius,
                     EnemyBigSpawnRate = authoring.enemyBigSpawnRate,

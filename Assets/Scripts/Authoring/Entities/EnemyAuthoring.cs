@@ -103,7 +103,9 @@ namespace Authoring
                 // =======================================================================
                 AddComponent(entity, new EnemyState
                 {
-                    CurrentState = EnemyContext.Idle
+                    CurrentState = EnemyContext.Idle,
+                    AbandonedTarget = Entity.Null,
+                    AbandonedExpireTime = 0f
                 });
 
                 // =======================================================================

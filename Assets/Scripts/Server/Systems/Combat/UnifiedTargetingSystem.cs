@@ -103,7 +103,8 @@ namespace Server
                     : 0f,
                 WanderMaxDistance = hasGS ? gameSettings.WanderMaxDistance : 40.0f,
                 PlayerPositions = playerPositions.AsArray(),
-                PlayerCenterFallback = playerCenterFallback
+                PlayerCenterFallback = playerCenterFallback,
+                TargetAbandonDuration = hasGS ? gameSettings.TargetAbandonDuration : 30f
             };
 
             var unitAutoTargetJob = new UnitAutoTargetJob
@@ -132,7 +133,8 @@ namespace Server
                 HealthLookup = _healthLookup,
                 EnemyTagLookup = SystemAPI.GetComponentLookup<EnemyTag>(true),
                 CellSize = SpatialHashUtility.MovementCellSize,
-                PropagationRadius = propagationRadius
+                PropagationRadius = propagationRadius,
+                ElapsedTime = time
             };
             var handle2 = propagationJob.ScheduleParallel(handle1);
 
@@ -165,6 +167,7 @@ namespace Server
         public float WanderMaxDistance;
         [ReadOnly] public NativeArray<float3> PlayerPositions;
         public float3 PlayerCenterFallback;
+        public float TargetAbandonDuration;
 
         private const float DestinationThresholdSq = 1.0f;
 
@@ -180,6 +183,8 @@ namespace Server
             EnabledRefRW<MovementWaypoints> waypointsEnabled,
             in EnemyTag enemyTag)
         {
+            Entity partialSearchExclude = Entity.Null;
+
             // Dormant 상태 처리 (모든 로직 전에)
             if (enemyState.ValueRO.CurrentState == EnemyContext.Dormant)
             {
@@ -229,22 +234,11 @@ namespace Server
                         target.ValueRW.TargetEntity = lockedTarget;
                         target.ValueRW.LastTargetPosition = lockedPos;
 
+                        // dest를 항상 lockedPos로 갱신 — FlowFieldSystem이 wallEdge 조정 + IsPathPartial 자동 판정
                         float3 currentDest = goal.ValueRO.Destination;
                         if (math.distancesq(currentDest, lockedPos) > DestinationThresholdSq)
                         {
                             goal.ValueRW.Destination = lockedPos;
-                            goal.ValueRW.IsPathDirty = true;
-                            // Partial Path 상태가 아닐 때만 타이머 리셋
-                            if (!goal.ValueRO.IsPathPartial)
-                            {
-                                goal.ValueRW.DestinationSetTime = ElapsedTime;
-                            }
-                        }
-
-                        if (MovementMath.ShouldRetryPartialPath(
-                                goal.ValueRO.IsPathPartial, goal.ValueRO.DestinationSetTime,
-                                ElapsedTime, entity.Index, FrameCount, TimeSliceDivisor))
-                        {
                             goal.ValueRW.IsPathDirty = true;
                             goal.ValueRW.DestinationSetTime = ElapsedTime;
                         }
@@ -287,34 +281,45 @@ namespace Server
                     {
                         target.ValueRW.LastTargetPosition = targetPos;
 
-                        // 벽 파괴 등으로 실제 타겟에 도달 가능해진 경우 IsPathPartial 클리어
-                        if (goal.ValueRO.IsPathPartial
-                            && math.distancesq(goal.ValueRO.Destination, targetPos) < DestinationThresholdSq)
-                        {
-                            goal.ValueRW.IsPathPartial = false;
-                        }
-
+                        // dest를 항상 targetPos로 갱신 — FlowFieldSystem이 wallEdge 조정 + IsPathPartial 자동 판정
                         float3 currentDest = goal.ValueRO.Destination;
                         if (math.distancesq(currentDest, targetPos) > DestinationThresholdSq)
                         {
-                            // IsPathPartial이면 목적지가 벽 경계로 조정된 상태 — 매 프레임 리셋 방지
-                            // ShouldRetryPartialPath에서 주기적으로 재시도 (벽 파괴 시 통과 가능)
-                            if (!goal.ValueRO.IsPathPartial)
-                            {
-                                goal.ValueRW.Destination = targetPos;
-                                goal.ValueRW.IsPathDirty = true;
-                                goal.ValueRW.DestinationSetTime = ElapsedTime;
-                            }
-                        }
-
-                        if (MovementMath.ShouldRetryPartialPath(
-                                goal.ValueRO.IsPathPartial, goal.ValueRO.DestinationSetTime,
-                                ElapsedTime, entity.Index, FrameCount, TimeSliceDivisor))
-                        {
-                            // 타겟 원래 위치로 재경로 — 벽 파괴 시 직접 접근 전환
                             goal.ValueRW.Destination = targetPos;
                             goal.ValueRW.IsPathDirty = true;
                             goal.ValueRW.DestinationSetTime = ElapsedTime;
+                        }
+
+                        // IsPathPartial + Chasing: 대체 타겟 탐색 + stuck 감지
+                        if (goal.ValueRO.IsPathPartial && enemyState.ValueRO.CurrentState == EnemyContext.Chasing)
+                        {
+                            // stuck 감지 (기본 3초 간격, 2m 이동 미달 시 stuck)
+                            if (WanderUtility.CheckStuck(in myPos, goal.ValueRO.LastPositionCheck,
+                                    goal.ValueRO.LastPositionCheckTime, ElapsedTime, out bool isStuck))
+                            {
+                                if (isStuck)
+                                {
+                                    // 현재 타겟을 임시 차단하고 Wandering 전환
+                                    enemyState.ValueRW.AbandonedTarget = currentTarget;
+                                    enemyState.ValueRW.AbandonedExpireTime = ElapsedTime + TargetAbandonDuration;
+                                    target.ValueRW.TargetEntity = Entity.Null;
+                                    goal.ValueRW.IsPathPartial = false;
+                                    needNewTarget = true;
+                                }
+                                goal.ValueRW.LastPositionCheckTime = ElapsedTime;
+                                goal.ValueRW.LastPositionCheck = myPos;
+                            }
+
+                            // 프레임 분산 대체 타겟 탐색 (4프레임 1회, 현재 타겟 제외)
+                            if (!needNewTarget)
+                            {
+                                uint frameSlice = FrameCount % TimeSliceDivisor;
+                                if ((uint)entity.Index % TimeSliceDivisor == frameSlice)
+                                {
+                                    partialSearchExclude = currentTarget;
+                                    needNewTarget = true;
+                                }
+                            }
                         }
                     }
                 }
@@ -407,6 +412,15 @@ namespace Server
                             // 같은 팀이면 공격 안 함 (적은 teamId가 다름)
                             if (candidate.TeamId == myTeam.ValueRO.teamId) continue;
 
+                            // 임시 차단 타겟 필터 (AbandonedTarget)
+                            if (candidate.Entity == enemyState.ValueRO.AbandonedTarget
+                                && ElapsedTime < enemyState.ValueRO.AbandonedExpireTime)
+                                continue;
+
+                            // 대체 탐색: 현재 도달 불가 타겟 제외
+                            if (candidate.Entity == partialSearchExclude)
+                                continue;
+
                             float distSq = math.distancesq(myPos, candidate.Position);
 
                             if (distSq < searchRadiusSq && distSq < bestDistSq)
@@ -438,14 +452,21 @@ namespace Server
                 {
                     goal.ValueRW.Destination = bestTargetPos;
                     goal.ValueRW.IsPathDirty = true;
-                    // 타겟 변경 시 또는 Partial Path 아닐 때만 타이머 리셋
-                    if (targetChanged || !goal.ValueRO.IsPathPartial)
-                    {
-                        goal.ValueRW.DestinationSetTime = ElapsedTime;
-                    }
+                    goal.ValueRW.DestinationSetTime = ElapsedTime;
                 }
 
+                // 대체 타겟으로 전환 시 IsPathPartial 리셋 (새 타겟은 재평가 필요)
+                if (targetChanged)
+                    goal.ValueRW.IsPathPartial = false;
+
                 enemyState.ValueRW.CurrentState = EnemyContext.Chasing;
+            }
+            else if (partialSearchExclude != Entity.Null)
+            {
+                // 대체 타겟 없음 → 기존 타겟 복원, Chasing 유지
+                target.ValueRW.TargetEntity = partialSearchExclude;
+                enemyState.ValueRW.CurrentState = EnemyContext.Chasing;
+                return;
             }
             else
             {
@@ -842,6 +863,7 @@ namespace Server
 
         public float CellSize;
         public float PropagationRadius;
+        public float ElapsedTime;
 
         void Execute(
             Entity entity,
@@ -904,6 +926,11 @@ namespace Server
             }
 
             if (bestTarget == Entity.Null) return;
+
+            // AbandonedTarget 필터: 임시 차단된 타겟은 전파하지 않음
+            if (bestTarget == enemyState.AbandonedTarget
+                && ElapsedTime < enemyState.AbandonedExpireTime)
+                return;
 
             // 타겟 전파
             target.TargetEntity = bestTarget;

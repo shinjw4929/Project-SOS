@@ -19,5 +19,9 @@ namespace Shared
     {
         // 1. 현재 상태 (Enum)
         public EnemyContext CurrentState;
+
+        // 2. 임시 차단 타겟 (도달 불가 판정 시 일정 시간 해당 타겟 무시)
+        public Entity AbandonedTarget;
+        public float AbandonedExpireTime;
     }
 }

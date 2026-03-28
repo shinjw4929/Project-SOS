@@ -656,10 +656,9 @@ namespace Server
                     int2 nextCell = currentCell + FlowFieldCore.GetDirectionOffset(currentDir);
                     waypoints.Current = GridUtility.CellCenterToWorld(nextCell, gridSettings);
                     waypoints.HasNext = false;
-                    // IsPathPartial: 이번 패스에서 조정된 경우만 true 설정
-                    // 기존 true(벽 경계 fallback)는 유지하여 2프레임 진동 방지
-                    if (pending.IsDestAdjusted == 1)
-                        goal.IsPathPartial = true;
+                    // IsPathPartial: FlowFieldSystem이 매 프레임 자동 판정
+                    // IsDestAdjusted==1(벽 안 타겟) → true, ==0(벽 밖 타겟) → false
+                    goal.IsPathPartial = (pending.IsDestAdjusted == 1);
                     goalLookup[entity] = goal;
                     waypointsLookup[entity] = waypoints;
                     waypointsLookup.SetComponentEnabled(entity, true);

@@ -128,6 +128,8 @@ namespace Shared
         public float DormantMinDuration;
         /// <summary>Dormant 최대 지속 시간 (초)</summary>
         public float DormantMaxDuration;
+        /// <summary>도달 불가 타겟 차단 지속 시간 (초)</summary>
+        public float TargetAbandonDuration;
 
         // === 장애물 ===
 

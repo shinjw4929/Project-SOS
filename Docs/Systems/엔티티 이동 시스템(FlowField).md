@@ -103,7 +103,7 @@ MovementArrivalSystem → 도착 판정 → 이동 정지 + Intent.Idle + Action
   - Phase 0: IsGridStale 시에만 passability 맵 재생성 (Small/Large 각각)
   - Collect: IsPathDirty 유닛 수집 (WithNone<FlyingTag>), 목적지 셀 추출, 캐시 히트/미스 분류
   - Compute: 캐시 미스 목적지에 대해 FlowFieldComputeJob 8개 병렬 BFS (Small 완료 → Large 순차)
-  - Apply: FlowFieldRef 할당, MovementWaypoints 활성화, Partial Path 판정 (8방향 1단계)
+  - Apply: FlowFieldRef 할당, MovementWaypoints 활성화, IsPathPartial 자동 판정 (`IsPathPartial = (IsDestAdjusted == 1)`, 매 프레임 클리어/설정)
 - **Flying 유닛**: 별도 처리 (직선 이동, FlowField 스킵)
 - **LRU 캐시**: 32 필드 × 2풀(Small/Large), Flat NativeArray + NativeHashMap, 그리드 변경 시 전체 무효화
 - **Persistent 메모리**: 워커 8세트 (BfsQueue, Visited, CostMap) + FlowFieldCacheData 싱글톤
