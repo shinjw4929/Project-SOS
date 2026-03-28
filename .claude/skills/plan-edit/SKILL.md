@@ -1,7 +1,7 @@
 ---
 name: plan-edit
 description: 기존 구현 계획(Docs/Plans/)을 부분 수정합니다. 완료된 Phase는 보존하고 미실행 Phase만 변경하며, orchestration/phase 파일 간 정합성을 자동 유지합니다.
-allowed-tools: Read, Edit, Write, Grep, Glob, Bash, Agent
+allowed-tools: Read, Edit, Write, Grep, Glob, Bash, Agent, AskUserQuestion
 ---
 
 ## 역할
@@ -17,7 +17,7 @@ $ARGUMENTS로 기능명 또는 오케스트레이션 파일 경로를 전달받�
 1. $ARGUMENTS에서 대상 계획을 특정한다.
    - 경로가 주어지면 해당 파일을 읽는다.
    - 기능명만 주어지면 `Docs/Plans/[기능명]/orchestration.md`를 찾는다.
-   - 없으면 `Docs/Plans/*/orchestration.md`를 Glob으로 탐색하여 목록을 보여주고 선택을 요청한다.
+   - 없으면 `Docs/Plans/*/orchestration.md`를 Glob으로 탐색하여 `AskUserQuestion` 도구로 선택지를 제시한다 (방향키 선택 가능).
 2. orchestration.md를 읽어 전체 Phase 구조를 파악한다.
 3. execution-log.md를 읽어 완료된 Phase를 식별한다.
 4. 모든 phase-N-*.md 파일을 읽어 각 Phase의 상세 내용을 파악한다.

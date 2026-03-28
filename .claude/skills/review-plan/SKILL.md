@@ -1,7 +1,7 @@
 ---
 name: review-plan
 description: 구현 계획을 프로젝트 컨벤션과 코드베이스 기준으로 검토합니다. 문제가 있으면 사용자 확인 후 /plan-edit로 수정하고 재검토합니다 (최대 3회).
-allowed-tools: Read, Grep, Glob, Bash, Edit, Write, EnterPlanMode, ExitPlanMode, Skill
+allowed-tools: Read, Grep, Glob, Bash, Edit, Write, EnterPlanMode, ExitPlanMode, Skill, AskUserQuestion
 ---
 
 ## 역할
@@ -19,7 +19,7 @@ $ARGUMENTS를 다음 순서로 해석한다:
 1. **경로 매칭**: $ARGUMENTS가 파일 경로이면 해당 파일을 읽는다.
 2. **기능명 매칭**: `Docs/Plans/[$ARGUMENTS]/orchestration.md`가 존재하면 해당 계획을 로드한다.
 3. **현재 대화 매칭**: 위에 해당하지 않으면, 현재 대화에서 가장 최근에 생성한 구현 계획을 대상으로 삼는다.
-4. **탐색**: 어디에도 해당하지 않으면 `Docs/Plans/*/orchestration.md`를 Glob으로 탐색하여 목록을 보여주고 사용자에게 선택을 요청한다.
+4. **탐색**: 어디에도 해당하지 않으면 `Docs/Plans/*/orchestration.md`를 Glob으로 탐색하여 `AskUserQuestion` 도구로 선택지를 제시한다 (방향키 선택 가능).
 
 $ARGUMENTS에서 경로/기능명 외 추가 텍스트가 있으면 추가 검토 관점으로 반영한다.
 

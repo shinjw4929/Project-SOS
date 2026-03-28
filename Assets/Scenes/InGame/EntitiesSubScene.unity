@@ -269,6 +269,7 @@ MonoBehaviour:
   wanderBiasFactor: 0.5
   wanderMaxDistance: 40
   targetPropagationRadius: 9
+  targetAbandonDuration: 30
   stuckCheckInterval: 3
   stuckThreshold: 2
   dormantMinDuration: 5
@@ -2670,11 +2671,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: dc5414274d42d0c4cb2f6f07ea5b57f9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  initialWallDecayTime: 20
+  initialWallDecayTime: 46
   wave0InitialSpawnCount: 5
-  wave1TriggerTime: 20
+  wave1TriggerTime: 80
   wave1TriggerKillCount: 1
-  wave2TriggerTime: 100
+  wave2TriggerTime: 180
   wave2TriggerKillCount: 5
   maxEnemyCount: 4000
   resourceNodeExclusionDistance: 9
@@ -2693,6 +2694,7 @@ MonoBehaviour:
   wanderBiasFactor: 0.5
   wanderMaxDistance: 40
   targetPropagationRadius: 20
+  targetAbandonDuration: 30
   stuckCheckInterval: 3
   stuckThreshold: 2
   dormantMinDuration: 5

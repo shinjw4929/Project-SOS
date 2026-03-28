@@ -1,7 +1,7 @@
 ---
 name: analyze
 description: ECS 시스템 간 의존성과 컴포넌트 변경 영향도를 분석합니다. 컴포넌트/시스템 수정 전 영향 범위를 파악하거나 아키텍처를 이해할 때 사용합니다.
-allowed-tools: Read, Grep, Glob, Bash, Agent
+allowed-tools: Read, Grep, Glob, Bash, Agent, AskUserQuestion
 ---
 
 ## 역할
@@ -9,7 +9,7 @@ allowed-tools: Read, Grep, Glob, Bash, Agent
 지정된 컴포넌트, 시스템, 또는 기능 영역의 의존성과 영향 범위를 분석하여 보고한다.
 코드 수정은 하지 않는다. 분석 결과만 출력한다.
 
-$ARGUMENTS가 있으면 해당 내용을 분석 대상으로 반영한다. 없으면 사용자에게 분석 대상을 질문한다.
+$ARGUMENTS가 있으면 해당 내용을 분석 대상으로 반영한다. 없으면 `AskUserQuestion` 도구로 분석 유형을 선택지로 제시한다 (컴포넌트 / 시스템 / 기능 영역 / 변경 시나리오).
 
 ## 분석 절차
 

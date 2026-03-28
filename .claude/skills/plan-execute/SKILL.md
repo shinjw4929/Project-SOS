@@ -1,7 +1,7 @@
 ---
 name: plan-execute
 description: Docs/Plans/ 아래의 구현 계획(오케스트레이션)을 읽고 Phase별로 순차 실행하며, 실행 기록을 자동 갱신합니다.
-allowed-tools: Read, Edit, Write, Grep, Glob, Bash, Agent, Skill, EnterPlanMode, ExitPlanMode
+allowed-tools: Read, Edit, Write, Grep, Glob, Bash, Agent, Skill, EnterPlanMode, ExitPlanMode, AskUserQuestion
 ---
 
 ## 역할
@@ -18,15 +18,19 @@ $ARGUMENTS로 오케스트레이션 파일 경로 또는 기능명을 전달받�
 1. $ARGUMENTS에서 경로를 추출한다.
    - 경로가 주어지면 해당 파일을 읽는다.
    - 기능명만 주어지면 `Docs/Plans/[기능명]/orchestration.md`를 찾는다.
-   - 없으면 `Docs/Plans/*/orchestration.md`를 Glob으로 탐색하여 목록을 보여주고 사용자에게 선택을 요청한다.
+   - 없으면 `Docs/Plans/*/orchestration.md`를 Glob으로 탐색하여 `AskUserQuestion` 도구로 선택지를 제시한다 (방향키 선택 가능).
 2. 오케스트레이션 파일에서 Phase 체크리스트와 의존성을 파악한다.
 3. `execution-log.md`를 읽어 이미 완료된 Phase를 확인한다. 완료된 Phase는 건너뛴다.
 
 ### 1단계: 다음 Phase 결정
 
-1. 완료되지 않은 Phase 중 선행 조건이 충족된 가장 빠른 Phase를 선택한다.
-2. 해당 Phase 파일을 읽어 작업 목록, 테스트 요구사항, 완료 기준을 확인한다.
-3. 사용자에게 실행할 Phase의 요약을 보여주고 진행 확인을 받는다.
+1. 완료되지 않은 Phase 목록을 추출한다.
+2. `AskUserQuestion` 도구로 실행할 Phase를 선택지로 제시한다 (방향키로 선택 가능).
+   - 선행 조건이 충족된 가장 빠른 Phase를 첫 번째 옵션으로 놓고 "(Recommended)"를 붙인다.
+   - 나머지 미완료 Phase도 옵션에 포함한다 (최대 4개, 초과 시 "Other"로 직접 입력 가능).
+   - "전체 자동 실행" 옵션도 포함한다.
+   - 각 옵션의 description에 Phase 요약을 간략히 기재한다.
+3. 사용자가 선택한 Phase 파일을 읽어 작업 목록, 테스트 요구사항, 완료 기준을 확인한 뒤 바로 실행에 들어간다.
 
 ### 2단계: Phase 실행
 

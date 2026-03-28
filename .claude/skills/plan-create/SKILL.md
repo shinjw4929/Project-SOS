@@ -1,7 +1,7 @@
 ---
 name: plan-create
 description: 사용자 요구사항을 분석하여 오케스트레이션 + Phase 파일로 구성된 구현 계획을 Docs/Plans/ 아래에 생성합니다.
-allowed-tools: Read, Grep, Glob, Bash, Write, Edit, Agent, EnterPlanMode, ExitPlanMode, Skill
+allowed-tools: Read, Grep, Glob, Bash, Write, Edit, Agent, Skill
 ---
 
 ## 역할
@@ -74,15 +74,13 @@ review-plan이 "재계획 필요"로 판정하면 내부적으로 `/plan-edit`�
 
 review-plan이 "승인 가능"을 반환하면 다음 단계로 진행한다.
 
-### 7단계: Plan 모드로 최종 계획 제출
+### 7단계: 계획 요약본 저장
 
-EnterPlanMode로 진입하여 검증 완료된 계획의 요약을 제출한다:
+검증 완료된 계획의 요약을 `Docs/Plans/[기능명]/summary.md`에 저장한다:
 - 문제 정의 핵심
 - Phase 구성 요약
 - 예상 영향 범위
 - 자동 리뷰 통과 여부 (N회차에 승인)
-
-ExitPlanMode로 종료한다.
 
 ### 8단계: 사용자에게 결과 보고
 

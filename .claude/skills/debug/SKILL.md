@@ -1,7 +1,7 @@
 ---
 name: debug
 description: Unity DOTS 특화 디버깅 스킬. 에러 메시지/증상을 입력하면 관련 시스템을 탐색하고 DOTS 고유 원인을 체계적으로 점검하여 수정안을 제시합니다.
-allowed-tools: Read, Edit, Grep, Glob, Bash, Agent, Skill
+allowed-tools: Read, Edit, Grep, Glob, Bash, Agent, Skill, AskUserQuestion
 ---
 
 ## 역할
@@ -15,6 +15,7 @@ $ARGUMENTS가 있으면 해당 내용을 에러 메시지/증상/재현 조건�
 ### 1단계: 증상 수집
 
 사용자로부터 다음 정보를 확보한다. $ARGUMENTS에서 추출할 수 없는 항목은 사용자에게 질문한다.
+**발생 시점**이 불명확한 경우 `AskUserQuestion` 도구로 선택지를 제시한다 (편집 모드 / 플레이 모드 / 빌드 후).
 
 | 항목 | 설명 |
 |---|---|
