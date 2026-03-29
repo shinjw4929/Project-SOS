@@ -79,7 +79,7 @@ namespace Client
                 SystemAPI.SetComponent(entity, new SelectedEntityInfoState());
 
 #if UNITY_EDITOR
-                entityManager.SetName(entity, "Singleton_CurrentSelectionState");
+                entityManager.SetName(entity, "Singleton_SelectedEntityInfoState");
 #endif
             }
 
@@ -106,6 +106,17 @@ namespace Client
 
 #if UNITY_EDITOR
                 entityManager.SetName(entity, "Singleton_SoundEventState");
+#endif
+            }
+
+            // 7. RoomAuthState 생성 (룸 서버 토큰 전달용)
+            if (!SystemAPI.HasSingleton<RoomAuthState>())
+            {
+                var entity = entityManager.CreateEntity(typeof(RoomAuthState));
+                // default FixedString128Bytes는 Length==0이므로 별도 초기화 불필요
+
+#if UNITY_EDITOR
+                entityManager.SetName(entity, "Singleton_RoomAuthState");
 #endif
             }
 
