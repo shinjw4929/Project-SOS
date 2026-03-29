@@ -13,7 +13,8 @@
         "Unity.Entities.Graphics",
         "Shared",
         "Unity.TextMeshPro",
-        "Unity.Entities.Hybrid"
+        "Unity.Entities.Hybrid",
+        "Unity.Networking.Transport"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

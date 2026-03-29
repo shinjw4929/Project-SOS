@@ -14,7 +14,10 @@ public class GameBootStrap : ClientServerBootstrap {
     {
         // 백그라운드에서 멈추지 않도록 설정
         Application.runInBackground = true;
-        // 포트 설정
+        // timeScale 강제 복원 (이전 GameStartPanelController가 0으로 설정한 값이 씬에 잔존할 수 있음)
+        Time.timeScale = 1f;
+        // 서버 리슨 + 클라이언트 자동 접속에 사용되는 포트
+        // 클라이언트 자동 접속은 발생하지만, GoInGameClientSystem이 토큰 없으면 게임 진입을 차단
         AutoConnectPort = 7979;
 
         // vSync 끄기
