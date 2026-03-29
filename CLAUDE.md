@@ -66,6 +66,12 @@ Before implementing any request, ask yourself: "Is this the most efficient way t
 3. **AggroTarget**: 유닛/적 공통 타겟 추적 컴포넌트
 4. **원거리 공격**: `RangedUnitTag`/`RangedEnemyTag` → 필중 + 시각 투사체(VisualOnlyTag) 생성
 
+### Animation & Sound Rules
+1. **VAT 애니메이션**: VATAnimationAuthoring(Composition 패턴)으로 프리팹에 부착. 현재 VAT 적용 대상은 Hero, EnemySmall, EnemyFlying 3종.
+2. **상태→클립 매핑**: 서버 `VATAnimationStateUpdateSystem`에서 UnitActionState/EnemyState → CurrentClipIndex 변환. 새 유닛/적 추가 시 매핑 로직 갱신 필요.
+3. **SoundEvent 패턴**: ECS 버퍼(`SoundEvent`) → MonoBehaviour(`SoundManager`) 브릿지. `SoundEventEmitSystem`이 상태 변화 감지 → 버퍼 추가, `SoundManager`가 매 프레임 소비.
+4. **전투 기울임**: `CombatTiltSystem`이 Attacking 상태에서 Rotation pitch 조작 (VAT 유무와 무관, 전체 유닛/적 대상). tiltAngle/tiltSpeed는 GameSettings.
+
 ### Collider Rules
 1. **Collider 용도**: raycast(선택, 건설 검증) + 투사체 충돌 전용. 물리 충돌에 Collider 사용 금지.
 2. **물리 충돌**: 그리드 셀(GridCell.IsPathBlocked) 기반. PredictedMovementSystem, GridObstacleResponseSystem 참조.

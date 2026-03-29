@@ -66,7 +66,7 @@ MovementArrivalSystem → 도착 판정 → 이동 정지 + Intent.Idle + Action
 - UnitActionState = Action.Moving (걷기 애니메이션 트리거)
 - AggroTarget 초기화 (공격 대상 제거)
 - MovementWaypoints 활성화 (SetComponentEnabled)
-- **군집 이동 (Group Formation)**: 동일 프레임+소유자+목적지(1m이내) 유닛을 그룹화 → FormationUtility로 격자 오프셋 적용 → 유닛별 개별 도착 좌표
+- **군집 이동 (Group Formation)**: 동일 프레임+소유자+목적지(1m이내) 유닛을 그룹화 → FormationUtility로 격자 오프셋 적용 → 유닛별 개별 도착 좌표. 오프셋 적용 후 목적지가 벽(IsPathBlocked) 내부이면 오프셋을 제거하여 원래 그룹 목적지로 폴백
 
 ---
 
