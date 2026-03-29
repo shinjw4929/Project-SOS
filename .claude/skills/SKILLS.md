@@ -4,14 +4,14 @@
 
 ```
 [Tier 1: 오케스트레이션] 사용자 호출 → Tier 2 자동 호출
-  implement ──auto──→ /review-comments, /update-docs
-  plan-execute ──auto──→ /review-comments, /update-docs
-  debug ──auto──→ /review-comments
+  implement ──auto──→ /sync-comments, /sync-docs
+  plan-execute ──auto──→ /sync-comments, /sync-docs
+  diagnose ──auto──→ /sync-comments
   plan-create ──auto──→ /review-plan ──auto──→ /plan-edit
 
 [Tier 2: 후처리] 자동 호출 OR 사용자 직접 호출
-  review-comments    주석 정합성 점검 및 수정
-  update-docs        Docs 문서 동기화
+  sync-comments      주석 정합성 점검 및 수정
+  sync-docs          Docs 문서 동기화
 
 [Tier 2: 검증] 텍스트 권장만 (사용자 직접 호출)
   build              Unity CLI 빌드
@@ -21,6 +21,7 @@
 [독립 도구] 사용자 직접 호출
   analyze            의존성/영향도 분석 (읽기 전용)
   commit             커밋 메시지 작성 및 커밋
+  create-skill       기존 패턴 기반 새 스킬 생성 (200줄 제한)
   plan-edit          계획 부분 수정
   review-plan        계획 검토
 ```
@@ -29,7 +30,7 @@
 
 | 문서 | 참조 스킬 |
 |------|-----------|
-| `Docs/Checklists/pattern-search-guide.md` | implement, plan-execute, debug |
+| `Docs/Checklists/pattern-search-guide.md` | implement, plan-execute, diagnose |
 | `Docs/Checklists/review-code-checklist.md` | review-code, review-plan |
 
 ---
@@ -42,7 +43,7 @@
 /implement [구현 대상]
 ```
 
-패턴 탐색 → 코드 작성 → /review-comments(자동) → /update-docs(자동)
+패턴 탐색 → 코드 작성 → /sync-comments(자동) → /sync-docs(자동)
 필요 시 사용자가 /build, /test, /review-code 추가 실행.
 
 **예시:**
@@ -54,7 +55,7 @@
 
 ```
 /plan-create [기능명]          계획 생성 → /review-plan(자동)
-/plan-execute [기능명]         Phase별 실행 → /review-comments(자동) → /update-docs(자동)
+/plan-execute [기능명]         Phase별 실행 → /sync-comments(자동) → /sync-docs(자동)
 ```
 
 필요 시 사용자가 /build, /test, /review-code, /commit 추가 실행.
@@ -78,10 +79,10 @@
 ### 4. 버그 수정
 
 ```
-/debug [에러 메시지 또는 증상]
+/diagnose [에러 메시지 또는 증상]
 ```
 
-진단 → 수정 적용 → /review-comments(자동)
+진단 → 수정 적용 → /sync-comments(자동)
 필요 시 사용자가 /build, /test 추가 실행.
 
 **예시:**
@@ -117,7 +118,7 @@
 ### 7. 주석만 빠르게 정리
 
 ```
-/review-comments [선택: 파일 경로]
+/sync-comments [선택: 파일 경로]
 ```
 
 변경된 파일의 주석이 코드와 일치하는지 점검하고 즉시 수정한다.
@@ -126,7 +127,7 @@ Tier 1 스킬이 자동 호출하므로, 단독 사용은 핫픽스 후 주석�
 ### 8. 문서만 업데이트
 
 ```
-/update-docs [선택: 범위]
+/sync-docs [선택: 범위]
 ```
 
 코드 변경에 대응하는 Docs 문서를 갱신한다.
@@ -161,6 +162,18 @@ Unity Editor가 닫혀 있어야 실행 가능. 기본은 전체 EditMode 테스
 
 변경사항을 분석하여 한국어 커밋 메시지를 작성하고, 사용자 확인 후 커밋한다.
 
+### 12. 새 스킬 생성
+
+```
+/create-skill [스킬명 또는 목적]
+```
+
+기존 스킬 패턴을 분석하여 동일한 구조의 새 스킬을 생성한다. SKILLS.md 인덱스도 자동 업데이트.
+
+**예시:**
+- `/create-skill review-perf 성능 전문 리뷰`
+- `/create-skill gen-test 시스템별 테스트 자동 생성`
+
 ---
 
 ## 일반적인 워크플로우 체이닝
@@ -168,14 +181,14 @@ Unity Editor가 닫혀 있어야 실행 가능. 기본은 전체 EditMode 테스
 ### 소규모 작업
 
 ```
-/implement → (/review-comments + /update-docs 자동) → /build → /test → /commit
+/implement → (/sync-comments + /sync-docs 자동) → /build → /test → /commit
 ```
 
 ### 대규모 작업
 
 ```
 /plan-create → (/review-plan 자동)
-/plan-execute → (/review-comments + /update-docs 자동) → /review-code → /build → /test → /commit
+/plan-execute → (/sync-comments + /sync-docs 자동) → /review-code → /build → /test → /commit
 ```
 
 ### 분석 후 구현
@@ -187,5 +200,5 @@ Unity Editor가 닫혀 있어야 실행 가능. 기본은 전체 EditMode 테스
 ### 디버그 후 검증
 
 ```
-/debug → (/review-comments 자동) → /build → /test → /commit
+/diagnose → (/sync-comments 자동) → /build → /test → /commit
 ```

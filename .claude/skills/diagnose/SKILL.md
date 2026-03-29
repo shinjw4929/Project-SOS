@@ -1,5 +1,5 @@
 ---
-name: debug
+name: diagnose
 description: Unity DOTS 특화 디버깅 스킬. 에러 메시지/증상을 입력하면 관련 시스템을 탐색하고 DOTS 고유 원인을 체계적으로 점검하여 수정안을 제시합니다.
 allowed-tools: Read, Edit, Grep, Glob, Bash, Agent, Skill, AskUserQuestion
 ---
@@ -97,7 +97,7 @@ $ARGUMENTS가 있으면 해당 내용을 에러 메시지/증상/재현 조건�
 사용자에게 수정 적용 여부를 확인한 뒤:
 - **단순 라인 수정**: Edit 도구로 직접 수정한다.
 - **새 시스템/컴포넌트 추가 등 큰 변경**: `Docs/Checklists/pattern-search-guide.md`를 따라 기존 패턴을 탐색한 뒤 수정한다. 또는 `/implement`로 패턴 기반 구현을 권장한다.
-- 수정 적용 후 `/review-comments`를 자동 호출하여 주석 정합성을 점검한다.
+- 수정 적용 후 `/sync-comments`를 자동 호출하여 주석 정합성을 점검한다.
 - `/build`로 컴파일 검증을 권장한다.
 - 수정이 시스템 동작에 영향을 주는 경우 `/test`도 권장한다.
 

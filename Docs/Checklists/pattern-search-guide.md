@@ -1,7 +1,7 @@
 # 패턴 탐색 가이드
 
 > 코드 작성 전 기존 패턴을 탐색하고 추출하는 공유 절차.
-> `/implement`, `/plan-execute`, `/debug` 스킬이 코드 작성 시 참조한다.
+> `/implement`, `/plan-execute`, `/diagnose` 스킬이 코드 작성 시 참조한다.
 
 ## 1. 유형별 탐색 전략
 
