@@ -117,14 +117,14 @@ SoundManager Inspector에서 SoundType → AudioClip 매핑 할당:
 
 ## 문서 업데이트 체크리스트
 
-- [ ] `Docs/Architecture.md` — System Execution Flow에 애니메이션/사운드 추가
-- [ ] `Docs/Architecture.md` — Key Patterns에 VAT Animation Pattern 추가
-- [ ] `Docs/Architecture.md` — Folder Structure 테이블에 신규 폴더 추가
-- [ ] `Docs/Systems/코드베이스 구조.md` — 신규 파일 목록 반영
+- [x] `Docs/Architecture.md` — System Execution Flow에 애니메이션/사운드 추가
+- [x] `Docs/Architecture.md` — Key Patterns에 VAT Animation Pattern 추가
+- [x] `Docs/Architecture.md` — Folder Structure 테이블에 신규 폴더 추가
+- [x] `Docs/Systems/코드베이스 구조.md` — 신규 파일 목록 반영
 
 ## Post-Implementation 체크리스트 (CLAUDE.md 준수)
 
-- [ ] 문서 업데이트: 위 "문서 업데이트 체크리스트" 항목 전부 완료 확인 (Architecture.md, 코드베이스 구조.md)
-- [ ] 주석 정합성 점검: Phase 1~5에서 변경된 파일의 기존 주석이 코드 동작과 일치하는지 확인
-- [ ] CLAUDE.md 동기화: Development Guidelines > Key Patterns에 VAT Animation 패턴 (MaterialProperty + 셰이더 연동), SoundEvent 패턴 (ECS 버퍼 → MonoBehaviour 브릿지), CombatTilt 패턴 추가
-- [ ] WorkLog 기록: `Docs/WorkLog/YYYY-MM-DD/VAT 애니메이션 + 사운드 시스템 구현.md` 작성
+- [x] 문서 업데이트: 위 "문서 업데이트 체크리스트" 항목 전부 완료 확인 (Architecture.md, 코드베이스 구조.md)
+- [x] 주석 정합성 점검: Phase 1~5에서 변경된 파일의 기존 주석이 코드 동작과 일치하는지 확인
+- [x] CLAUDE.md 동기화: Development Guidelines > Animation & Sound Rules 섹션 추가
+- [ ] WorkLog 기록 → execution-log.md에 기록 완료 (계획 기반 작업이므로 WorkLog 생략)
