@@ -6,6 +6,7 @@ using Unity.NetCode;
 using Unity.Transforms;
 using UnityEngine;
 using Shared;
+using Server;
 
 [BurstCompile]
 [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
@@ -31,7 +32,7 @@ partial struct GoInGameServerSystem : ISystem
         foreach ((
                      RefRO<ReceiveRpcCommandRequest> receiveRpcCommandRequest,
                      Entity entity)
-                 in SystemAPI.Query<RefRO<ReceiveRpcCommandRequest>>().WithAll<GoInGameRequestRpc>().WithEntityAccess())
+                 in SystemAPI.Query<RefRO<ReceiveRpcCommandRequest>>().WithAll<GoInGameRequestRpc, TokenValidatedTag>().WithEntityAccess())
         {
           entityCommandBuffer.AddComponent<NetworkStreamInGame>(receiveRpcCommandRequest.ValueRO.SourceConnection);
           entityCommandBuffer.AddComponent(receiveRpcCommandRequest.ValueRO.SourceConnection,
