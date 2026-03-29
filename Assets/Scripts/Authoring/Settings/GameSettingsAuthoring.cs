@@ -49,6 +49,9 @@ namespace Authoring
         [Tooltip("유닛 생산 시 건물 가장자리로부터 스폰 오프셋 (m)")]
         [Min(0f)]
         public float unitSpawnOffset = 1.0f;
+        [Tooltip("스폰 여유 비율 (0~1). 기존 유닛과 offset × 이 값 이상 떨어져야 빈 자리")]
+        [Range(0.1f, 1f)]
+        public float spawnClearanceRatio = 0.8f;
         [Tooltip("ProductionInfo 없을 때 기본 생산 시간 (초)")]
         [Min(0.1f)]
         public float defaultProductionTime = 5f;
@@ -87,6 +90,9 @@ namespace Authoring
         [Tooltip("Steering 회피 계산 분산 주기 (N프레임에 1회)")]
         [Min(1)]
         public uint steeringSliceDivisor = 4;
+        [Tooltip("Steering 캐시 최대 강도 (0~1). 높을수록 캐시 방향 영향이 큼")]
+        [Range(0.05f, 1f)]
+        public float steeringCacheMaxStrength = 0.3f;
 
         [Header("Wandering")]
         [Tooltip("맵 중심 편향 (0=랜덤, 1=중심 직진)")]
@@ -183,6 +189,7 @@ namespace Authoring
                     ResourceNodeExclusionDistance = authoring.resourceNodeExclusionDistance,
                     MaxBuildRetryCount = authoring.maxBuildRetryCount,
                     UnitSpawnOffset = authoring.unitSpawnOffset,
+                    SpawnClearanceRatio = authoring.spawnClearanceRatio,
                     DefaultProductionTime = authoring.defaultProductionTime,
                     InitialCurrency = authoring.initialCurrency,
                     InitialMaxPopulation = authoring.initialMaxPopulation,
@@ -193,6 +200,7 @@ namespace Authoring
                     AvoidancePadding = authoring.avoidancePadding,
                     MaxBFSPerFrame = authoring.maxBFSPerFrame,
                     SteeringSliceDivisor = authoring.steeringSliceDivisor,
+                    SteeringCacheMaxStrength = authoring.steeringCacheMaxStrength,
                     WanderBiasFactor = authoring.wanderBiasFactor,
                     WanderMaxDistance = authoring.wanderMaxDistance,
                     TargetPropagationRadius = authoring.targetPropagationRadius,

@@ -73,6 +73,8 @@ namespace Shared
         public int MaxBuildRetryCount;
         /// <summary>유닛 생산 시 건물 가장자리로부터 스폰 오프셋 (월드 단위, m)</summary>
         public float UnitSpawnOffset;
+        /// <summary>스폰 위치 여유 비율 (0~1). 기존 유닛과 UnitSpawnOffset × 이 값 이상 떨어진 자리를 빈 자리로 판정</summary>
+        public float SpawnClearanceRatio;
         /// <summary>ProductionInfo 없을 때 기본 생산 시간 (초)</summary>
         public float DefaultProductionTime;
 
@@ -105,6 +107,8 @@ namespace Shared
         public int MaxBFSPerFrame;
         /// <summary>Steering 회피 계산 분산 주기 (N프레임에 1회, 나머지는 캐시 재사용)</summary>
         public uint SteeringSliceDivisor;
+        /// <summary>Steering 캐시 최대 강도 (0~1). 높을수록 non-steering 프레임에서 캐시 영향이 큼</summary>
+        public float SteeringCacheMaxStrength;
 
         // === 배회 ===
 

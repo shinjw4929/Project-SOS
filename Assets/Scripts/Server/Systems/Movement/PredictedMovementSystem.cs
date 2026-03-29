@@ -85,7 +85,8 @@ namespace Server
                 GridCells = gridCells,
                 GridSettings = gridSettings,
                 FrameCount = (uint)state.GlobalSystemVersion,
-                SteeringSliceDivisor = movGS.SteeringSliceDivisor >= 1 ? movGS.SteeringSliceDivisor : 4u
+                SteeringSliceDivisor = movGS.SteeringSliceDivisor >= 1 ? movGS.SteeringSliceDivisor : 4u,
+                SteeringCacheMaxStrength = movGS.SteeringCacheMaxStrength > 0f ? movGS.SteeringCacheMaxStrength : 0.3f
             };
 
             state.Dependency = moveJob.ScheduleParallel(_movingQuery, state.Dependency);
@@ -115,6 +116,7 @@ namespace Server
         public float AvoidancePadding;
         public uint FrameCount;
         public uint SteeringSliceDivisor;
+        public float SteeringCacheMaxStrength;
 
         [ReadOnly] public NativeArray<GridCell> GridCells;
         public GridSettings GridSettings;
@@ -207,6 +209,10 @@ namespace Server
             if (skipMovement)
             {
                 finalVelocity = float3.zero;
+                // 새 명령(IsPathDirty) 또는 정지 시 캐시된 회피 방향 리셋
+                // 이전 회피 방향이 잔류하면 이동 재개 시 잘못된 방향으로 밀림
+                cachedAvoidance.Direction = float3.zero;
+                cachedAvoidance.Strength = 0f;
             }
             else
             {
@@ -226,7 +232,7 @@ namespace Server
                         float3 actualDir = math.normalizesafe(finalVelocity);
                         float deviation = 1.0f - math.dot(desiredDir, actualDir);
                         cachedAvoidance.Direction = actualDir;
-                        cachedAvoidance.Strength = math.saturate(deviation * 2.0f);
+                        cachedAvoidance.Strength = math.min(math.saturate(deviation * 2.0f), SteeringCacheMaxStrength);
                     }
                     else
                     {
@@ -285,6 +291,17 @@ namespace Server
             if (!iAmFlying)
             {
                 ClampToWall(ref transform.Position, obstacleRadius.Radius);
+            }
+
+            // 맵 경계 클램프 (avoidance 밀림 등으로 맵 밖 이탈 방지)
+            {
+                float r = obstacleRadius.Radius;
+                float minX = GridSettings.GridOrigin.x + r;
+                float minZ = GridSettings.GridOrigin.y + r;
+                float maxX = GridSettings.GridOrigin.x + GridSettings.GridSize.x * GridSettings.CellSize - r;
+                float maxZ = GridSettings.GridOrigin.y + GridSettings.GridSize.y * GridSettings.CellSize - r;
+                transform.Position.x = math.clamp(transform.Position.x, minX, maxX);
+                transform.Position.z = math.clamp(transform.Position.z, minZ, maxZ);
             }
 
             velocity.Linear = finalVelocity;
