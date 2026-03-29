@@ -19,7 +19,8 @@ Docs/
 │   ├── Project-SOS 상태 시스템 설계.md  # UserContext 상태 머신, UI 상태
 │   ├── 팀 색상 시스템.md                # TeamColorSystem, TeamColorPalette, 팀별 틴트
 │   ├── 미니맵 및 Ghost Relevancy.md    # Ghost Relevancy, 미니맵 RPC 시스템, 대역폭
-│   └── 로깅 시스템.md                  # LogCategory, SOSLog, 로깅 규칙
+│   ├── 로깅 시스템.md                  # LogCategory, SOSLog, 로깅 규칙
+│   └── 룸 서버 연동.md                 # RoomClient, 토큰 검증, 접속 흐름, Protobuf
 │
 ├── Checklists/                    # 스킬 참조용 체크리스트
 │   └── review-code-checklist.md   # 코드 리뷰 상세 검토 항목 (A~E)
@@ -51,6 +52,7 @@ Docs/
 | UI 상태 변경 | `Project-SOS 상태 시스템 설계.md` |
 | 게임 규칙/밸런스 방향 변경 | `GameDesign.md` |
 | 로깅 변경 | `로깅 시스템.md` |
+| 룸 서버/접속 흐름 변경 | `룸 서버 연동.md` |
 | 새 RPC 추가 | `코드베이스 구조.md` (RPCs 섹션), 관련 기능 문서 |
 
 ---

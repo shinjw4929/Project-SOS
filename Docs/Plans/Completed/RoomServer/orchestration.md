@@ -15,9 +15,9 @@
 ## 영향 범위
 
 - **Client**: RoomClient(TCP), RoomUIController, GoInGameClientSystem, NetcodeConnectionUtil, RoomAuthState
-- **Server**: TokenValidationSystem, SlotNotifySystem, GoInGameServerSystem
-- **Shared**: GoInGameRequestRpc, RoomSessionInfo, TokenValidatedTag
-- **Bootstrap**: GameBootStrap.cs (AutoConnectPort 변경)
+- **Server**: TokenValidationSystem, SlotNotifySystem, GoInGameServerSystem, RoomSessionInfo, TokenValidatedTag
+- **Shared**: GoInGameRequestRpc
+- **Bootstrap**: GameBootStrap.cs (`Assets/Scripts/GameBootStrap.cs`, AutoConnectPort 변경)
 
 ---
 
@@ -33,7 +33,7 @@
 ### 관련 파일
 | 파일 | 현재 역할 |
 |------|----------|
-| `GameBootStrap.cs:18` | `AutoConnectPort = 7979` (자동 접속) |
+| `Assets/Scripts/GameBootStrap.cs:18` | `AutoConnectPort = 7979` (자동 접속) |
 | `GoInGameClientSystem.cs` | NetworkId 존재 시 즉시 GoInGameRequestRpc 전송 |
 | `GoInGameServerSystem.cs` | 모든 GoInGameRequestRpc 무조건 처리, Hero 생성 |
 | `GoInGameRequestRpc.cs` | 빈 구조체 (`IRpcCommand`, 필드 없음) |
@@ -65,11 +65,11 @@
 |------|------|
 | **신규** | RoomClient.cs, NetcodeConnectionUtil.cs, RoomAuthState.cs, RoomUIController.cs |
 | **신규** | TokenValidationSystem.cs, RoomTokenValidator.cs, SlotNotifySystem.cs, SlotNotifyClient.cs |
-| **신규** | RoomSessionInfo.cs, TokenValidatedTag.cs |
+| **신규** | RoomSessionInfo.cs (Server), TokenValidatedTag.cs (Server) |
 | **신규** | Shared/Network/Generated/ (protoc C# 코드, Client+Server 모두 참조) |
 | **신규** | Shared/Network/ProtobufFraming.cs (4byte LE 프레이밍) |
 | **수정** | GameBootStrap.cs (AutoConnectPort = 0) |
-| **수정** | Shared.asmdef (Google.Protobuf DLL 참조 추가) |
+| **신규** | Assets/Plugins/Protobuf/ (Google.Protobuf DLL, 전체 asmdef auto-reference) |
 | **수정** | GoInGameRequestRpc.cs (AuthToken 필드 추가) |
 | **수정** | GoInGameClientSystem.cs (토큰 포함 전송) |
 | **수정** | GoInGameServerSystem.cs (WithAll<TokenValidatedTag> 추가) |
@@ -94,54 +94,54 @@
 ## Phase 체크리스트
 
 ### Phase 1: Protobuf 환경 구성 + 연결 인프라 전환
-- [ ] Google.Protobuf NuGet 패키지 Unity에 추가
-- [ ] room.proto에서 C# 코드 생성 → Shared/Network/Generated/에 배치
-- [ ] Shared.asmdef에 Google.Protobuf DLL 참조 추가
-- [ ] 프레이밍 유틸리티 구현 (Shared/Network/ProtobufFraming.cs)
-- [ ] GameBootStrap.cs: AutoConnectPort = 0
-- [ ] NetcodeConnectionUtil.cs: 수동 Netcode 연결 유틸리티
-- [ ] 컴파일 확인
+- [x] Google.Protobuf DLL을 Assets/Plugins/Protobuf/에 배치 (전체 asmdef auto-reference)
+- [x] room.proto에서 C# 코드 생성 → Shared/Network/Generated/에 배치
+- [x] Client/Server/Shared asmdef 모두에서 Protobuf 타입 접근 확인
+- [x] 프레이밍 유틸리티 구현 (Shared/Network/ProtobufFraming.cs)
+- [x] GameBootStrap.cs: AutoConnectPort = 0
+- [x] NetcodeConnectionUtil.cs: 수동 Netcode 연결 유틸리티
+- [x] 컴파일 확인
 
 -> 상세: [phase-1-protobuf-infra.md](./phase-1-protobuf-infra.md)
 
 ### Phase 2: 룸 클라이언트 구현
-- [ ] RoomClient.cs: TCP 비동기 통신 (async/await + TcpClient)
-- [ ] Envelope 송수신 (Protobuf 직렬화/역직렬화)
-- [ ] 상태 머신 (Disconnected → Lobby → InRoom → Matched → InGame)
-- [ ] Heartbeat (10초 간격)
-- [ ] RoomAuthState.cs: 토큰 전달용 ECS 싱글톤
-- [ ] ClientBootstrapSystem에 RoomAuthState 초기화 추가
-- [ ] RoomClient → ECS 브리징 (World.DefaultGameObjectInjectionWorld 경유)
-- [ ] DontDestroyOnLoad 생명주기 관리
+- [x] RoomClient.cs: TCP 비동기 통신 (async/await + TcpClient)
+- [x] Envelope 송수신 (Protobuf 직렬화/역직렬화)
+- [x] 상태 머신 (Disconnected → Lobby → InRoom → Matched → InGame)
+- [x] Heartbeat (10초 간격)
+- [x] RoomAuthState.cs: 토큰 전달용 ECS 싱글톤
+- [x] ClientBootstrapSystem에 RoomAuthState 초기화 추가
+- [x] RoomClient → ECS 브리징 (World.DefaultGameObjectInjectionWorld 경유)
+- [x] DontDestroyOnLoad 생명주기 관리
 
 -> 상세: [phase-2-room-client.md](./phase-2-room-client.md)
 
 ### Phase 3: 토큰 검증 + 슬롯 관리
-- [ ] GoInGameRequestRpc.cs: AuthToken 필드 추가
-- [ ] GoInGameClientSystem.cs: RoomAuthState에서 토큰 읽어 전송
-- [ ] TokenValidatedTag.cs, RoomSessionInfo.cs 컴포넌트 생성
-- [ ] RoomTokenValidator.cs: 룸 서버 :8081 TCP 토큰 검증
-- [ ] TokenValidationSystem.cs: managed SystemBase, 토큰 검증 → Tag 부착
-- [ ] GoInGameServerSystem.cs: WithAll<TokenValidatedTag> 추가
-- [ ] SlotNotifyClient.cs: SlotReleased + GameServerHeartbeat 전송
-- [ ] SlotNotifySystem.cs: 연결 끊김 감지 + 슬롯 해제 통지
+- [x] GoInGameRequestRpc.cs: AuthToken 필드 추가
+- [x] GoInGameClientSystem.cs: RoomAuthState에서 토큰 읽어 전송
+- [x] TokenValidatedTag.cs, RoomSessionInfo.cs 컴포넌트 생성
+- [x] RoomTokenValidator.cs: 룸 서버 :8081 TCP 토큰 검증
+- [x] TokenValidationSystem.cs: managed SystemBase, 토큰 검증 → Tag 부착
+- [x] GoInGameServerSystem.cs: WithAll<TokenValidatedTag> 추가
+- [x] SlotNotifyClient.cs: SlotReleased + GameServerHeartbeat 전송
+- [x] SlotNotifySystem.cs: 연결 끊김 감지 + 슬롯 해제 통지
 
 -> 상세: [phase-3-token-slot.md](./phase-3-token-slot.md)
 
 ### Phase 4: 룸 UI
-- [ ] RoomUIController.cs: 방 목록 / 방 생성 / 대기실 화면
-- [ ] RoomClient 이벤트 바인딩 (콜백 → UI 갱신)
-- [ ] 상태별 화면 전환 (Connecting/Lobby/InRoom/GameStarting/InGame/Error)
+- [x] RoomUIController.cs: 방 목록 / 방 생성 / 대기실 화면
+- [x] RoomClient 이벤트 바인딩 (콜백 → UI 갱신)
+- [x] 상태별 화면 전환 (Connecting/Lobby/InRoom/GameStarting/InGame/Error)
 
 -> 상세: [phase-4-room-ui.md](./phase-4-room-ui.md)
 
 ### Phase 5: 에러 처리 + 통합 테스트
-- [ ] 룸 서버 접속 실패 재시도 로직
-- [ ] 대기 중 연결 끊김 처리
-- [ ] GameStart 후 게임 서버 접속 실패 처리
-- [ ] 토큰 만료(60초) 처리
-- [ ] 게임 종료 후 재플레이 (ReturnToLobby)
-- [ ] 통합 테스트 시나리오 검증
+- [x] 룸 서버 접속 실패 재시도 로직
+- [x] 대기 중 연결 끊김 처리
+- [x] GameStart 후 게임 서버 접속 실패 처리
+- [x] 토큰 만료(60초) 처리
+- [x] 게임 종료 후 재플레이 (ReturnToLobby)
+- [x] 통합 테스트 시나리오 검증
 
 -> 상세: [phase-5-error-test.md](./phase-5-error-test.md)
 
@@ -166,15 +166,15 @@
 | 1 | `GameBootStrap.cs` | AutoConnectPort = 0 |
 | 1 | `Shared/Network/Generated/*.cs` | protoc 생성 코드 (신규, Shared — Client+Server 모두 참조) |
 | 1 | `Shared/Network/ProtobufFraming.cs` | 4byte LE 프레이밍 (신규, Shared — Client+Server 모두 참조) |
-| 1 | `Shared.asmdef` | Google.Protobuf DLL 참조 추가 |
+| 1 | `Assets/Plugins/Protobuf/` | Google.Protobuf DLL 배치 (전체 asmdef auto-reference) |
 | 1 | `Client/Network/NetcodeConnectionUtil.cs` | 수동 연결 유틸리티 (신규) |
 | 2 | `Client/Network/RoomClient.cs` | TCP 클라이언트 (신규) |
 | 2 | `Client/Component/Singleton/RoomAuthState.cs` | 토큰 싱글톤 (신규) |
 | 2 | `Client/Systems/Initialize/ClientBootstrapSystem.cs` | RoomAuthState 초기화 추가 |
 | 3 | `Shared/RPCs/GoInGameRequestRpc.cs` | AuthToken 필드 추가 |
 | 3 | `Client/Systems/Initialize/GoInGameClientSystem.cs` | 토큰 포함 전송 |
-| 3 | `Shared/Components/RoomSessionInfo.cs` | 세션 정보 컴포넌트 (신규) |
-| 3 | `Shared/Components/Tags/TokenValidatedTag.cs` | 검증 태그 (신규) |
+| 3 | `Server/Data/RoomSessionInfo.cs` | 세션 정보 컴포넌트 (신규, Server 전용) |
+| 3 | `Server/Data/TokenValidatedTag.cs` | 검증 태그 (신규, Server 전용) |
 | 3 | `Server/Network/RoomTokenValidator.cs` | 토큰 검증 TCP (신규) |
 | 3 | `Server/Network/SlotNotifyClient.cs` | 슬롯 해제 TCP (신규) |
 | 3 | `Server/Systems/TokenValidationSystem.cs` | 토큰 검증 시스템 (신규) |

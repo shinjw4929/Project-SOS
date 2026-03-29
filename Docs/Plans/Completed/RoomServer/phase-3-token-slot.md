@@ -13,11 +13,12 @@
 
 ## 작업 목록
 
-### Task 1: Shared 컴포넌트 생성
+### Task 1: Server 컴포넌트 생성
 
-**파일 (신규)**: `Assets/Scripts/Shared/Components/RoomSessionInfo.cs`
+**파일 (신규)**: `Assets/Scripts/Server/Data/RoomSessionInfo.cs`
 
-- [ ] IComponentData 구현
+- [ ] IComponentData 구현 (Server 전용 — TokenValidationSystem이 생성, SlotNotifySystem이 소비)
+  - 기존 서버 전용 IComponentData(`PendingBuildServerData` 등)와 동일 디렉토리
   ```csharp
   public struct RoomSessionInfo : IComponentData
   {
@@ -26,9 +27,9 @@
   }
   ```
 
-**파일 (신규)**: `Assets/Scripts/Shared/Components/Tags/TokenValidatedTag.cs`
+**파일 (신규)**: `Assets/Scripts/Server/Data/TokenValidatedTag.cs`
 
-- [ ] 빈 IComponentData (태그 컴포넌트)
+- [ ] 빈 IComponentData (태그 컴포넌트, Server 전용)
   ```csharp
   public struct TokenValidatedTag : IComponentData { }
   ```
@@ -117,6 +118,7 @@ entityCommandBuffer.AddComponent(rpcEntity, new GoInGameRequestRpc
   - 이유: TokenValidateRequest는 요청-응답, SlotReleased는 일방향. 분리하면 수신 매칭 불필요.
 - [ ] `void SendSlotReleased(string userId, string sessionId)` — 일방향 전송 (Proto의 player_id 필드에 매핑)
 - [ ] `void SendHeartbeat(string serverId, uint activeSessions)` — 일방향 전송
+  - serverId: 환경 변수 또는 GameSettings에서 구성 (배포 환경별 고유 식별자)
 - [ ] IDisposable 구현
 - [ ] 전송 실패 시 로그 경고 후 무시 (룸 서버 측 TTL로 자동 복구)
 
@@ -130,7 +132,8 @@ entityCommandBuffer.AddComponent(rpcEntity, new GoInGameRequestRpc
 - [ ] OnUpdate:
   ```
   1. 연결 끊김 감지:
-     RoomSessionInfo가 있지만 Connection이 끊긴 엔티티
+     RoomSessionInfo가 있고 ConnectionState.State == Disconnected인 엔티티
+     (또는 NetworkStreamRequestDisconnect 존재 여부로 감지)
      → SessionId + UserId 읽기
      → SlotNotifyClient.SendSlotReleased()
      → RoomSessionInfo 컴포넌트 제거 (중복 방지)
@@ -146,7 +149,7 @@ entityCommandBuffer.AddComponent(rpcEntity, new GoInGameRequestRpc
 
 | Agent | 작업 내용 | 의존성 |
 |-------|----------|--------|
-| Agent A | Task 1 + 2 + 3 (Shared 컴포넌트 + RPC + 클라이언트 수정) | 없음 |
+| Agent A | Task 1 + 2 + 3 (Server 컴포넌트 + RPC + 클라이언트 수정) | 없음 |
 | Agent B | Task 4 + 5 + 6 (토큰 검증 서버 측) | 없음 |
 | Agent C | Task 7 + 8 (슬롯 관리) | 없음 |
 | Main | 통합 검증 | Agent A, B, C 완료 후 |
@@ -198,11 +201,11 @@ localhost 통신이므로 연결 2개의 리소스 비용은 무시 가능.
 
 ## 완료 기준
 
-- [ ] GoInGameRequestRpc에 AuthToken 필드 추가됨
-- [ ] GoInGameClientSystem이 RoomAuthState에서 토큰 읽어 전송
-- [ ] TokenValidationSystem이 :8081에서 토큰 검증 수행
-- [ ] 유효 토큰만 GoInGameServerSystem 통과 (Hero 생성)
-- [ ] 무효/빈 토큰 시 Disconnect 처리
-- [ ] SlotNotifySystem이 연결 끊김 시 SlotReleased 전송
-- [ ] GameServerHeartbeat 30초 주기 전송
-- [ ] 전체 프로젝트 컴파일 성공
+- [x] GoInGameRequestRpc에 AuthToken 필드 추가됨
+- [x] GoInGameClientSystem이 RoomAuthState에서 토큰 읽어 전송
+- [x] TokenValidationSystem이 :8081에서 토큰 검증 수행
+- [x] 유효 토큰만 GoInGameServerSystem 통과 (Hero 생성)
+- [x] 무효/빈 토큰 시 Disconnect 처리
+- [x] SlotNotifySystem이 연결 끊김 시 SlotReleased 전송
+- [x] GameServerHeartbeat 30초 주기 전송
+- [x] 전체 프로젝트 컴파일 성공

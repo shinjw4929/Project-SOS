@@ -16,11 +16,13 @@
 
 ### Task 1: Google.Protobuf Unity 통합
 
-- [ ] NuGetForUnity 또는 dll 직접 임포트로 `Google.Protobuf` 패키지 추가
-  - NuGet 패키지: `Google.Protobuf` (최신 안정 버전)
-  - 대안: NuGet에서 dll 다운로드 후 `Assets/Plugins/Protobuf/` 에 배치
+- [ ] `Google.Protobuf.dll`을 `Assets/Plugins/Protobuf/`에 배치
+  - NuGet에서 `Google.Protobuf` 최신 안정 버전 다운로드 후 dll 추출
+  - `Assets/Plugins/` 하위 배치 시 전체 asmdef(Client, Server, Shared)에 auto-reference 적용
+  - 개별 asmdef에 Override References 추가 불필요
+  - 대안: NuGetForUnity 패키지 매니저 사용
 - [ ] `Google.Protobuf.dll`이 Unity Editor + Standalone 빌드에서 참조되는지 확인
-- [ ] 기존 asmdef(Client.asmdef)에서 dll 참조 가능한지 확인
+- [ ] Client.asmdef, Server.asmdef, Shared.asmdef 모두에서 Protobuf 타입 접근 가능한지 확인
 
 ### Task 2: Protobuf C# 코드 생성
 
@@ -32,12 +34,13 @@
 - [ ] 생성된 C# 파일이 Unity에서 컴파일되는지 확인
 - [ ] `Shared/Network/Generated/` 폴더는 Shared.asmdef 범위 내에 배치
   - Client(RoomClient)와 Server(RoomTokenValidator, SlotNotifyClient) 양쪽에서 참조 필요
-  - Shared.asmdef에 Google.Protobuf DLL 참조 추가 필수
+  - Google.Protobuf DLL은 Assets/Plugins/Protobuf/에 배치되어 전체 asmdef에서 auto-reference
 
-### Task 2.5: Shared.asmdef에 Google.Protobuf 참조 추가
+### Task 2.5: Protobuf DLL 참조 확인
 
-- [ ] `Assets/Scripts/Shared/Shared.asmdef`에 `Google.Protobuf` DLL 참조 추가
-  - 이를 통해 Client.asmdef, Server.asmdef 모두 Shared 경유로 Protobuf 참조 가능
+- [ ] `Assets/Plugins/Protobuf/` 배치로 auto-reference 적용 확인
+  - Shared.asmdef, Client.asmdef, Server.asmdef 모두 Override References 미사용 시 자동 참조
+  - 만약 asmdef에 Override References가 활성화되어 있으면 각 asmdef에 개별 참조 추가 필요
 - [ ] 컴파일 확인 (순환 참조 없는지 검증)
 
 ### Task 3: 프레이밍 유틸리티 구현
@@ -105,9 +108,9 @@
 
 ## 완료 기준
 
-- [ ] Google.Protobuf dll이 Unity에서 참조됨 (Shared.asmdef 경유)
-- [ ] room.proto에서 생성된 C# 코드가 Shared/Network/Generated/에 배치되고 컴파일됨
-- [ ] ProtobufFraming 유틸리티 구현 + 테스트 통과
-- [ ] AutoConnectPort = 0 적용 완료
-- [ ] NetcodeConnectionUtil 구현 완료
-- [ ] 전체 프로젝트 컴파일 성공
+- [x] Google.Protobuf dll이 Unity에서 참조됨 (Assets/Plugins/Protobuf/ 배치, 전체 asmdef auto-reference)
+- [x] room.proto에서 생성된 C# 코드가 Shared/Network/Generated/에 배치되고 컴파일됨
+- [x] ProtobufFraming 유틸리티 구현 + 테스트 작성 (EditMode 테스트 7건)
+- [x] AutoConnectPort = 0 적용 완료
+- [x] NetcodeConnectionUtil 구현 완료
+- [x] 전체 프로젝트 컴파일 성공

@@ -154,9 +154,9 @@ public event Action<RoomClientState> OnStateChanged;
 
 ## 완료 기준
 
-- [ ] RoomClient가 룸 서버와 TCP 통신 가능
-- [ ] 모든 Envelope 메시지 타입 송수신 처리
-- [ ] 상태 머신 전이 동작 확인
-- [ ] RoomAuthState 싱글톤으로 토큰 전달 확인
-- [ ] DontDestroyOnLoad 생명주기 정상 동작
-- [ ] 컴파일 성공
+- [x] RoomClient가 룸 서버와 TCP 통신 가능
+- [x] 모든 Envelope 메시지 타입 송수신 처리
+- [x] 상태 머신 전이 동작 확인
+- [x] RoomAuthState 싱글톤으로 토큰 전달 확인
+- [x] DontDestroyOnLoad 생명주기 정상 동작
+- [x] 컴파일 성공

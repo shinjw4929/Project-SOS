@@ -13,7 +13,7 @@ Project-SOS is a multiplayer RTS game built with Unity 6 (6000.0.64f1) using Uni
 - **Unity Version**: 6000.0.64f1 | **Solution**: `Project-SOS.sln` (6 assemblies)
 - **Editor Settings**: Enter Play Mode Settings > Do not reload Domain or Scene
 - **Player Settings**: Run in Background (checked)
-- **AutoConnect Port**: 7979 (defined in `GameBootStrap.cs`)
+- **접속 방식**: 룸 서버 경유 수동 연결 (AutoConnect 비활성화, `RoomClient` + `NetcodeConnectionUtil` 사용)
 
 ---
 
@@ -37,6 +37,9 @@ Assets/Scripts/
 | `Client/Component/Singleton/` | 클라이언트 싱글톤 | `*State.cs` |
 | `Client/Systems/Commands/` | 입력 처리 시스템 | `*InputSystem.cs` |
 | `Server/Systems/Commands/` | RPC 처리 시스템 | `Handle*RequestSystem.cs` |
+| `Client/Network/` | 룸 서버 클라이언트 + Netcode 수동 연결 | `RoomClient.cs`, `NetcodeConnectionUtil.cs` |
+| `Server/Network/` | 룸 서버 토큰 검증 + 슬롯 관리 | `RoomTokenValidator.cs`, `SlotNotifyClient.cs` |
+| `Shared/Network/` | 프로토콜 프레이밍 + protoc 생성 코드 | `ProtobufFraming.cs`, `Room.cs` |
 | `Server/Systems/Combat/` | 전투 로직 | `*AttackSystem.cs`, `*DamageSystem.cs` |
 | `Shared/Components/Tags/` | 태그 컴포넌트 | `*Tag.cs` |
 | `Shared/RPCs/` | 네트워크 RPC | `*Rpc.cs`, `*RequestRpc.cs` |
@@ -131,6 +134,39 @@ Assets/Scripts/
 
 ---
 
+## 접속 흐름 (Room Server Integration)
+
+```
+[1. 로비] RoomClient (MonoBehaviour, TCP :8080)
+    앱 시작 → RoomClient가 룸 서버에 TCP 연결
+    → 로비/대기실 UI → GameStart 메시지 수신
+    → AuthToken + SessionId + ServerAddress 획득
+
+[2. Netcode 연결] NetcodeConnectionUtil (static)
+    GameStart 수신 → NetcodeConnectionUtil.Connect(serverAddress, port)
+    → Netcode ClientWorld 수동 연결 (AutoConnect 비활성화)
+    → RoomAuthState 싱글톤에 AuthToken + SessionId 저장
+
+[3. 게임 진입] GoInGameClientSystem (Client)
+    GoInGameRequestRpc 전송 (AuthToken 포함)
+
+[4. 토큰 검증] TokenValidationSystem (Server, UpdateBefore: GoInGameServerSystem)
+    GoInGameRequestRpc 수신 → RoomTokenValidator로 룸 서버 :8081 TCP 검증
+    → 검증 성공: TokenValidatedTag + RoomSessionInfo(SessionId, UserId) 부착
+    → 검증 실패: 연결 거부
+
+[5. Hero 생성] GoInGameServerSystem (Server, WithAll<TokenValidatedTag> 필터)
+    TokenValidatedTag가 있는 Connection만 Hero 생성 처리
+
+[6. 슬롯 관리] SlotNotifySystem (Server)
+    연결 끊김 감지 → SlotReleased 메시지 → 룸 서버 :8081 TCP
+    30초 간격 하트비트 전송
+```
+
+**프로토콜**: Protobuf (Sos.Room 네임스페이스) + 4byte LE length-prefix 프레이밍 (`ProtobufFraming`)
+
+---
+
 ## Key Patterns
 
 ### 1. DamageEvent Buffer Pattern (필수)
@@ -206,6 +242,13 @@ GPU Animation (Vertex Animation Texture) 방식으로 수천 유닛을 동시 �
 
 ### 7. Network RPCs
 `MoveRequestRpc`, `AttackRequestRpc`, `BuildRequestRpc`, `BuildMoveRequestRpc`, `GatherRequestRpc`, `ReturnResourceRequestRpc`, `ProduceUnitRequestRpc`, `SelfDestructRequestRpc`, `CameraPositionRpc`, `NotificationRpc`, `HeroDeathRpc`, `GameOverRpc`, `MinimapBatchRpc`
+
+### 8. Room Server Token Validation Pattern
+룸 서버를 통한 인증 흐름. Netcode 연결 전에 룸 서버에서 토큰을 발급받고, 서버가 이를 검증한다.
+- **클라이언트**: `RoomClient`(MonoBehaviour)가 룸 서버 TCP :8080 연결 → `GameStart` 메시지로 토큰/세션/서버주소 수신 → `NetcodeConnectionUtil`로 Netcode 수동 연결 → `GoInGameRequestRpc`에 토큰 포함
+- **서버**: `TokenValidationSystem`(managed SystemBase)이 `RoomTokenValidator`로 룸 서버 :8081 TCP 검증 → 성공 시 `TokenValidatedTag` + `RoomSessionInfo` 부착 → `GoInGameServerSystem`은 `WithAll<TokenValidatedTag>` 필터로 검증된 클라이언트만 Hero 생성
+- **슬롯 관리**: `SlotNotifySystem`이 연결 끊김 감지 시 `SlotReleased` 전송 + 30초 하트비트
+- **프로토콜**: Protobuf (`Sos.Room`) + 4byte LE length-prefix 프레이밍 (`ProtobufFraming`)
 
 ---
 
