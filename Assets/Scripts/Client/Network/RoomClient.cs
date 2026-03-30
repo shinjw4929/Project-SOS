@@ -411,7 +411,7 @@ namespace Client
                     break;
 
                 case Envelope.PayloadOneofCase.Reject:
-                    OnRejected?.Invoke(envelope.Reject);
+                    HandleReject(envelope.Reject);
                     break;
 
                 case Envelope.PayloadOneofCase.Heartbeat:
@@ -448,6 +448,18 @@ namespace Client
             {
                 OnError?.Invoke($"JoinRoom failed: {response.Reason}");
             }
+        }
+
+        void HandleReject(RejectResponse response)
+        {
+            // 방이 닫힌 경우 로비로 복귀
+            if (response.Reason == RejectResponse.Types.RejectReason.RoomClosed
+                && State == RoomClientState.InRoom)
+            {
+                State = RoomClientState.Lobby;
+            }
+
+            OnRejected?.Invoke(response);
         }
 
         void HandleGameStart(GameStart gameStart)

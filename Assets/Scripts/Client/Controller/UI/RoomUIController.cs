@@ -202,6 +202,10 @@ namespace Client
 
         void HandleRejected(RejectResponse response)
         {
+            // RoomClosed는 RoomClient가 Lobby로 전환하므로 에러 패널 불필요
+            if (response.Reason == RejectResponse.Types.RejectReason.RoomClosed)
+                return;
+
             string message = GetRejectMessage(response.Reason);
             ShowError(message);
         }
@@ -285,6 +289,10 @@ namespace Client
         void OnRetryClicked()
         {
             errorPanel?.SetActive(false);
+
+            // 이미 연결된 상태면 에러 패널만 닫음
+            if (roomClient.State == RoomClientState.Lobby || roomClient.State == RoomClientState.InRoom)
+                return;
 
             if (!string.IsNullOrEmpty(lastConnectionHost) && lastConnectionPort > 0)
                 roomClient.ConnectToRoomServer(lastConnectionHost, lastConnectionPort);
@@ -391,9 +399,9 @@ namespace Client
                 }
             }
 
-            // 시작 버튼은 호스트만 표시
             bool isHost = room.HostId == currentUserId;
             startGameButton?.gameObject.SetActive(isHost);
+            readyButton?.gameObject.SetActive(!isHost);
         }
 
         // -- 유틸리티 --
