@@ -13,14 +13,45 @@ namespace Client
     /// </summary>
     public class SoundManager : MonoBehaviour
     {
-        [Header("Audio Clips (SoundType -> AudioClip)")]
+        [Header("MeleeHit (아군 근접 타격)")]
         [SerializeField] private AudioClip meleeHitClip;
+        [SerializeField, Range(0f, 1f)] private float meleeHitVolume = 1f;
+
+        [Header("RangedShot (아군 원거리 발사)")]
         [SerializeField] private AudioClip rangedShotClip;
+        [SerializeField, Range(0f, 1f)] private float rangedShotVolume = 1f;
+
+        [Header("UnitDeath (아군 사망)")]
         [SerializeField] private AudioClip unitDeathClip;
+        [SerializeField, Range(0f, 1f)] private float unitDeathVolume = 1f;
+
+        [Header("EnemyDeath (적 사망)")]
         [SerializeField] private AudioClip enemyDeathClip;
+        [SerializeField, Range(0f, 1f)] private float enemyDeathVolume = 1f;
+
+        [Header("EnemyMeleeHit (적 근접 타격)")]
+        [SerializeField] private AudioClip enemyMeleeHitClip;
+        [SerializeField, Range(0f, 1f)] private float enemyMeleeHitVolume = 1f;
+
+        [Header("EnemyRangedShot (적 원거리 발사)")]
+        [SerializeField] private AudioClip enemyRangedShotClip;
+        [SerializeField, Range(0f, 1f)] private float enemyRangedShotVolume = 1f;
+
+        [Header("UnitSpawn (유닛 스폰)")]
+        [SerializeField] private AudioClip unitSpawnClip;
+        [SerializeField, Range(0f, 1f)] private float unitSpawnVolume = 1f;
+
+        [Header("WorkerGather (채집)")]
         [SerializeField] private AudioClip workerGatherClip;
+        [SerializeField, Range(0f, 1f)] private float workerGatherVolume = 1f;
+
+        [Header("BuildingPlace (건설 배치)")]
         [SerializeField] private AudioClip buildingPlaceClip;
+        [SerializeField, Range(0f, 1f)] private float buildingPlaceVolume = 1f;
+
+        [Header("BuildingComplete (건설 완료)")]
         [SerializeField] private AudioClip buildingCompleteClip;
+        [SerializeField, Range(0f, 1f)] private float buildingCompleteVolume = 1f;
 
         [Header("Settings")]
         [SerializeField] private int poolSize = 32;
@@ -111,7 +142,7 @@ namespace Client
                 var source = audioPool[poolIndex];
                 source.transform.position = new Vector3(evt.Position.x, evt.Position.y, evt.Position.z);
                 source.clip = clip;
-                source.volume = evt.Volume;
+                source.volume = evt.Volume * GetTypeVolume(evt.Type);
                 source.Play();
 
                 concurrentCounts[typeIndex]++;
@@ -158,10 +189,28 @@ namespace Client
             SoundType.RangedShot       => rangedShotClip,
             SoundType.UnitDeath        => unitDeathClip,
             SoundType.EnemyDeath       => enemyDeathClip,
+            SoundType.EnemyMeleeHit    => enemyMeleeHitClip,
+            SoundType.EnemyRangedShot  => enemyRangedShotClip,
+            SoundType.UnitSpawn        => unitSpawnClip,
             SoundType.WorkerGather     => workerGatherClip,
             SoundType.BuildingPlace    => buildingPlaceClip,
             SoundType.BuildingComplete => buildingCompleteClip,
             _                          => null,
+        };
+
+        private float GetTypeVolume(SoundType type) => type switch
+        {
+            SoundType.MeleeHit         => meleeHitVolume,
+            SoundType.RangedShot       => rangedShotVolume,
+            SoundType.UnitDeath        => unitDeathVolume,
+            SoundType.EnemyDeath       => enemyDeathVolume,
+            SoundType.EnemyMeleeHit    => enemyMeleeHitVolume,
+            SoundType.EnemyRangedShot  => enemyRangedShotVolume,
+            SoundType.UnitSpawn        => unitSpawnVolume,
+            SoundType.WorkerGather     => workerGatherVolume,
+            SoundType.BuildingPlace    => buildingPlaceVolume,
+            SoundType.BuildingComplete => buildingCompleteVolume,
+            _                          => 1f,
         };
 
         // 풀 인덱스 기반 타입 추적은 하지 않으므로, 재생 중인 소스의 clip으로 역매핑
@@ -174,6 +223,9 @@ namespace Client
             if (source.clip == rangedShotClip) return SoundType.RangedShot;
             if (source.clip == unitDeathClip) return SoundType.UnitDeath;
             if (source.clip == enemyDeathClip) return SoundType.EnemyDeath;
+            if (source.clip == enemyMeleeHitClip) return SoundType.EnemyMeleeHit;
+            if (source.clip == enemyRangedShotClip) return SoundType.EnemyRangedShot;
+            if (source.clip == unitSpawnClip) return SoundType.UnitSpawn;
             if (source.clip == workerGatherClip) return SoundType.WorkerGather;
             if (source.clip == buildingPlaceClip) return SoundType.BuildingPlace;
             if (source.clip == buildingCompleteClip) return SoundType.BuildingComplete;

@@ -1,8 +1,9 @@
 using Unity.Entities;
+using Unity.NetCode;
 
 namespace Shared
 {
-    // 유닛의 현재 행동 상태 (Enum)
+    // 적의 현재 행동 상태 (Enum)
     public enum EnemyContext : byte
     {
         Idle = 0,           // 대기
@@ -15,10 +16,11 @@ namespace Shared
         Dead = 255          // 사망
     }
 
+    [GhostComponent]
     public struct EnemyState : IComponentData
     {
         // 1. 현재 상태 (Enum)
-        public EnemyContext CurrentState;
+        [GhostField] public EnemyContext CurrentState;
 
         // 2. 임시 차단 타겟 (도달 불가 판정 시 일정 시간 해당 타겟 무시)
         public Entity AbandonedTarget;

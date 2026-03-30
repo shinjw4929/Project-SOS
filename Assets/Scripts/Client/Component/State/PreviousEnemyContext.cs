@@ -9,5 +9,6 @@ namespace Client
     public struct PreviousEnemyContext : IComponentData
     {
         public EnemyContext Value;
+        public float AttackSoundTimer;
     }
 }

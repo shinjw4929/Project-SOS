@@ -9,5 +9,6 @@ namespace Client
     public struct PreviousActionState : IComponentData
     {
         public Action Value;
+        public float AttackSoundTimer;
     }
 }
