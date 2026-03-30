@@ -3179,6 +3179,75 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 502342364}
   m_CullTransparentMesh: 1
+--- !u!1 &506468531
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 506468532}
+  - component: {fileID: 506468533}
+  m_Layer: 0
+  m_Name: SoundManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &506468532
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 506468531}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 960, y: 540, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &506468533
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 506468531}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9668800f948e12b429137fe79616bcc9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  meleeHitClip: {fileID: 8300000, guid: 44766caa059435f4fb71af84b2bea7e4, type: 3}
+  meleeHitVolume: 1
+  rangedShotClip: {fileID: 8300000, guid: fcf77559b4c484b4bb499c9a95c32e21, type: 3}
+  rangedShotVolume: 1
+  unitDeathClip: {fileID: 8300000, guid: 446bb872cb0e3044bbf59c0a0a0a4adb, type: 3}
+  unitDeathVolume: 1
+  enemyDeathClip: {fileID: 8300000, guid: d1afd3f4d23c24f418ffc315afb04965, type: 3}
+  enemyDeathVolume: 0.5
+  enemyMeleeHitClip: {fileID: 8300000, guid: fd25a15f9797641458336cccfb445343, type: 3}
+  enemyMeleeHitVolume: 1
+  enemyRangedShotClip: {fileID: 8300000, guid: 1ed8fb76fc64e4e46847348138782234, type: 3}
+  enemyRangedShotVolume: 1
+  unitSpawnClip: {fileID: 8300000, guid: 8e746bda97a9f634f9c225c03bd4bfcb, type: 3}
+  unitSpawnVolume: 1
+  workerGatherClip: {fileID: 8300000, guid: 632b1c41f6a368540970d173af4f782f, type: 3}
+  workerGatherVolume: 1
+  buildingPlaceClip: {fileID: 0}
+  buildingPlaceVolume: 1
+  buildingCompleteClip: {fileID: 0}
+  buildingCompleteVolume: 1
+  poolSize: 32
+  cullingDistance: 80
+  maxConcurrentPerType: 3
+  minDistance: 5
+  maxDistance: 80
 --- !u!1 &509646480
 GameObject:
   m_ObjectHideFlags: 0
@@ -12418,8 +12487,9 @@ SceneRoots:
   - {fileID: 1090071754}
   - {fileID: 1130260595}
   - {fileID: 1193704593}
+  - {fileID: 1849251462}
   - {fileID: 1181322090}
-  - {fileID: 228353947}
   - {fileID: 527200846}
   - {fileID: 775633469}
-  - {fileID: 1849251462}
+  - {fileID: 506468532}
+  - {fileID: 228353947}
