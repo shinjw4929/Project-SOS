@@ -14,8 +14,12 @@ VAT 애니메이션 + 사운드 시스템 코드 구현이 완료되었으나 (A
 
 ### Phase 1: 사운드 에셋 통합 + 튜닝
 
-- [ ] SoundManager Inspector에 SoundType → AudioClip 매핑 할당 (7개 clip 필드)
-- [ ] 자동 발생 SoundType 5개 재생 검증 + 볼륨 기본값 설정: MeleeHit, RangedShot, UnitDeath, EnemyDeath, WorkerGather
+- [x] 코드 수정: 적 공격 사운드 분리
+  - SoundType enum에 `EnemyMeleeHit = 14`, `EnemyRangedShot = 15` 추가
+  - SoundEventEmitSystem.GetEnemySoundType: Attacking → `EnemyMeleeHit`/`EnemyRangedShot` 반환하도록 수정
+  - SoundManager에 EnemyMeleeHit, EnemyRangedShot AudioClip 필드 추가
+- [ ] SoundManager Inspector에 SoundType → AudioClip 매핑 할당 (9개 clip 필드)
+- [ ] 자동 발생 SoundType 7개 재생 검증 + 볼륨 기본값 설정: MeleeHit, RangedShot, EnemyMeleeHit, EnemyRangedShot, UnitDeath, EnemyDeath, WorkerGather
   - BuildingPlace/BuildingComplete/MoveCommand는 SoundEventEmitSystem에서 발생하지 않음 (입력/건설 시스템에서 수동 추가 필요, 본 계획 범위 외)
 - [ ] 파라미터 튜닝: AudioSource 풀 크기(32), 카메라 컬링 거리(80m), 동일 타입 동시 재생 제한(3개)
 

@@ -116,7 +116,7 @@ Assets/Scripts/
 [9.7. 애니메이션+사운드] SimulationSystemGroup (Client)
     VATAnimationInitSystem (새 메시 엔티티에 VATAnimParam/VATAnimTarget/PreviousClipIndex 부착)
     → VATAnimationPlaybackSystem (VATAnimParam 계산, IJobEntity [BurstCompile])
-    → SoundEventEmitSystem (UnitActionState/EnemyState 변화 → SoundEvent 버퍼, VAT 유무 무관)
+    → SoundEventEmitSystem (상태 변화 + AttackSpeed 타이머 → SoundEvent 버퍼, 공격 반복/사망/스폰)
     → CombatTiltSystem (Attacking 상태 전방 기울임, VAT 유무 무관, IJobEntity [BurstCompile])
     → TeamColorSystem (기존)
     → SoundManager (MonoBehaviour, 매 프레임 SoundEvent 버퍼 소비 + AudioSource 풀 재생)
@@ -236,7 +236,7 @@ GPU Animation (Vertex Animation Texture) 방식으로 수천 유닛을 동시 �
 - **베이킹**: 에디터 툴(`VATBakerWindow`)로 스켈레탈 애니메이션 → Position Texture(RGBAHalf) + Static Mesh(UV2 버텍스 인덱스) + VATClipDataAsset 생성
 - **서버**: `VATAnimationStateUpdateSystem`이 UnitActionState/EnemyState → `VATAnimationState.CurrentClipIndex` 갱신 (Ghost 동기화)
 - **클라이언트**: `VATAnimationPlaybackSystem`이 `VATAnimParam`(MaterialProperty float4) 계산 → 셰이더가 텍스처 룩업으로 버텍스 변형
-- **사운드**: `SoundEventEmitSystem`이 상태 변화 감지 → `SoundEvent` 버퍼 → `SoundManager`(MonoBehaviour)가 AudioSource 풀로 재생
+- **사운드**: `SoundEventEmitSystem`이 상태 변화 감지 + `CombatStats.AttackSpeed` 타이머로 공격 반복 재생 + 유닛 스폰 감지 → `SoundEvent` 버퍼 → `SoundManager`(MonoBehaviour)가 AudioSource 풀로 재생 (타입별 볼륨 조절)
 - **전투 기울임**: `CombatTiltSystem`이 Attacking 상태에서 Rotation pitch 조작 (VAT 유무와 무관, 전체 유닛/적 대상)
 - **대상**: VAT 적용(Hero, EnemySmall, EnemyFlying) + VAT 미적용(Worker/Striker/Tank/Archer/EnemyBig은 기존 정적 메시 유지, 기울임+사운드만)
 
