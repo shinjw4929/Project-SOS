@@ -14,7 +14,6 @@
   sync-docs          Docs 문서 동기화
 
 [Tier 2: 검증] 텍스트 권장만 (사용자 직접 호출)
-  build              Unity CLI 빌드
   test               EditMode/PlayMode 테스트
   review-code        코드 리뷰
 
@@ -44,7 +43,7 @@
 ```
 
 패턴 탐색 → 코드 작성 → /sync-comments(자동) → /sync-docs(자동)
-필요 시 사용자가 /build, /test, /review-code 추가 실행.
+필요 시 사용자가 /test, /review-code 추가 실행.
 
 **예시:**
 - "WanderUtility에 새 메서드 추가"
@@ -58,7 +57,7 @@
 /plan-execute [기능명]         Phase별 실행 → /sync-comments(자동) → /sync-docs(자동)
 ```
 
-필요 시 사용자가 /build, /test, /review-code, /commit 추가 실행.
+필요 시 사용자가 /test, /review-code, /commit 추가 실행.
 
 **예시:**
 - "자원 채집 시스템 전체 구현"
@@ -83,7 +82,7 @@
 ```
 
 진단 → 수정 적용 → /sync-comments(자동)
-필요 시 사용자가 /build, /test 추가 실행.
+필요 시 사용자가 /test 추가 실행.
 
 **예시:**
 - "BC1064 에러 발생"
@@ -133,15 +132,7 @@ Tier 1 스킬이 자동 호출하므로, 단독 사용은 핫픽스 후 주석�
 코드 변경에 대응하는 Docs 문서를 갱신한다.
 Tier 1 스킬이 자동 호출하므로, 단독 사용은 수동으로 코드를 수정한 후 문서만 맞출 때.
 
-### 9. 빌드 검증
-
-```
-/build [선택: 타겟]
-```
-
-Unity Editor가 닫혀 있어야 실행 가능. 기본 타겟은 Win64.
-
-### 10. 테스트 실행
+### 9. 테스트 실행
 
 ```
 /test [선택: 필터 또는 playmode]
@@ -154,7 +145,7 @@ Unity Editor가 닫혀 있어야 실행 가능. 기본은 전체 EditMode 테스
 - `/test playmode` - PlayMode 테스트
 - `/test FlowFieldCoreTests` - 특정 테스트만
 
-### 11. 커밋
+### 10. 커밋
 
 ```
 /commit
@@ -162,7 +153,7 @@ Unity Editor가 닫혀 있어야 실행 가능. 기본은 전체 EditMode 테스
 
 변경사항을 분석하여 한국어 커밋 메시지를 작성하고, 사용자 확인 후 커밋한다.
 
-### 12. 새 스킬 생성
+### 11. 새 스킬 생성
 
 ```
 /create-skill [스킬명 또는 목적]
@@ -181,14 +172,14 @@ Unity Editor가 닫혀 있어야 실행 가능. 기본은 전체 EditMode 테스
 ### 소규모 작업
 
 ```
-/implement → (/sync-comments + /sync-docs 자동) → /build → /test → /commit
+/implement → (/sync-comments + /sync-docs 자동) → /test → /commit
 ```
 
 ### 대규모 작업
 
 ```
 /plan-create → (/review-plan 자동)
-/plan-execute → (/sync-comments + /sync-docs 자동) → /review-code → /build → /test → /commit
+/plan-execute → (/sync-comments + /sync-docs 자동) → /review-code → /test → /commit
 ```
 
 ### 분석 후 구현
@@ -200,5 +191,5 @@ Unity Editor가 닫혀 있어야 실행 가능. 기본은 전체 EditMode 테스
 ### 디버그 후 검증
 
 ```
-/diagnose → (/sync-comments 자동) → /build → /test → /commit
+/diagnose → (/sync-comments 자동) → /test → /commit
 ```
