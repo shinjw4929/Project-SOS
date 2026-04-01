@@ -236,7 +236,7 @@ GPU Animation (Vertex Animation Texture) 방식으로 수천 유닛을 동시 �
 - **베이킹**: 에디터 툴(`VATBakerWindow`)로 스켈레탈 애니메이션 → Position Texture(RGBAHalf) + Static Mesh(UV2 버텍스 인덱스) + VATClipDataAsset 생성
 - **서버**: `VATAnimationStateUpdateSystem`이 UnitActionState/EnemyState → `VATAnimationState.CurrentClipIndex` 갱신 (Ghost 동기화)
 - **클라이언트**: `VATAnimationPlaybackSystem`이 `VATAnimParam`(MaterialProperty float4) 계산 → 셰이더가 텍스처 룩업으로 버텍스 변형
-- **사운드**: `SoundEventEmitSystem`이 상태 변화 감지 + `CombatStats.AttackSpeed` 타이머로 공격 반복 재생 + 유닛 스폰 감지 → `SoundEvent` 버퍼 → `SoundManager`(MonoBehaviour)가 AudioSource 풀로 재생 (타입별 볼륨 조절)
+- **사운드**: `SoundEventEmitSystem`이 상태 변화 감지 + `CombatStats.AttackSpeed` 타이머로 공격 반복 재생 + 자기 유닛 스폰 감지(`GhostOwnerIsLocal` 필터) → `SoundEvent` 버퍼 → `SoundManager`(MonoBehaviour)가 AudioSource 풀로 재생 (타입별 볼륨 조절). Ghost 재생성 시 이미 Attacking인 엔티티는 타이머를 공격 간격으로 초기화하여 즉시 발동 방지.
 - **전투 기울임**: `CombatTiltSystem`이 Attacking 상태에서 Rotation pitch 조작 (VAT 유무와 무관, 전체 유닛/적 대상)
 - **대상**: VAT 적용(Hero, EnemySmall, EnemyFlying) + VAT 미적용(Worker/Striker/Tank/Archer/EnemyBig은 기존 정적 메시 유지, 기울임+사운드만)
 

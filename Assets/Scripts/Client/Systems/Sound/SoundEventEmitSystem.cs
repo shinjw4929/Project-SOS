@@ -1,6 +1,7 @@
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
+using Unity.NetCode;
 using Unity.Transforms;
 using Shared;
 
@@ -10,7 +11,7 @@ namespace Client
     /// UnitActionState/EnemyState 변화를 감지하여 SoundEvent 버퍼에 이벤트를 추가한다.
     /// - 상태 전이: Dying, Working 등은 상태 변화 시 1회 발생
     /// - 공격: Attacking 상태 유지 중 CombatStats.AttackSpeed 간격으로 반복 발생
-    /// - 스폰: 유닛 최초 감지 시 UnitSpawn 1회 발생
+    /// - 스폰: 자기 유닛(GhostOwnerIsLocal) 최초 감지 시 UnitSpawn 1회 발생
     /// </summary>
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     [UpdateAfter(typeof(VATAnimationPlaybackSystem))]
@@ -21,6 +22,7 @@ namespace Client
         private ComponentLookup<RangedUnitTag> rangedUnitLookup;
         private ComponentLookup<RangedEnemyTag> rangedEnemyLookup;
         private ComponentLookup<CombatStats> combatStatsLookup;
+        private ComponentLookup<GhostOwnerIsLocal> ghostOwnerIsLocalLookup;
 
         public void OnCreate(ref SystemState state)
         {
@@ -28,17 +30,20 @@ namespace Client
             rangedUnitLookup = state.GetComponentLookup<RangedUnitTag>(true);
             rangedEnemyLookup = state.GetComponentLookup<RangedEnemyTag>(true);
             combatStatsLookup = state.GetComponentLookup<CombatStats>(true);
+            ghostOwnerIsLocalLookup = state.GetComponentLookup<GhostOwnerIsLocal>(true);
         }
 
         public void OnUpdate(ref SystemState state)
         {
             // 1단계: PreviousState 미부착 엔티티 초기화 + 스폰 위치 수집
+            ghostOwnerIsLocalLookup.Update(ref state);
+            combatStatsLookup.Update(ref state);
+
             var spawnPositions = new NativeList<float3>(Allocator.Temp);
             InitializePreviousStates(ref state, ref spawnPositions);
 
             rangedUnitLookup.Update(ref state);
             rangedEnemyLookup.Update(ref state);
-            combatStatsLookup.Update(ref state);
 
             var soundEntity = SystemAPI.GetSingletonEntity<SoundEventState>();
             var soundBuffer = SystemAPI.GetBuffer<SoundEvent>(soundEntity);
@@ -143,14 +148,25 @@ namespace Client
             var ecb = new EntityCommandBuffer(Allocator.Temp);
             bool hasNew = false;
 
-            // 유닛 초기화 + 스폰 감지
+            // 유닛 초기화 + 스폰 감지 (자기 유닛만 스폰 사운드 — Ghost 재생성 시 오발 방지)
             foreach (var (actionState, ltw, entity) in
                 SystemAPI.Query<RefRO<UnitActionState>, RefRO<LocalToWorld>>()
                     .WithNone<PreviousActionState>()
                     .WithEntityAccess())
             {
-                ecb.AddComponent(entity, new PreviousActionState { Value = actionState.ValueRO.State });
-                spawnPositions.Add(ltw.ValueRO.Position);
+                var currentState = actionState.ValueRO.State;
+                var prev = new PreviousActionState { Value = currentState };
+
+                // 이미 Attacking 상태면 타이머를 공격 간격으로 초기화 (Ghost 재생성 시 즉시 발동 방지)
+                if (currentState == Action.Attacking)
+                    prev.AttackSoundTimer = GetAttackInterval(entity);
+
+                ecb.AddComponent(entity, prev);
+
+                if (ghostOwnerIsLocalLookup.HasComponent(entity) &&
+                    ghostOwnerIsLocalLookup.IsComponentEnabled(entity))
+                    spawnPositions.Add(ltw.ValueRO.Position);
+
                 hasNew = true;
             }
 
@@ -160,7 +176,13 @@ namespace Client
                     .WithNone<PreviousEnemyContext>()
                     .WithEntityAccess())
             {
-                ecb.AddComponent(entity, new PreviousEnemyContext { Value = enemyState.ValueRO.CurrentState });
+                var currentState = enemyState.ValueRO.CurrentState;
+                var prev = new PreviousEnemyContext { Value = currentState };
+
+                if (currentState == EnemyContext.Attacking)
+                    prev.AttackSoundTimer = GetAttackInterval(entity);
+
+                ecb.AddComponent(entity, prev);
                 hasNew = true;
             }
 
