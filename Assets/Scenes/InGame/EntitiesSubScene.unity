@@ -256,6 +256,7 @@ MonoBehaviour:
   resourceNodeExclusionDistance: 9
   maxBuildRetryCount: 3
   unitSpawnOffset: 1
+  spawnClearanceRatio: 0.8
   defaultProductionTime: 5
   initialCurrency: 100
   initialMaxPopulation: 300
@@ -266,14 +267,15 @@ MonoBehaviour:
   avoidancePadding: 0.3
   maxBFSPerFrame: 16
   steeringSliceDivisor: 4
+  steeringCacheMaxStrength: 0.3
   wanderBiasFactor: 0.5
   wanderMaxDistance: 40
   targetPropagationRadius: 9
-  targetAbandonDuration: 30
   stuckCheckInterval: 3
   stuckThreshold: 2
   dormantMinDuration: 5
   dormantMaxDuration: 8
+  targetAbandonDuration: 30
   pathInvalidationRadius: 8
   partialPathInvalidationRadius: 12
   enemyBigSpawnRate: 0.7
@@ -804,10 +806,10 @@ Transform:
   - {fileID: 150418900}
   - {fileID: 1600313948}
   - {fileID: 794132255}
-  - {fileID: 1956711774}
-  - {fileID: 143929466}
   - {fileID: 1262564646}
   - {fileID: 999447400}
+  - {fileID: 143929466}
+  - {fileID: 1956711774}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!4 &692899279 stripped
@@ -2671,7 +2673,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: dc5414274d42d0c4cb2f6f07ea5b57f9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  initialWallDecayTime: 46
+  initialWallDecayTime: 40
   wave0InitialSpawnCount: 5
   wave1TriggerTime: 80
   wave1TriggerKillCount: 1
@@ -2681,6 +2683,7 @@ MonoBehaviour:
   resourceNodeExclusionDistance: 9
   maxBuildRetryCount: 3
   unitSpawnOffset: 1
+  spawnClearanceRatio: 0.8
   defaultProductionTime: 5
   initialCurrency: 100
   initialMaxPopulation: 300
@@ -2691,14 +2694,15 @@ MonoBehaviour:
   avoidancePadding: 0.3
   maxBFSPerFrame: 16
   steeringSliceDivisor: 4
+  steeringCacheMaxStrength: 0.3
   wanderBiasFactor: 0.5
   wanderMaxDistance: 40
   targetPropagationRadius: 20
-  targetAbandonDuration: 30
   stuckCheckInterval: 3
   stuckThreshold: 2
   dormantMinDuration: 5
   dormantMaxDuration: 8
+  targetAbandonDuration: 30
   pathInvalidationRadius: 8
   partialPathInvalidationRadius: 12
   enemyBigSpawnRate: 1
