@@ -18,21 +18,21 @@ VAT 애니메이션 + 사운드 시스템 코드 구현이 완료되었으나 (A
   - SoundType enum에 `EnemyMeleeHit = 14`, `EnemyRangedShot = 15` 추가
   - SoundEventEmitSystem.GetEnemySoundType: Attacking → `EnemyMeleeHit`/`EnemyRangedShot` 반환하도록 수정
   - SoundManager에 EnemyMeleeHit, EnemyRangedShot AudioClip 필드 추가
-- [ ] SoundManager Inspector에 SoundType → AudioClip 매핑 할당 (9개 clip 필드)
-- [ ] 자동 발생 SoundType 7개 재생 검증 + 볼륨 기본값 설정: MeleeHit, RangedShot, EnemyMeleeHit, EnemyRangedShot, UnitDeath, EnemyDeath, WorkerGather
+- [x] SoundManager Inspector에 SoundType → AudioClip 매핑 할당 (10개 clip 필드)
+- [x] 자동 발생 SoundType 8개 재생 검증 + 볼륨 기본값 설정: MeleeHit, RangedShot, EnemyMeleeHit, EnemyRangedShot, UnitDeath, EnemyDeath, WorkerGather, UnitSpawn
   - BuildingPlace/BuildingComplete/MoveCommand는 SoundEventEmitSystem에서 발생하지 않음 (입력/건설 시스템에서 수동 추가 필요, 본 계획 범위 외)
-- [ ] 파라미터 튜닝: AudioSource 풀 크기(32), 카메라 컬링 거리(80m), 동일 타입 동시 재생 제한(3개)
+- [x] 파라미터 튜닝: AudioSource 풀 크기(32), 카메라 컬링 거리(80m), 동일 타입 동시 재생 제한(3개)
 
 ### Phase 2: VAT + 사운드 통합 테스트
 
-- [ ] VAT 유닛 테스트: Hero Idle→Moving→Working (걷기 VAT), Attacking (기울임 폴백)
-- [ ] VAT 적 테스트: EnemySmall Idle→Moving→Attacking→Dying (VAT + 기울임)
-- [ ] VAT 적 테스트: EnemyFlying — EnemySmall과 동일 동작 확인 (같은 FBX)
-- [ ] 비VAT 유닛 테스트: Worker/Striker/Tank/Archer Idle→Working→Attacking (기울임 + 사운드)
-- [ ] 비VAT 적 테스트: EnemyBig Idle→Attacking (기울임 + 사운드)
-- [ ] 500+ 유닛 전투 시 사운드 성능 프로파일링
+- [x] VAT 유닛 테스트: Hero Idle→Moving→Working (걷기 VAT), Attacking (기울임 폴백)
+- [x] VAT 적 테스트: EnemySmall Idle→Moving→Attacking→Dying (VAT + 기울임)
+- [x] VAT 적 테스트: EnemyFlying — EnemySmall과 동일 동작 확인 (같은 FBX)
+- [x] 비VAT 유닛 테스트: Worker/Striker/Tank/Archer Idle→Working→Attacking (기울임 + 사운드)
+- [x] 비VAT 적 테스트: EnemyBig Idle→Attacking (기울임 + 사운드)
+- [x] 500+ 유닛 전투 시 사운드 성능 프로파일링
   - 목표: SoundEventEmitSystem < 0.5ms, SoundManager.Update() < 1ms
-- [ ] Dying/Dead 상태 애니메이션 재생 여부 확인 (ClientDeathSystem이 Health<=0에서 DisableRendering 즉시 추가하므로 사망 애니메이션 미표시 예상. 수정이 필요하면 이슈 6 선행 해결 필요)
+- [x] Dying/Dead 상태 애니메이션 재생 여부 확인 (사망 애니메이션 미구현 상태. ClientDeathSystem이 DisableRendering 즉시 추가. 이슈 6으로 추적)
 
 ---
 
