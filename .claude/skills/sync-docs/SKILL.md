@@ -17,7 +17,7 @@ $ARGUMENTS가 있으면 해당 내용을 업데이트 범위/대상으로 반영
 
 ### 2단계: 업데이트 대상 문서 결정
 
-`Docs/Documentation-Checklist.md`의 **변경 유형별 업데이트 대상** 테이블을 따른다. 주요 패턴, 시스템 플로우, 네이밍 규칙 등이 변경된 경우 `Docs/Architecture.md`와 `CLAUDE.md`도 함께 업데이트한다.
+`Docs/Documentation-Checklist.md`의 **변경 유형별 업데이트 대상** 테이블을 따른다. 주요 패턴, 시스템 플로우, 네이밍 규칙 등이 변경된 경우 `Docs/Architecture/` 하위의 해당 문서와 `CLAUDE.md`도 함께 업데이트한다.
 
 ### 3단계: 대상 문서 읽기
 
