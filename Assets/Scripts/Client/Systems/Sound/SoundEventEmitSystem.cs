@@ -42,6 +42,9 @@ namespace Client
             var spawnPositions = new NativeList<float3>(Allocator.Temp);
             InitializePreviousStates(ref state, ref spawnPositions);
 
+            // InitializePreviousStates의 ECB.Playback이 structural change를 발생시키므로
+            // combatStatsLookup을 포함한 모든 Lookup을 다시 갱신
+            combatStatsLookup.Update(ref state);
             rangedUnitLookup.Update(ref state);
             rangedEnemyLookup.Update(ref state);
 

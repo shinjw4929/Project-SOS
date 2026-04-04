@@ -27,10 +27,10 @@ public partial struct ClientDeathSystem : ISystem
     }
 }
 
-// [IJobEntity] 최적화된 잡
+// 유닛(UnitActionState)/적(EnemyState)은 Dying 기울임 연출 후 서버 파괴 시 Ghost 제거로 사라짐
+// 건물 등 비유닛/비적 엔티티만 즉시 DisableRendering
 [BurstCompile]
-// ▼ [중요] DisableRendering이 "없는" 애들만 찾으라고 명시
-[WithNone(typeof(DisableRendering))] 
+[WithNone(typeof(DisableRendering), typeof(EnemyState), typeof(UnitActionState))]
 public partial struct ClientDeathJob : IJobEntity
 {
     public EntityCommandBuffer.ParallelWriter Ecb;
