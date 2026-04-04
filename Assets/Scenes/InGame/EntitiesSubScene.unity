@@ -284,6 +284,9 @@ MonoBehaviour:
   periodicSpawnSpacing: 3
   combatTiltAngle: 0.3
   combatTiltSpeed: 8
+  combatTiltSwingRatio: 0.4
+  deathDuration: 10
+  deathTiltAngle: 1.05
   wave1SpawnInterval: 0.5
   wave1SpawnCount: 15
   wave2SpawnInterval: 0.5
@@ -2673,8 +2676,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: dc5414274d42d0c4cb2f6f07ea5b57f9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  initialWallDecayTime: 40
-  wave0InitialSpawnCount: 5
+  initialWallDecayTime: 10
+  wave0InitialSpawnCount: 1
   wave1TriggerTime: 80
   wave1TriggerKillCount: 1
   wave2TriggerTime: 180
@@ -2711,6 +2714,9 @@ MonoBehaviour:
   periodicSpawnSpacing: 3
   combatTiltAngle: 0.3
   combatTiltSpeed: 8
+  combatTiltSwingRatio: 0.4
+  deathDuration: 2
+  deathTiltAngle: 1.3
   wave1SpawnInterval: 4
   wave1SpawnCount: 8
   wave2SpawnInterval: 4

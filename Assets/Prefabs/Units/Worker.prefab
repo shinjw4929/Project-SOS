@@ -117,7 +117,7 @@ MonoBehaviour:
   unitType: 1
   cost: 0
   populationCost: 1
-  trainingTime: 2
+  trainingTime: 1
   maxHealth: 100
   defense: 0
   visionRange: 10
