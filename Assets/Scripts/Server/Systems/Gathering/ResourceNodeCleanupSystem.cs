@@ -182,6 +182,8 @@ namespace Server
 
         private static void SetIdleState(ref UnitIntentState intentState, ref UnitActionState actionState, ref WorkerState workerState)
         {
+            if (actionState.State == Action.Dying || actionState.State == Action.Dead)
+                return;
             intentState.State = Intent.Idle;
             actionState.State = Action.Idle;
             workerState.Phase = GatherPhase.None;

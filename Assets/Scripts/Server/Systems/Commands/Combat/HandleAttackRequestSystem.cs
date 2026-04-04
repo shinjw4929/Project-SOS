@@ -24,6 +24,7 @@ namespace Server
         [ReadOnly] private ComponentLookup<NetworkId> _networkIdLookup;
         [ReadOnly] private ComponentLookup<UnitTag> _unitTagLookup;
         [ReadOnly] private ComponentLookup<EnemyTag> _enemyTagLookup;
+        [ReadOnly] private ComponentLookup<UnitActionState> _unitActionStateLookup;
 
         private ComponentLookup<MovementGoal> _movementGoalLookup;
         private ComponentLookup<UnitIntentState> _unitIntentStateLookup;
@@ -40,6 +41,7 @@ namespace Server
             _networkIdLookup = state.GetComponentLookup<NetworkId>(true);
             _unitTagLookup = state.GetComponentLookup<UnitTag>(true);
             _enemyTagLookup = state.GetComponentLookup<EnemyTag>(true);
+            _unitActionStateLookup = state.GetComponentLookup<UnitActionState>(true);
 
             _movementGoalLookup = state.GetComponentLookup<MovementGoal>(false);
             _unitIntentStateLookup = state.GetComponentLookup<UnitIntentState>(false);
@@ -54,6 +56,7 @@ namespace Server
             _networkIdLookup.Update(ref state);
             _unitTagLookup.Update(ref state);
             _enemyTagLookup.Update(ref state);
+            _unitActionStateLookup.Update(ref state);
             _movementGoalLookup.Update(ref state);
             _unitIntentStateLookup.Update(ref state);
             _aggroTargetLookup.Update(ref state);
@@ -109,6 +112,11 @@ namespace Server
             int ownerId = _ghostOwnerLookup[unitEntity].NetworkId;
             int requesterId = _networkIdLookup[sourceConnection].Value;
             if (ownerId != requesterId) return;
+
+            // 2-1. Dying/Dead 유닛은 명령 무시
+            if (_unitActionStateLookup.TryGetComponent(unitEntity, out var unitAction) &&
+                (unitAction.State == Action.Dying || unitAction.State == Action.Dead))
+                return;
 
             // 3. 타겟 검증 (EnemyTag 확인)
             if (targetEntity == Entity.Null || !_enemyTagLookup.HasComponent(targetEntity))

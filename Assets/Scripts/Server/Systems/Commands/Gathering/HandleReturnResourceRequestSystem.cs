@@ -115,6 +115,10 @@ namespace Server
             int requesterId = _networkIdLookup[sourceConnection].Value;
             if (ownerId != requesterId) return;
 
+            if (_unitActionStateLookup.TryGetComponent(workerEntity, out var workerAction) &&
+                (workerAction.State == Action.Dying || workerAction.State == Action.Dead))
+                return;
+
             // 2. ResourceCenter 유효성 검증
             if (!_resourceCenterTagLookup.HasComponent(resourceCenterEntity))
                 return;
@@ -159,8 +163,7 @@ namespace Server
 
             if (_unitActionStateLookup.HasComponent(workerEntity))
             {
-                RefRW<UnitActionState> actionRW = _unitActionStateLookup.GetRefRW(workerEntity);
-                actionRW.ValueRW.State = Action.Moving;
+                _unitActionStateLookup.GetRefRW(workerEntity).ValueRW.State = Action.Moving;
             }
 
             // Phase를 MovingToReturn으로 설정 (채굴 없이 바로 반납)

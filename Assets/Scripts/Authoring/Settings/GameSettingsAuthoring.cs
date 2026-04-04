@@ -153,6 +153,17 @@ namespace Authoring
         [Tooltip("전투 기울임 보간 속도 (높을수록 빠름)")]
         [Min(0.1f)]
         public float combatTiltSpeed = 8.0f;
+        [Tooltip("공격 주기 중 스윙 구간 비율 (0.4 = 40% 스윙, 60% 대기)")]
+        [Range(0.1f, 0.8f)]
+        public float combatTiltSwingRatio = 0.4f;
+
+        [Header("Death")]
+        [Tooltip("사망 연출 지속시간 (초)")]
+        [Min(0.1f)]
+        public float deathDuration = 0.5f;
+        [Tooltip("사망 기울임 목표 각도 (라디안, 1.05 ≈ 60도)")]
+        [Range(0.3f, 1.3f)]
+        public float deathTiltAngle = 1.05f;
 
         [Header("Wave1+ Spawn Settings")]
         [Tooltip("Wave1 적 스폰 주기 (초)")]
@@ -216,7 +227,10 @@ namespace Authoring
                     Wave0SpawnSpacing = authoring.wave0SpawnSpacing,
                     PeriodicSpawnSpacing = authoring.periodicSpawnSpacing,
                     CombatTiltAngle = authoring.combatTiltAngle,
-                    CombatTiltSpeed = authoring.combatTiltSpeed
+                    CombatTiltSpeed = authoring.combatTiltSpeed,
+                    CombatTiltSwingRatio = authoring.combatTiltSwingRatio,
+                    DeathDuration = authoring.deathDuration,
+                    DeathTiltAngle = authoring.deathTiltAngle
                 });
             }
         }

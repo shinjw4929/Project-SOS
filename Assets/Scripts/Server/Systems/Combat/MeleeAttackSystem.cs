@@ -103,6 +103,9 @@ namespace Server
         {
             cooldown.RemainingTime = CombatUtility.TickCooldown(cooldown.RemainingTime, DeltaTime);
 
+            // 사망 중인 엔티티는 공격 불가
+            if (enemyState.CurrentState == EnemyContext.Dying || enemyState.CurrentState == EnemyContext.Dead) return;
+
             Entity targetEntity = aggroTarget.TargetEntity;
             if (targetEntity == Entity.Null) return;
 
@@ -180,6 +183,9 @@ namespace Server
             ref UnitActionState actionState)
         {
             cooldown.RemainingTime = CombatUtility.TickCooldown(cooldown.RemainingTime, DeltaTime);
+
+            // 사망 중인 엔티티는 공격 불가
+            if (actionState.State == Action.Dying || actionState.State == Action.Dead) return;
 
             // Intent.Attack 상태일 때만 공격 처리
             if (intentState.State != Intent.Attack)

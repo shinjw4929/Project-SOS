@@ -141,6 +141,10 @@ namespace Server
             int requesterId = _networkIdLookup[sourceConnection].Value;
             if (ownerId != requesterId) return;
 
+            if (_unitActionStateLookup.TryGetComponent(workerEntity, out var workerAction) &&
+                (workerAction.State == Action.Dying || workerAction.State == Action.Dead))
+                return;
+
             // 2. ResourceNode 유효성 검증
             if (!_resourceNodeTagLookup.HasComponent(resourceNodeEntity) ||
                 !_resourceNodeStateLookup.HasComponent(resourceNodeEntity))
@@ -177,8 +181,7 @@ namespace Server
 
             if (_unitActionStateLookup.HasComponent(workerEntity))
             {
-                RefRW<UnitActionState> actionRW = _unitActionStateLookup.GetRefRW(workerEntity);
-                actionRW.ValueRW.State = Action.Moving;
+                _unitActionStateLookup.GetRefRW(workerEntity).ValueRW.State = Action.Moving;
             }
 
             // 6. 점유 상태에 따른 Phase 분기

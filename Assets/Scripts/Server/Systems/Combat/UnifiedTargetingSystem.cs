@@ -183,6 +183,9 @@ namespace Server
             EnabledRefRW<MovementWaypoints> waypointsEnabled,
             in EnemyTag enemyTag)
         {
+            if (enemyState.ValueRO.CurrentState == EnemyContext.Dying || enemyState.ValueRO.CurrentState == EnemyContext.Dead)
+                return;
+
             Entity partialSearchExclude = Entity.Null;
 
             // Dormant 상태 처리 (모든 로직 전에)
@@ -551,8 +554,12 @@ namespace Server
             RefRW<AggroTarget> aggroTarget,
             RefRW<AggroLock> aggroLock,
             RefRW<MovementGoal> goal,
-            EnabledRefRW<MovementWaypoints> waypointsEnabled)
+            EnabledRefRW<MovementWaypoints> waypointsEnabled,
+            in UnitActionState actionState)
         {
+            if (actionState.State == Action.Dying || actionState.State == Action.Dead)
+                return;
+
             // ---------------------------------------------------------
             // 0. 어그로 고정 중이면 자동 타겟팅 스킵
             // ---------------------------------------------------------
@@ -759,6 +766,9 @@ namespace Server
             EnabledRefRW<MovementWaypoints> waypointsEnabled,
             in EnemyTag enemyTag)
         {
+            if (enemyState.ValueRO.CurrentState == EnemyContext.Dying || enemyState.ValueRO.CurrentState == EnemyContext.Dead)
+                return;
+
             // Dormant 상태 처리 (모든 로직 전에)
             if (enemyState.ValueRO.CurrentState == EnemyContext.Dormant)
             {

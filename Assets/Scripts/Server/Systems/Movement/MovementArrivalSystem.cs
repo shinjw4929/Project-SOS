@@ -57,6 +57,10 @@ namespace Server
                     enabledRef.ValueRW = false;
                     velocity.ValueRW.Linear = float3.zero;
 
+                    // Dying/Dead 상태에서는 상태 변경하지 않음
+                    if (actionState.ValueRO.State == Action.Dying || actionState.ValueRO.State == Action.Dead)
+                        continue;
+
                     // Intent.Move 상태였다면 Idle로 전환 (자동 타겟팅 활성화)
                     if (intentState.ValueRO.State == Intent.Move)
                     {

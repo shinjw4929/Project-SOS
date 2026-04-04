@@ -119,6 +119,11 @@ namespace Server
             if (ownerId != requesterId)
                 return;
 
+            // 2-1. Dying/Dead 유닛은 명령 무시
+            if (_unitActionStateLookup.TryGetComponent(unitEntity, out var unitAction) &&
+                (unitAction.State == Action.Dying || unitAction.State == Action.Dead))
+                return;
+
             // 3. MovementGoal 설정
             if (_movementGoalLookup.HasComponent(unitEntity))
             {

@@ -31,6 +31,7 @@ namespace Server
         [ReadOnly] private ComponentLookup<WorkRange> _workRangeLookup;
         [ReadOnly] private ComponentLookup<LocalTransform> _transformLookup;
         [ReadOnly] private ComponentLookup<StructureFootprint> _footprintLookup;
+        [ReadOnly] private ComponentLookup<UnitActionState> _unitActionStateLookup;
 
         private ComponentLookup<MovementGoal> _movementGoalLookup;
         private ComponentLookup<MovementWaypoints> _movementWaypointsLookup;
@@ -52,6 +53,7 @@ namespace Server
             _workRangeLookup = state.GetComponentLookup<WorkRange>(true);
             _transformLookup = state.GetComponentLookup<LocalTransform>(true);
             _footprintLookup = state.GetComponentLookup<StructureFootprint>(true);
+            _unitActionStateLookup = state.GetComponentLookup<UnitActionState>(true);
 
             _movementGoalLookup = state.GetComponentLookup<MovementGoal>(false);
             _movementWaypointsLookup = state.GetComponentLookup<MovementWaypoints>(false);
@@ -72,6 +74,7 @@ namespace Server
             _workRangeLookup.Update(ref state);
             _transformLookup.Update(ref state);
             _footprintLookup.Update(ref state);
+            _unitActionStateLookup.Update(ref state);
             _movementGoalLookup.Update(ref state);
             _movementWaypointsLookup.Update(ref state);
             _unitIntentStateLookup.Update(ref state);
@@ -136,6 +139,11 @@ namespace Server
             {
                 return;
             }
+
+            // 2-1. Dying/Dead 유닛은 명령 무시
+            if (_unitActionStateLookup.TryGetComponent(builderEntity, out var builderAction) &&
+                (builderAction.State == Action.Dying || builderAction.State == Action.Dead))
+                return;
 
             // 3. MovementGoal 설정: BuildSiteCenter로 이동 + AABB 표면 기준 조기 정지
             float workRange = _workRangeLookup.TryGetComponent(builderEntity, out var wr)

@@ -159,5 +159,14 @@ namespace Shared
         public float CombatTiltAngle;
         /// <summary>전투 기울임 보간 속도 (높을수록 빠름)</summary>
         public float CombatTiltSpeed;
+        /// <summary>공격 주기 중 스윙 구간 비율 (0.4 = 40% 스윙, 60% 대기)</summary>
+        public float CombatTiltSwingRatio;
+
+        // === 사망 연출 ===
+
+        /// <summary>사망 연출 지속시간 (초)</summary>
+        public float DeathDuration;
+        /// <summary>사망 기울임 목표 각도 (라디안, 기본 1.05 ≈ 60도)</summary>
+        public float DeathTiltAngle;
     }
 }

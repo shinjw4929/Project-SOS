@@ -132,18 +132,21 @@ namespace Server
             in ObstacleRadius obstacleRadius,
             in MovementGoal goal)
         {
-            // 공격 중이거나 waypoints 비활성화 시 이동 스킵 (정지 유닛은 제자리 유지)
-            bool isEnemyAttacking = EnemyTagLookup.HasComponent(entity) &&
-                                    EnemyStateLookup.TryGetComponent(entity, out EnemyState enemyState) &&
-                                    enemyState.CurrentState == EnemyContext.Attacking;
+            // 공격/사망 중이거나 waypoints 비활성화 시 이동 스킵 (정지 유닛은 제자리 유지)
+            bool isEnemyInactive = EnemyTagLookup.HasComponent(entity) &&
+                                   EnemyStateLookup.TryGetComponent(entity, out EnemyState enemyState) &&
+                                   (enemyState.CurrentState == EnemyContext.Attacking ||
+                                    enemyState.CurrentState == EnemyContext.Dying ||
+                                    enemyState.CurrentState == EnemyContext.Dead);
 
-            bool isUnitAttacking = ActionStateLookup.TryGetComponent(entity, out UnitActionState actionState) &&
-                                   actionState.State == Action.Attacking;
+            bool isUnitInactive = ActionStateLookup.TryGetComponent(entity, out UnitActionState actionState) &&
+                                  (actionState.State == Action.Attacking ||
+                                   actionState.State == Action.Dying ||
+                                   actionState.State == Action.Dead);
 
-            bool isAttacking = isEnemyAttacking || isUnitAttacking;
             bool isWaypointsDisabled = !waypointsEnabled.ValueRO;
             bool isPathPending = goal.IsPathDirty;
-            bool skipMovement = isAttacking || isWaypointsDisabled || isPathPending;
+            bool skipMovement = isEnemyInactive || isUnitInactive || isWaypointsDisabled || isPathPending;
 
             float3 currentPos = transform.Position;
             float3 desiredVelocity = float3.zero;

@@ -182,6 +182,9 @@ namespace Server
                         RefRW<ResourceNodeState> nodeStateRW = _resourceNodeStateLookup.GetRefRW(nodeEntity);
                         Entity currentOccupier = nodeStateRW.ValueRO.OccupyingWorker;
 
+                        if (actionState.ValueRO.State == Action.Dying || actionState.ValueRO.State == Action.Dead)
+                            continue;
+
                         // 점유 안됨 또는 자기 자신이 점유 중 → 점유 설정 + Gathering
                         if (currentOccupier == Entity.Null || currentOccupier == entity)
                         {
@@ -301,6 +304,9 @@ namespace Server
 
                 if (distance <= returnArrivalDist)
                 {
+                    if (actionState.ValueRO.State == Action.Dying || actionState.ValueRO.State == Action.Dead)
+                        continue;
+
                     workerState.ValueRW.Phase = GatherPhase.Unloading;
                     actionState.ValueRW.State = Action.Working;
                     workerState.ValueRW.GatheringProgress = 0f;
@@ -406,6 +412,9 @@ namespace Server
             if (nodeStateRW.ValueRO.OccupyingWorker == Entity.Null ||
                 nodeStateRW.ValueRO.OccupyingWorker == workerEntity)
             {
+                if (actionState.State == Action.Dying || actionState.State == Action.Dead)
+                    return;
+
                 nodeStateRW.ValueRW.OccupyingWorker = workerEntity;
                 workerState.Phase = GatherPhase.MovingToNode;
                 actionState.State = Action.Moving;
@@ -418,6 +427,9 @@ namespace Server
             // 다른 워커가 점유 중이면 -> 대기 상태로 노드 근처 이동
             else
             {
+                if (actionState.State == Action.Dying || actionState.State == Action.Dead)
+                    return;
+
                 workerState.Phase = GatherPhase.WaitingForNode;
                 actionState.State = Action.Moving;
 
@@ -477,6 +489,9 @@ namespace Server
                 if (nodeStateRW.ValueRO.OccupyingWorker == Entity.Null ||
                     nodeStateRW.ValueRO.OccupyingWorker == entity)
                 {
+                    if (actionState.ValueRO.State == Action.Dying || actionState.ValueRO.State == Action.Dead)
+                        continue;
+
                     nodeStateRW.ValueRW.OccupyingWorker = entity;
                     workerState.ValueRW.Phase = GatherPhase.Gathering;
                     actionState.ValueRW.State = Action.Working;
@@ -506,6 +521,8 @@ namespace Server
             Entity entity,
             float3 nodePos)
         {
+            if (actionState.State == Action.Dying || actionState.State == Action.Dead)
+                return;
             gatherTarget.ValueRW.LastGatheredNodeEntity = gatherTarget.ValueRO.ResourceNodeEntity;
             workerState.Phase = GatherPhase.MovingToReturn;
             actionState.State = Action.Moving;
@@ -564,6 +581,9 @@ namespace Server
         /// </summary>
         private static void SetIdleState(ref UnitIntentState intentState, ref UnitActionState actionState, ref WorkerState workerState)
         {
+            if (actionState.State == Action.Dying || actionState.State == Action.Dead)
+                return;
+
             intentState.State = Intent.Idle;
             actionState.State = Action.Idle;
             workerState.Phase = GatherPhase.None;
