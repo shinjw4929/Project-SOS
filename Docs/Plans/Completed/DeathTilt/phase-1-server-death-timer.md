@@ -60,7 +60,20 @@
 
 - [ ] `DeathDuration` 값 전달: `SystemAPI.TryGetSingleton<GameSettings>()` → fallback 0.5f
 
-### Task 4: PredictedMovementSystem Dying/Dead 이동 스킵
+### Task 4: 전투 시스템 Dying/Dead 공격 스킵
+
+- [ ] `Server/Systems/Combat/MeleeAttackSystem.cs` 수정
+- `EnemyMeleeAttackJob.Execute` 시작에 Dying/Dead early return 추가:
+  ```csharp
+  // 사망 중인 엔티티는 공격 불가
+  if (enemyState.CurrentState == EnemyContext.Dying || enemyState.CurrentState == EnemyContext.Dead) return;
+  ```
+- `UnitMeleeAttackJob.Execute` 동일 패턴 (`actionState.State == Action.Dying || actionState.State == Action.Dead`)
+- [ ] `Server/Systems/Combat/RangedAttackSystem.cs` 수정
+- 적/유닛 원거리 공격 Job에도 동일한 Dying/Dead early return 추가
+- **이유**: Dying 상태 엔티티에 AggroTarget이 남아있으면 공격 Job이 상태를 Attacking으로 되돌려, 사망 기울임/애니메이션이 공격 모션으로 덮어씌워짐. 현재 1프레임 Dying에서는 무시 가능했으나 DeathDuration 동안 매 프레임 반복됨.
+
+### Task 5: PredictedMovementSystem Dying/Dead 이동 스킵
 
 - [ ] `Server/Systems/Movement/PredictedMovementSystem.cs` 수정
 - 기존 `isEnemyAttacking`/`isUnitAttacking` 조건을 확장하여 Dying/Dead 상태도 이동 스킵에 포함:
@@ -85,7 +98,8 @@
 |---|---|---|
 | Agent A | Task 1 (DeathTimer) + Task 2 (GameSettings) | 없음 |
 | Agent B | Task 3 (ServerDeathSystem) | Agent A 완료 후 (DeathTimer 타입 참조) |
-| 메인 | Task 4 (PredictedMovementSystem) | Agent B와 병렬 가능 (다른 파일) |
+| Agent C | Task 4 (MeleeAttackSystem, RangedAttackSystem) | 없음 (다른 파일, 기존 enum 값 사용) |
+| 메인 | Task 5 (PredictedMovementSystem) | Agent B와 병렬 가능 (다른 파일) |
 
 ## 테스트 요구사항
 
@@ -102,8 +116,9 @@
 - Dying 엔티티가 이동하지 않는 것 확인
 
 ## 완료 기준
-- [ ] DeathTimer 컴포넌트 존재
-- [ ] ServerDeathSystem이 DeathDuration만큼 Dying 상태 유지 후 파괴
-- [ ] GameSettings 인스펙터에서 DeathDuration 조절 가능
-- [ ] Dying 엔티티 이동 정지
-- [ ] 컴파일 성공
+- [x] DeathTimer 컴포넌트 존재
+- [x] ServerDeathSystem이 DeathDuration만큼 Dying 상태 유지 후 파괴
+- [x] GameSettings 인스펙터에서 DeathDuration 조절 가능
+- [x] Dying 엔티티 공격 정지 (MeleeAttackSystem, RangedAttackSystem)
+- [x] Dying 엔티티 이동 정지
+- [x] 컴파일 성공

@@ -94,10 +94,10 @@ public struct CombatTiltTimer : IComponentData
 ## Phase 체크리스트
 
 ### Phase 1: CombatTiltTimer + Swing-Return 구현
-- [ ] CombatTiltTimer 컴포넌트 정의
-- [ ] GameSettings/GameSettingsAuthoring에 CombatTiltSwingRatio 추가
-- [ ] CombatTiltSystem 리팩토링 (초기화 + Swing-Return Job)
-- [ ] 빌드 검증
+- [x] CombatTiltTimer 컴포넌트 정의
+- [x] GameSettings/GameSettingsAuthoring에 CombatTiltSwingRatio 추가
+- [x] CombatTiltSystem 리팩토링 (초기화 + Swing-Return Job)
+- [x] 빌드 검증
 → 상세: [phase-1-swing-return.md](./phase-1-swing-return.md)
 
 ## Phase 간 의존성
@@ -127,3 +127,9 @@ public struct CombatTiltTimer : IComponentData
 
 - Phase 1 실패 시: CombatTiltTimer 컴포넌트 삭제 + CombatTiltSystem 원복 + GameSettings 필드 제거
 - 단일 Phase이므로 git revert로 일괄 롤백 가능
+
+## 다른 계획과의 관계
+
+- **DeathTilt 계획 (Docs/Plans/DeathTilt/)**: Phase 2에서 동일 파일을 `CombatTiltSystem.cs` → `EntityTiltSystem.cs`로 리네임하고 Dying 상태 기울임을 추가함. 실행 순서에 따라 상호 조정 필요:
+  - **CombatTiltFix 먼저 실행 시**: 본 계획이 Job 구조를 변경(UnitTiltJob→UnitSwingTiltJob)하므로, DeathTilt Phase 2의 기울임 확장을 새 Job 구조에 맞게 갱신해야 함.
+  - **DeathTilt 먼저 실행 시**: 본 계획의 파일 참조를 `CombatTiltSystem` → `EntityTiltSystem`으로 전부 갱신해야 함.

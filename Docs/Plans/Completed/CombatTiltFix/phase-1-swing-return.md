@@ -43,8 +43,9 @@ CombatTiltSystem의 lerp 기반 정적 기울기를 시간 기반 swing-return �
 ### Task 3: CombatTiltSystem 리팩토링
 
 - [ ] **초기화 로직 추가** (SoundEventEmitSystem 패턴 참조):
-  - 유닛: `SystemAPI.Query<UnitActionState>().WithNone<CombatTiltTimer>()` → ECB로 CombatTiltTimer 추가
-  - 적: `SystemAPI.Query<EnemyState>().WithNone<CombatTiltTimer>()` → ECB로 CombatTiltTimer 추가
+  - 유닛: `SystemAPI.Query<UnitActionState, CombatStats>().WithNone<CombatTiltTimer>()` → ECB로 CombatTiltTimer 추가
+  - 적: `SystemAPI.Query<EnemyState, CombatStats>().WithNone<CombatTiltTimer>()` → ECB로 CombatTiltTimer 추가
+  - CombatStats 보유 엔티티만 초기화 (Job의 Execute 파라미터와 정합)
   - OnUpdate 시작 부분에서 main thread로 실행 (structural change)
 
 - [ ] **UnitTiltJob → UnitSwingTiltJob 교체**:
@@ -109,9 +110,9 @@ Task 1, 2는 독립 파일이므로 병렬 가능하나, Task 3이 둘 모두 �
 
 ## 완료 기준
 
-- [ ] CombatTiltTimer 컴포넌트 정의 완료
-- [ ] GameSettings에 CombatTiltSwingRatio 필드 추가
-- [ ] CombatTiltSystem swing-return 로직 구현
-- [ ] 빌드 성공
-- [ ] EnemyBig 기울기 시각적 확인
-- [ ] 아군 유닛 스윙 타이밍 확인
+- [x] CombatTiltTimer 컴포넌트 정의 완료
+- [x] GameSettings에 CombatTiltSwingRatio 필드 추가
+- [x] CombatTiltSystem swing-return 로직 구현
+- [x] 빌드 성공
+- [ ] EnemyBig 기울기 시각적 확인 (PlayMode 수동 테스트)
+- [ ] 아군 유닛 스윙 타이밍 확인 (PlayMode 수동 테스트)
