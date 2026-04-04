@@ -33,7 +33,7 @@ Before implementing any request, ask yourself: "Is this the most efficient way t
 
 ## Project Reference
 
-- **아키텍처 (구조, 시스템 플로우, 패턴, 게임 디자인)**: [Docs/Architecture.md](Docs/Architecture.md)
+- **아키텍처 (인덱스)**: [Docs/Architecture.md](Docs/Architecture.md) → 상세: [system-flow](Docs/Architecture/system-flow.md), [key-patterns](Docs/Architecture/key-patterns.md), [network](Docs/Architecture/network.md), [game-rules](Docs/Architecture/game-rules.md)
 - **기획 방향성 (게임 컨셉, 설계 원칙, 감정 곡선)**: [Docs/GameDesign.md](Docs/GameDesign.md)
 - **문서 업데이트 체크리스트 (Docs 폴더 구조, 업데이트 규칙)**: [Docs/Documentation-Checklist.md](Docs/Documentation-Checklist.md)
 
@@ -61,7 +61,7 @@ Before implementing any request, ask yourself: "Is this the most efficient way t
 6. **싱글톤 초기화**: `ClientBootstrapSystem` 등 한 곳에 집중
 
 ### Combat System Rules
-1. **DamageEvent 버퍼**: Health 직접 수정 금지 → DamageEvent 버퍼 사용 (상세: `Docs/Architecture.md` Key Patterns 참조)
+1. **DamageEvent 버퍼**: Health 직접 수정 금지 → DamageEvent 버퍼 사용 (상세: `Docs/Architecture/key-patterns.md` 참조)
 2. **CompleteDependency 최소화**: 같은 SystemGroup 내에서는 `UpdateAfter`로 순서 지정
 3. **AggroTarget**: 유닛/적 공통 타겟 추적 컴포넌트
 4. **원거리 공격**: `RangedUnitTag`/`RangedEnemyTag` → 필중 + 시각 투사체(VisualOnlyTag) 생성
@@ -70,7 +70,8 @@ Before implementing any request, ask yourself: "Is this the most efficient way t
 1. **VAT 애니메이션**: VATAnimationAuthoring(Composition 패턴)으로 프리팹에 부착. 현재 VAT 적용 대상은 Hero, EnemySmall, EnemyFlying 3종.
 2. **상태→클립 매핑**: 서버 `VATAnimationStateUpdateSystem`에서 UnitActionState/EnemyState → CurrentClipIndex 변환. 새 유닛/적 추가 시 매핑 로직 갱신 필요.
 3. **SoundEvent 패턴**: ECS 버퍼(`SoundEvent`) → MonoBehaviour(`SoundManager`) 브릿지. `SoundEventEmitSystem`이 상태 변화 감지 → 버퍼 추가, `SoundManager`가 매 프레임 소비.
-4. **전투 기울임**: `CombatTiltSystem`이 Attacking 상태에서 Rotation pitch 조작 (VAT 유무와 무관, 전체 유닛/적 대상). tiltAngle/tiltSpeed는 GameSettings.
+4. **엔티티 기울임**: `EntityTiltSystem`이 PostTransformMatrix를 사용하여 Ghost 동기화(LocalTransform)와 독립적으로 pitch 기울임 적용 (VAT 유무 무관, 전체 유닛/적 대상). `CombatTiltTimer` 클라이언트 전용 컴포넌트로 타이머/기울기 상태 추적. Attacking: timer 기반 half-sine swing-return 사이클. Dying: 점진적 전방 기울임(DeathTiltAngle까지). tiltAngle/tiltSpeed/swingRatio/deathDuration/deathTiltAngle은 GameSettings.
+5. **사망 연출**: 서버 `ServerDeathSystem`이 Health<=0 감지 → Dying 상태 + `DeathTimer` 부착. `DeathTimer.RemainingTime` 만료 시 엔티티 파괴. 클라이언트는 Dying 상태를 Ghost로 수신하여 `EntityTiltSystem`이 사망 기울임 연출. 건물 등 비유닛/비적은 즉시 파괴.
 
 ### Collider Rules
 1. **Collider 용도**: raycast(선택, 건설 검증) + 투사체 충돌 전용. 물리 충돌에 Collider 사용 금지.

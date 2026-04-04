@@ -3,7 +3,12 @@
 ## Docs 폴더 구조
 ```
 Docs/
-├── Architecture.md                # 프로젝트 구조, 시스템 플로우, 핵심 패턴
+├── Architecture.md                # 아키텍처 인덱스 (상세는 Architecture/ 하위)
+├── Architecture/                  # 아키텍처 상세 문서
+│   ├── system-flow.md             # 시스템 실행 순서, 핵심 의존성
+│   ├── key-patterns.md            # DamageEvent, VAT, Work Range 등 핵심 패턴
+│   ├── network.md                 # 접속 흐름, Token Validation, RPC 목록
+│   └── game-rules.md              # Prefabs, Wave, Collider, GameSettings
 ├── GameDesign.md                  # 기획 방향성 (게임 컨셉, 설계 원칙, 감정 곡선)
 ├── Documentation-Checklist.md     # 이 파일
 │
