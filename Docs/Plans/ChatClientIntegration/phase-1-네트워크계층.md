@@ -15,7 +15,9 @@
 ### Task 1: Protobuf C# 코드젠
 
 - [ ] `Docs/Plans/Completed/ChatServer/chat.proto`에서 protoc 실행하여 `Chat.cs` 생성
-- [ ] 출력 경로: `Assets/Scripts/Shared/Network/Generated/Chat.cs`
+- [ ] 출력 경로: `Assets/Scripts/Shared/Network/Generated/Chat.cs` (기존 Room.cs 패턴 준수. chat.proto 주석의 Client 경로는 무시)
+- [ ] 네임스페이스: `Sos.Chat` (proto package `sos.chat` → C# 변환)
+- [ ] protoc 버전/경로: 기존 Room.cs 코드젠에 사용한 protoc 환경과 동일하게 설정
 - [ ] 컴파일 확인: Unity Editor에서 에러 없이 빌드
 - [ ] ChatEnvelope 직렬화/역직렬화 라운드트립 검증
 
@@ -28,6 +30,7 @@
 ### Task 2: ChatClient.cs 기본 구조
 
 - [ ] MonoBehaviour + DontDestroyOnLoad 싱글톤 패턴 (RoomClient 동일)
+- [ ] chatServerHost / chatServerPort 설정: ChatClient 자체에 `[SerializeField] string chatServerHost = "127.0.0.1"` + `[SerializeField] ushort chatServerPort = 8082` 기본값 설정. Phase 2에서 ChatUIController 완성 시 외부 주입으로 전환. RoomUIController에 Chat 관련 필드를 추가하지 않음 (SRP 유지)
 - [ ] 상태 머신 정의:
 
 ```
@@ -94,7 +97,7 @@ public event Action OnDisconnected;
   - 방법 A: RoomClient.OnGameStartReceived에서 sessionId만 ChatClient에 캐시 → 게임 서버 접속 후 별도 이벤트/폴링으로 NetworkId 획득 → 재인증
   - 방법 B: GoInGameClientSystem 이후 실행되는 시스템에서 MonoBehaviour 브릿지로 ChatClient에 통보
   - 구현 시 가장 간결한 방법 선택
-- [ ] RoomClient.OnGameOver 시 ChatClient를 로비 모드로 복귀 (sessionId 빈 값, teamId=0으로 재인증)
+- [ ] GameOver 시 로비 복귀: `GameOverEvents.OnGameOver` 정적 이벤트 구독 → ChatClient 로비 모드 복귀 (sessionId 빈 값, teamId=0으로 재인증). RoomClient에 의존하지 않고 ChatClient가 직접 이벤트 구독 (GameOverPanelController와 동일 패턴)
 
 ### Task 8: 메시지 디스패치
 
@@ -114,7 +117,7 @@ public event Action OnDisconnected;
 |---|---|---|
 | Agent A | Task 1 + 1.5: protoc 코드젠 + ChatProtobufFraming | 없음 |
 | Agent B | Task 2~6, 8: ChatClient.cs 본체 | Task 1 + 1.5 완료 후 (Chat.cs + ChatProtobufFraming 필요) |
-| Agent C | Task 7: RoomClient 수정 | Task 2 완료 후 (ChatClient 이벤트 인터페이스 필요) |
+| Agent C | Task 7: 세션 재인증 트리거 + GameOverEvents 연동 | Task 2 완료 후 (ChatClient 이벤트 인터페이스 필요) |
 
 ## 테스트 요구사항
 
@@ -139,6 +142,6 @@ public event Action OnDisconnected;
 - [ ] Chat.cs 코드젠 완료 + 컴파일 성공
 - [ ] ChatProtobufFraming.cs 작성 완료
 - [ ] ChatClient.cs 전체 메서드 구현
-- [ ] RoomClient.cs 세션 재인증/GameOver 연동 코드 추가
+- [ ] 세션 재인증 트리거 코드 추가 + GameOverEvents.OnGameOver 구독 연동
 - [ ] Chat Server 연결 + 인증 + 메시지 송수신 동작 확인
 - [ ] EditMode Test 통과

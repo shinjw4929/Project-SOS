@@ -110,7 +110,7 @@
 | 1 | `Assets/Scripts/Shared/Network/Generated/Chat.cs` | 신규 — protoc 코드젠 |
 | 1 | `Assets/Scripts/Shared/Network/ChatProtobufFraming.cs` | 신규 — ChatEnvelope용 4B LE 프레이밍 유틸 |
 | 1 | `Assets/Scripts/Client/Network/ChatClient.cs` | 신규 — TCP 연결, 인증, 메시지, 하트비트 |
-| 1 | `Assets/Scripts/Client/Network/RoomClient.cs` | 수정 — 게임 서버 접속 시 세션 재인증 + GameOver 시 로비 복귀 트리거 |
+| 1 | `Assets/Scripts/Client/Network/RoomClient.cs` | 수정 — 세션 재인증 트리거 (방법에 따라 수정 범위 변동, GameOver 연동은 ChatClient가 GameOverEvents.OnGameOver 직접 구독) |
 | 2 | `Assets/Scripts/Client/Controller/UI/ChatUIController.cs` | 신규 — 채팅 UI 전체 |
 | 2 | `Assets/Scripts/Client/Systems/Commands/UnitControl/UnitCommandInputSystem.cs` | 수정 — IsChatFocused 가드 |
 | 2 | `Assets/Scripts/Client/Systems/Commands/StructureAction/StructureCommandInputSystem.cs` | 수정 — IsChatFocused 가드 |

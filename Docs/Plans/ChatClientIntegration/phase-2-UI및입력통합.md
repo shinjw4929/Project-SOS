@@ -14,6 +14,7 @@
 
 - [ ] MonoBehaviour, Canvas 하위 배치
 - [ ] `static bool IsChatFocused` 프로퍼티 — 다른 시스템에서 참조
+- [ ] `static bool WasChatFocusedThisFrame` 프로퍼티 — ESC 프레임 충돌 방지용. MonoBehaviour.Update()에서 IsChatFocused가 true→false로 전환될 때 true 설정, LateUpdate()에서 false 리셋. ECS 입력 시스템의 ESC 가드에서는 `IsChatFocused || WasChatFocusedThisFrame` 조건 사용
 - [ ] Enter 키 토글: 비활성 → 입력 필드 활성화 + 포커스, 활성 → 메시지 전송 + 비활성화
 - [ ] ESC 키: 채팅 포커스 해제 (메시지 전송 없이)
 - [ ] DontDestroyOnLoad (ChatClient와 동일 생명주기)
@@ -73,24 +74,40 @@
 
 | 파일 (실제 경로) | 차단 키 | 삽입 위치 |
 |---|---|---|
-| `Systems/Commands/UnitControl/UnitCommandInputSystem.cs` | A (AttackMove) | OnUpdate 키보드 입력 처리 시작부 |
+| `Systems/Commands/UnitControl/UnitCommandInputSystem.cs` | A (AttackMove) | A 키 체크에만 개별 가드 (early return 금지 — 우클릭 이동/채집/공격 명령 보존) |
 | `Systems/Commands/StructureAction/StructureCommandInputSystem.cs` | Q, W, E, R | OnUpdate 키보드 입력 처리 시작부 |
-| `Systems/Commands/Construction/ConstructionMenuInputSystem.cs` | Q, W, E, R | OnUpdate 키보드 입력 처리 시작부 |
+| `Systems/Commands/Construction/ConstructionMenuInputSystem.cs` | Q, W, E, R, ESC | OnUpdate 키보드 입력 처리 시작부 |
 | `Controller/Camera/CameraSystem.cs` | T (키보드만, 마우스 유지) | T키 처리 분기에만 |
 | `Systems/Commands/Selection/EntitySelectionSystem.cs` | ESC | ESC 처리 분기에만 |
 
 > StructurePlacementInputSystem.cs는 ESC 키를 처리하지 않으므로 가드 삽입 대상에서 제외.
 
 삽입 패턴:
+
+**패턴 A — 키보드 전용 시스템** (StructureCommandInputSystem, ConstructionMenuInputSystem):
 ```csharp
-if (ChatUIController.IsChatFocused) return;  // 키보드 입력 전체 차단
+if (ChatUIController.IsChatFocused) return;  // 키보드 입력 전체 차단 (마우스 미사용 시스템만)
 ```
-또는 개별 키 분기 (Unity Input System):
+
+**패턴 B — 마우스+키보드 혼합 시스템** (UnitCommandInputSystem):
+```csharp
+// A 키 체크에만 가드 적용 — 우클릭 이동/채집/공격은 채팅 중에도 유지
+bool isAttackMoveClick = !ChatUIController.IsChatFocused && keyboard != null && keyboard.aKey.isPressed && mouse.leftButton.wasPressedThisFrame;
+```
+
+**패턴 C — 개별 키 분기** (CameraSystem T키, EntitySelectionSystem ESC):
 ```csharp
 if (!ChatUIController.IsChatFocused && Keyboard.current.tKey.wasPressedThisFrame) { ... }
 ```
+ESC 키를 처리하는 시스템(EntitySelectionSystem, ConstructionMenuInputSystem, StructureCommandInputSystem)은 추가로 `WasChatFocusedThisFrame` 체크:
+```csharp
+if (ChatUIController.IsChatFocused || ChatUIController.WasChatFocusedThisFrame) return;
+```
+이유: MonoBehaviour.Update()가 ECS보다 먼저 실행되므로, 채팅 중 ESC 시 ChatUIController가 IsChatFocused=false로 전환한 뒤 같은 프레임에 ECS가 ESC를 처리하는 충돌 방지.
 
-주의: 마우스 입력(엣지 패닝, 스크롤 줌, 유닛 선택 클릭)은 채팅 중에도 유지해야 함.
+주의사항:
+- 마우스 입력(엣지 패닝, 스크롤 줌, 유닛 선택 클릭)은 채팅 중에도 유지해야 함.
+- `StructureCommandInputSystem`은 `[BurstCompile]` 적용 ISystem이나, OnUpdate에서 이미 managed `Keyboard` 타입을 사용하므로 `ChatUIController.IsChatFocused` 접근도 동일하게 가능. 가드 삽입 시 기존 `Keyboard.current` 접근과 같은 레벨(OnUpdate 시작부)에 배치.
 
 ## 병렬 작업 구성 (subagent 활용)
 
