@@ -27,7 +27,7 @@ namespace Tests.EditMode.Network
             byte[] framed = ProtobufFraming.Frame(envelope);
 
             int offset = 0;
-            bool result = ProtobufFraming.TryDeframe(framed, ref offset, framed.Length, out var parsed);
+            bool result = ProtobufFraming.TryDeframe(framed, ref offset, framed.Length, Envelope.Parser, out var parsed);
 
             Assert.IsTrue(result);
             Assert.AreEqual(framed.Length, offset);
@@ -54,7 +54,7 @@ namespace Tests.EditMode.Network
 
             byte[] framed = ProtobufFraming.Frame(envelope);
             int offset = 0;
-            bool result = ProtobufFraming.TryDeframe(framed, ref offset, framed.Length, out var parsed);
+            bool result = ProtobufFraming.TryDeframe(framed, ref offset, framed.Length, Envelope.Parser, out var parsed);
 
             Assert.IsTrue(result);
             Assert.AreEqual(Envelope.PayloadOneofCase.GameStart, parsed.PayloadCase);
@@ -89,7 +89,7 @@ namespace Tests.EditMode.Network
         {
             byte[] buffer = { 0x05, 0x00, 0x00 }; // 3 bytes, header requires 4
             int offset = 0;
-            bool result = ProtobufFraming.TryDeframe(buffer, ref offset, buffer.Length, out var envelope);
+            bool result = ProtobufFraming.TryDeframe(buffer, ref offset, buffer.Length, Envelope.Parser, out var envelope);
 
             Assert.IsFalse(result);
             Assert.AreEqual(0, offset);
@@ -104,7 +104,7 @@ namespace Tests.EditMode.Network
 
             // 마지막 1바이트를 잘라서 불완전한 데이터 시뮬레이션
             int offset = 0;
-            bool result = ProtobufFraming.TryDeframe(framed, ref offset, framed.Length - 1, out _);
+            bool result = ProtobufFraming.TryDeframe(framed, ref offset, framed.Length - 1, Envelope.Parser, out _);
 
             Assert.IsFalse(result);
             Assert.AreEqual(0, offset);
@@ -138,16 +138,16 @@ namespace Tests.EditMode.Network
             int offset = 0;
 
             // 첫 번째 메시지
-            Assert.IsTrue(ProtobufFraming.TryDeframe(combined, ref offset, combined.Length, out var parsed1));
+            Assert.IsTrue(ProtobufFraming.TryDeframe(combined, ref offset, combined.Length, Envelope.Parser, out var parsed1));
             Assert.AreEqual(Envelope.PayloadOneofCase.Heartbeat, parsed1.PayloadCase);
 
             // 두 번째 메시지
-            Assert.IsTrue(ProtobufFraming.TryDeframe(combined, ref offset, combined.Length, out var parsed2));
+            Assert.IsTrue(ProtobufFraming.TryDeframe(combined, ref offset, combined.Length, Envelope.Parser, out var parsed2));
             Assert.AreEqual(Envelope.PayloadOneofCase.Reject, parsed2.PayloadCase);
             Assert.AreEqual("Room is full", parsed2.Reject.Message);
 
             // 더 이상 메시지 없음
-            Assert.IsFalse(ProtobufFraming.TryDeframe(combined, ref offset, combined.Length, out _));
+            Assert.IsFalse(ProtobufFraming.TryDeframe(combined, ref offset, combined.Length, Envelope.Parser, out _));
         }
 
         #endregion
@@ -167,7 +167,7 @@ namespace Tests.EditMode.Network
 
             int offset = 0;
             Assert.Throws<InvalidOperationException>(() =>
-                ProtobufFraming.TryDeframe(buffer, ref offset, buffer.Length, out _));
+                ProtobufFraming.TryDeframe(buffer, ref offset, buffer.Length, Envelope.Parser, out _));
         }
 
         #endregion

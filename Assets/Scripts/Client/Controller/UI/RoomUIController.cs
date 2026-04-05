@@ -16,6 +16,9 @@ namespace Client
         [Header("Room Client")]
         [SerializeField] RoomClient roomClient;
 
+        [Header("Chat Client")]
+        [SerializeField] ChatClient chatClient;
+
         [Header("Panels")]
         [SerializeField] GameObject titlePanel;
         [SerializeField] Button gameStartButton;
@@ -171,9 +174,26 @@ namespace Client
         {
             ShowPanel(state);
 
-            // 로비 진입 시 방 목록 자동 요청
             if (state == RoomClientState.Lobby)
+            {
                 StartCoroutine(DelayedRoomListRequest(0.5f));
+
+                // 방에서 나와 로비로 돌아오면 채팅 연결 해제 (패널 숨김)
+                if (chatClient != null && chatClient.State != ChatClientState.Disconnected)
+                    chatClient.Disconnect();
+            }
+        }
+
+        void ConnectChatIfNeeded()
+        {
+            if (chatClient == null || chatClient.State != ChatClientState.Disconnected)
+                return;
+
+            string userName = userNameInput != null ? userNameInput.text.Trim() : "";
+            if (string.IsNullOrEmpty(userName))
+                userName = currentUserId;
+
+            chatClient.ConnectToChatServer(currentUserId, userName);
         }
 
         void HandleRoomListReceived(RoomListResponse response)
@@ -186,6 +206,7 @@ namespace Client
             isReady = false;
             UpdateReadyButtonText();
             PopulateUserList(room);
+            ConnectChatIfNeeded();
         }
 
         void HandleRoomJoined(RoomInfo room)
@@ -193,6 +214,7 @@ namespace Client
             isReady = false;
             UpdateReadyButtonText();
             PopulateUserList(room);
+            ConnectChatIfNeeded();
         }
 
         void HandleRoomUpdated(RoomInfo room)

@@ -35,7 +35,8 @@ namespace Client
             ref var userState = ref SystemAPI.GetSingletonRW<UserState>().ValueRW;
             // ESC 키 → 선택 해제
             var keyboard = Keyboard.current;
-            if (keyboard != default && keyboard.escapeKey.wasPressedThisFrame)
+            if (keyboard != default && keyboard.escapeKey.wasPressedThisFrame
+                && !ChatUIController.IsChatFocused && !ChatUIController.WasChatFocusedThisFrame)
             {
                 // Command 상태에서만 선택 해제 (StructureMenu 등에서는 다른 시스템이 처리)
                 if (userState.CurrentState == UserContext.Command)

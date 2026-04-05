@@ -59,7 +59,8 @@ namespace Client
 
             // A+좌클릭 = AttackMove, 우클릭 = 일반 명령
             bool isRightClick = mouse.rightButton.wasPressedThisFrame;
-            bool isAttackMoveClick = keyboard != null && keyboard.aKey.isPressed && mouse.leftButton.wasPressedThisFrame;
+            bool isChatBlocking = ChatUIController.IsChatFocused || ChatUIController.WasChatFocusedThisFrame;
+            bool isAttackMoveClick = !isChatBlocking && keyboard != null && keyboard.aKey.isPressed && mouse.leftButton.wasPressedThisFrame;
 
             if (!isRightClick && !isAttackMoveClick)
                 return;

@@ -67,7 +67,7 @@ public partial class CameraSystem : SystemBase
         }
 
         // 5. T 키 토글 입력 처리
-        if (Keyboard.current != null && Keyboard.current.tKey.wasPressedThisFrame)
+        if (Keyboard.current != null && !ChatUIController.IsChatFocused && !ChatUIController.WasChatFocusedThisFrame && Keyboard.current.tKey.wasPressedThisFrame)
         {
             if (cameraState.CurrentMode == CameraMode.EdgePan)
             {

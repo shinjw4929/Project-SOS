@@ -37,6 +37,8 @@ namespace Client
 
         public void OnUpdate(ref SystemState state)
         {
+            if (ChatUIController.IsChatFocused || ChatUIController.WasChatFocusedThisFrame) return;
+
             var keyboard = Keyboard.current;
             if (keyboard == default) return;
 

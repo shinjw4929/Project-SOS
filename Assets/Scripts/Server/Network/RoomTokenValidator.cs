@@ -89,7 +89,7 @@ namespace Server
 
                     totalReceived += bytesRead;
 
-                    if (ProtobufFraming.TryDeframe(receiveBuffer, ref offset, totalReceived, out var responseEnvelope))
+                    if (ProtobufFraming.TryDeframe(receiveBuffer, ref offset, totalReceived, Envelope.Parser, out var responseEnvelope))
                     {
                         if (responseEnvelope.PayloadCase == Envelope.PayloadOneofCase.TokenValidateResponse)
                         {

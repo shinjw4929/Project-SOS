@@ -355,7 +355,7 @@ namespace Client
 
                     // 버퍼에서 완전한 메시지를 모두 추출
                     int offset = 0;
-                    while (ProtobufFraming.TryDeframe(receiveBuffer, ref offset, receiveBufferLength, out var envelope))
+                    while (ProtobufFraming.TryDeframe(receiveBuffer, ref offset, receiveBufferLength, Envelope.Parser, out var envelope))
                     {
                         DispatchEnvelope(envelope);
                     }
