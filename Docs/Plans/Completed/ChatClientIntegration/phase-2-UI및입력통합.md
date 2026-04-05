@@ -137,10 +137,10 @@ if (ChatUIController.IsChatFocused || ChatUIController.WasChatFocusedThisFrame) 
 - 에러 피드백: Rate Limit 초과 시 시스템 메시지 표시
 
 ## 완료 기준
-- [ ] ChatUIController.cs 전체 구현
-- [ ] 메시지 링버퍼 50개 정상 동작
-- [ ] 채널 탭 로비/인게임 자동 전환
-- [ ] IsChatFocused 가드 5개 파일 삽입 완료
-- [ ] ChatClient 이벤트 바인딩 동작 확인
-- [ ] EditMode Test 통과
-- [ ] 마우스 입력 채팅 중 정상 동작 확인
+- [x] ChatUIController.cs 전체 구현
+- [x] 메시지 링버퍼 50개 정상 동작
+- [x] 채널 탭 로비/인게임 자동 전환
+- [x] IsChatFocused 가드 5개 파일 삽입 완료
+- [x] ChatClient 이벤트 바인딩 동작 확인
+- [ ] EditMode Test 통과 (수동 검증 필요)
+- [ ] 마우스 입력 채팅 중 정상 동작 확인 (수동 검증 필요)

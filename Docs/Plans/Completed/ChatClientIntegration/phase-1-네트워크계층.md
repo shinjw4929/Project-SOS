@@ -139,9 +139,9 @@ public event Action OnDisconnected;
 - 서버 강제 종료 시 재연결 시도 로그 확인
 
 ## 완료 기준
-- [ ] Chat.cs 코드젠 완료 + 컴파일 성공
-- [ ] ChatProtobufFraming.cs 작성 완료
-- [ ] ChatClient.cs 전체 메서드 구현
-- [ ] 세션 재인증 트리거 코드 추가 + GameOverEvents.OnGameOver 구독 연동
-- [ ] Chat Server 연결 + 인증 + 메시지 송수신 동작 확인
-- [ ] EditMode Test 통과
+- [x] Chat.cs 코드젠 완료 + 컴파일 성공
+- [x] ChatProtobufFraming.cs 작성 완료
+- [x] ChatClient.cs 전체 메서드 구현
+- [x] 세션 재인증 트리거 코드 추가 + GameOverEvents.OnGameOver 구독 연동
+- [ ] Chat Server 연결 + 인증 + 메시지 송수신 동작 확인 (수동 검증 필요)
+- [ ] EditMode Test 통과 (수동 검증 필요)

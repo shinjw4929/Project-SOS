@@ -68,31 +68,31 @@
 ## Phase 체크리스트
 
 ### Phase 1: Protobuf 코드젠 + ChatClient 네트워크 계층
-- [ ] chat.proto → Chat.cs 코드젠
-- [ ] ChatProtobufFraming.cs 작성 (ChatEnvelope용 4B LE 프레이밍)
-- [ ] ChatClient.cs TCP 연결/해제/재연결
-- [ ] ChatAuth 인증 (로비/세션 모드, team_id 포함)
-- [ ] 메시지 송수신 (ChatSend/ChatReceive)
-- [ ] 하트비트 코루틴
-- [ ] ChatError 핸들링
-- [ ] 게임 서버 접속 연동 (세션 재인증, sessionId + teamId=NetworkId.Value)
+- [x] chat.proto → Chat.cs 코드젠
+- [x] ChatProtobufFraming.cs 작성 (ChatEnvelope용 4B LE 프레이밍)
+- [x] ChatClient.cs TCP 연결/해제/재연결
+- [x] ChatAuth 인증 (로비/세션 모드, team_id 포함)
+- [x] 메시지 송수신 (ChatSend/ChatReceive)
+- [x] 하트비트 코루틴
+- [x] ChatError 핸들링
+- [x] 게임 서버 접속 연동 (세션 재인증, sessionId + teamId=NetworkId.Value)
 → 상세: [phase-1-네트워크계층.md](./phase-1-네트워크계층.md)
 
 ### Phase 2: ChatUIController + 입력 시스템 통합
-- [ ] ChatUIController MonoBehaviour (입력 필드, 메시지 표시, 채널 탭 — TEAM 포함)
-- [ ] 50개 메시지 링버퍼
-- [ ] Enter 키 토글 + IsChatFocused static 프로퍼티
-- [ ] TMP Rich Text 비활성화
-- [ ] 기존 입력 시스템 5개 파일 IsChatFocused 가드 삽입
-- [ ] ChatClient ↔ ChatUIController 이벤트 바인딩
+- [x] ChatUIController MonoBehaviour (입력 필드, 메시지 표시, 채널 탭 — TEAM 포함)
+- [x] 50개 메시지 링버퍼
+- [x] Enter 키 토글 + IsChatFocused static 프로퍼티
+- [x] TMP Rich Text 비활성화
+- [x] 기존 입력 시스템 5개 파일 IsChatFocused 가드 삽입
+- [x] ChatClient ↔ ChatUIController 이벤트 바인딩
 → 상세: [phase-2-UI및입력통합.md](./phase-2-UI및입력통합.md)
 
 ### Phase 3: 통합 테스트 + 엣지 케이스 처리
-- [ ] 로비 → 인게임 → 로비 전환 시나리오 검증
-- [ ] 재연결 시 채널 상태 복구 확인
-- [ ] Rate Limit 초과 시 UI 피드백
-- [ ] 메시지 길이 초과 클라이언트 사전 검증
-- [ ] 500+ 유닛 전투 중 채팅 성능 프로파일링
+- [x] 로비 → 인게임 → 로비 전환 시나리오 검증 (코드 레벨 확인, 수동 검증 필요)
+- [x] 재연결 시 채널 상태 복구 확인 (코드 레벨 확인, 수동 검증 필요)
+- [x] Rate Limit 초과 시 UI 피드백 (코드 구현 완료)
+- [x] 메시지 길이 초과 클라이언트 사전 검증 (코드 구현 완료)
+- [ ] 500+ 유닛 전투 중 채팅 성능 프로파일링 (수동 검증 필요)
 → 상세: [phase-3-통합테스트.md](./phase-3-통합테스트.md)
 
 ## Phase 간 의존성

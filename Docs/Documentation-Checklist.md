@@ -25,17 +25,16 @@ Docs/
 │   ├── 팀 색상 시스템.md                # TeamColorSystem, TeamColorPalette, 팀별 틴트
 │   ├── 미니맵 및 Ghost Relevancy.md    # Ghost Relevancy, 미니맵 RPC 시스템, 대역폭
 │   ├── 로깅 시스템.md                  # LogCategory, SOSLog, 로깅 규칙
-│   └── 룸 서버 연동.md                 # RoomClient, 토큰 검증, 접속 흐름, Protobuf
+│   ├── 룸 서버 연동.md                 # RoomClient, 토큰 검증, 접속 흐름, Protobuf
+│   └── 채팅 시스템.md                  # ChatClient, ChatUIController, 채널, 입력 격리
 │
 ├── Checklists/                    # 스킬 참조용 체크리스트
 │   └── review-code-checklist.md   # 코드 리뷰 상세 검토 항목 (A~E)
 │
 ├── Plans/                         # 구현 계획 문서
-│   ├── FlowField/                 # NavMesh→Flow Field 전환 계획 (Phase 0~5)
-│   ├── Logging/                   # 로깅 시스템 Tier2 (ClickHouse, Grafana)
-│   ├── RoomServer/                # 룸 서버 연동 계획
-│   ├── Animation/                 # VAT 애니메이션 + 사운드 시스템 (Phase 1~6)
-│   └── ChatServer/                # 채팅 서버 구축 계획
+│   ├── 계획-작성-가이드.md           # 계획 작성 가이드
+│   ├── 출시 로드맵.md               # 출시 로드맵
+│   └── Completed/                 # 완료된 계획 (자동 이동)
 │
 └── WorkLog/                       # 날짜별 작업 기록
     └── 2026-03-13/                # 로깅 시스템 Tier1 구현
@@ -58,6 +57,7 @@ Docs/
 | 게임 규칙/밸런스 방향 변경 | `GameDesign.md` |
 | 로깅 변경 | `로깅 시스템.md` |
 | 룸 서버/접속 흐름 변경 | `룸 서버 연동.md` |
+| 채팅 시스템 변경 | `채팅 시스템.md` |
 | 새 RPC 추가 | `코드베이스 구조.md` (RPCs 섹션), 관련 기능 문서 |
 
 ---
