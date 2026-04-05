@@ -68,7 +68,7 @@ namespace Server
     [UpdateAfter(typeof(GridObstacleResponseSystem))]
     public partial struct FlowFieldSystem : ISystem
     {
-        const int MaxFields = 128;
+        const int DefaultMaxFields = 256;
         const int WorkerCount = 8;
 
         // 워커 메모리 (Persistent, flat)
@@ -79,6 +79,7 @@ namespace Server
         bool _initialized;
         int _gridCellCount;
         int2 _gridSize;
+        int _maxFields;
 
         public void OnCreate(ref SystemState state)
         {
@@ -135,8 +136,8 @@ namespace Server
                 cache.LargeKeyToPoolIndex.Clear();
                 unsafe
                 {
-                    UnsafeUtility.MemSet(cache.SmallFieldLastUsedFrame.GetUnsafePtr(), 0, MaxFields * 4);
-                    UnsafeUtility.MemSet(cache.LargeFieldLastUsedFrame.GetUnsafePtr(), 0, MaxFields * 4);
+                    UnsafeUtility.MemSet(cache.SmallFieldLastUsedFrame.GetUnsafePtr(), 0, _maxFields * 4);
+                    UnsafeUtility.MemSet(cache.LargeFieldLastUsedFrame.GetUnsafePtr(), 0, _maxFields * 4);
                 }
 
                 GridUtility.BuildPassabilityMap(gridBuffer, _gridSize, 0, cache.SmallPassabilityMap);
@@ -397,6 +398,9 @@ namespace Server
             _gridSize = gridSettings.GridSize;
             _gridCellCount = _gridSize.x * _gridSize.y;
 
+            _maxFields = SystemAPI.TryGetSingleton<GameSettings>(out var gs) && gs.FlowFieldCacheSize >= 32
+                ? gs.FlowFieldCacheSize : DefaultMaxFields;
+
             // 워커 메모리 할당
             _workerBfsQueues = new NativeArray<int2>(WorkerCount * _gridCellCount, Allocator.Persistent);
             _workerVisited = new NativeArray<byte>(WorkerCount * _gridCellCount, Allocator.Persistent);
@@ -405,14 +409,14 @@ namespace Server
             // FlowFieldCacheData 싱글톤 생성
             var cache = new FlowFieldCacheData
             {
-                SmallFieldPool = new NativeArray<byte>(MaxFields * _gridCellCount, Allocator.Persistent),
-                LargeFieldPool = new NativeArray<byte>(MaxFields * _gridCellCount, Allocator.Persistent),
-                SmallKeyToPoolIndex = new NativeHashMap<int, int>(MaxFields, Allocator.Persistent),
-                LargeKeyToPoolIndex = new NativeHashMap<int, int>(MaxFields, Allocator.Persistent),
+                SmallFieldPool = new NativeArray<byte>(_maxFields * _gridCellCount, Allocator.Persistent),
+                LargeFieldPool = new NativeArray<byte>(_maxFields * _gridCellCount, Allocator.Persistent),
+                SmallKeyToPoolIndex = new NativeHashMap<int, int>(_maxFields, Allocator.Persistent),
+                LargeKeyToPoolIndex = new NativeHashMap<int, int>(_maxFields, Allocator.Persistent),
                 GridCellCount = _gridCellCount,
                 IsGridStale = true, // 첫 프레임에 passability 맵 빌드 트리거
-                SmallFieldLastUsedFrame = new NativeArray<uint>(MaxFields, Allocator.Persistent),
-                LargeFieldLastUsedFrame = new NativeArray<uint>(MaxFields, Allocator.Persistent),
+                SmallFieldLastUsedFrame = new NativeArray<uint>(_maxFields, Allocator.Persistent),
+                LargeFieldLastUsedFrame = new NativeArray<uint>(_maxFields, Allocator.Persistent),
                 SmallPassabilityMap = new NativeArray<byte>(_gridCellCount, Allocator.Persistent),
                 LargePassabilityMap = new NativeArray<byte>(_gridCellCount, Allocator.Persistent),
             };

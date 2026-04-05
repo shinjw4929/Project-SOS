@@ -265,7 +265,10 @@ MonoBehaviour:
   targetSearchInterval: 4
   avoidanceStrength: 2
   avoidancePadding: 0.3
+  maxAvoidanceNeighbors: 8
+  maxDeltaTimeTicks: 2
   maxBFSPerFrame: 16
+  flowFieldCacheSize: 512
   steeringSliceDivisor: 4
   steeringCacheMaxStrength: 0.3
   wanderBiasFactor: 0.5
@@ -2695,7 +2698,10 @@ MonoBehaviour:
   targetSearchInterval: 4
   avoidanceStrength: 2
   avoidancePadding: 0.3
+  maxAvoidanceNeighbors: 8
+  maxDeltaTimeTicks: 2
   maxBFSPerFrame: 16
+  flowFieldCacheSize: 256
   steeringSliceDivisor: 4
   steeringCacheMaxStrength: 0.3
   wanderBiasFactor: 0.5
@@ -2708,8 +2714,8 @@ MonoBehaviour:
   targetAbandonDuration: 30
   pathInvalidationRadius: 8
   partialPathInvalidationRadius: 12
-  enemyBigSpawnRate: 1
-  enemySmallOnlyRate: 0
+  enemyBigSpawnRate: 0.5
+  enemySmallOnlyRate: 0.3
   wave0SpawnSpacing: 0.8
   periodicSpawnSpacing: 3
   combatTiltAngle: 0.3

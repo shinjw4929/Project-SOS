@@ -88,7 +88,7 @@ Assets/Scenes/
 - **경제**: InitialCurrency, InitialMaxPopulation
 - **건설**: ResourceNodeExclusionDistance, MaxBuildRetryCount, UnitSpawnOffset, DefaultProductionTime
 - **전투/AI**: AggroLockDuration, TargetHysteresisMultiplier, TargetSearchInterval
-- **이동**: AvoidanceStrength, AvoidancePadding, MaxBFSPerFrame
+- **이동**: AvoidanceStrength, AvoidancePadding, MaxAvoidanceNeighbors, MaxDeltaTimeTicks, MaxBFSPerFrame, FlowFieldCacheSize
 - **적 AI**: StuckCheckInterval, StuckThreshold, DormantMinDuration, DormantMaxDuration
 - **장애물**: PathInvalidationRadius, PartialPathInvalidationRadius
 - **스폰**: EnemyBigSpawnRate, EnemySmallOnlyRate, Wave0SpawnSpacing, PeriodicSpawnSpacing

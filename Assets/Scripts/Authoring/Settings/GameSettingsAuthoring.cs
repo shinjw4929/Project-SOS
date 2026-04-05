@@ -83,10 +83,20 @@ namespace Authoring
         [Min(0f)]
         public float avoidancePadding = 0.3f;
 
+        [Tooltip("회피 계산 시 고려할 최대 이웃 수 (밀집 시 O(n²) 방지)")]
+        [Min(1)]
+        public int maxAvoidanceNeighbors = 8;
+        [Tooltip("dt 상한 (시뮬레이션 틱 배수). FPS 드랍 시 순간이동 방지")]
+        [Range(1, 5)]
+        public int maxDeltaTimeTicks = 2;
+
         [Header("Pathfinding")]
         [Tooltip("프레임당 최대 FlowField BFS 계산 수")]
         [Min(1)]
         public int maxBFSPerFrame = 16;
+        [Tooltip("FlowField 캐시 풀 크기 (Small/Large 각각). 유닛 수가 많으면 증가")]
+        [Min(32)]
+        public int flowFieldCacheSize = 256;
         [Tooltip("Steering 회피 계산 분산 주기 (N프레임에 1회)")]
         [Min(1)]
         public uint steeringSliceDivisor = 4;
@@ -209,7 +219,10 @@ namespace Authoring
                     TargetSearchInterval = authoring.targetSearchInterval,
                     AvoidanceStrength = authoring.avoidanceStrength,
                     AvoidancePadding = authoring.avoidancePadding,
+                    MaxAvoidanceNeighbors = authoring.maxAvoidanceNeighbors,
+                    MaxDeltaTimeTicks = authoring.maxDeltaTimeTicks,
                     MaxBFSPerFrame = authoring.maxBFSPerFrame,
+                    FlowFieldCacheSize = authoring.flowFieldCacheSize,
                     SteeringSliceDivisor = authoring.steeringSliceDivisor,
                     SteeringCacheMaxStrength = authoring.steeringCacheMaxStrength,
                     WanderBiasFactor = authoring.wanderBiasFactor,

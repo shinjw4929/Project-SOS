@@ -100,11 +100,17 @@ namespace Shared
         public float AvoidanceStrength;
         /// <summary>회피 거리 추가 패딩 (월드 단위, m)</summary>
         public float AvoidancePadding;
+        /// <summary>회피 계산 시 고려할 최대 이웃 수 (밀집 시 O(n²) 방지)</summary>
+        public int MaxAvoidanceNeighbors;
+        /// <summary>dt 상한 (시뮬레이션 틱 배수). FPS 드랍 시 순간이동 방지</summary>
+        public int MaxDeltaTimeTicks;
 
         // === 경로탐색 ===
 
         /// <summary>프레임당 최대 FlowField BFS 계산 수 (캐시 miss 폭주 방지)</summary>
         public int MaxBFSPerFrame;
+        /// <summary>FlowField 캐시 풀 크기 (Small/Large 각각). 유닛 수가 많으면 증가 필요</summary>
+        public int FlowFieldCacheSize;
         /// <summary>Steering 회피 계산 분산 주기 (N프레임에 1회, 나머지는 캐시 재사용)</summary>
         public uint SteeringSliceDivisor;
         /// <summary>Steering 캐시 최대 강도 (0~1). 높을수록 non-steering 프레임에서 캐시 영향이 큼</summary>

@@ -15,7 +15,7 @@ GridObstacleResponseSystem → 건물 건설 시 IsPathBlocked 마킹 + 유닛 �
     ↓
 GridObstacleCleanupSystem → 건물 파괴 시 IsPathBlocked 해제 + 캐시 무효화
     ↓
-FlowFieldSystem → BFS 기반 Flow Field 계산 (LRU 캐시 128슬롯, 8 IJob 병렬, 프레임당 BFS 상한)
+FlowFieldSystem → BFS 기반 Flow Field 계산 (LRU 캐시, GameSettings.FlowFieldCacheSize 슬롯(기본 256), 8 IJob 병렬, 프레임당 BFS 상한)
     ↓                Wandering 적은 BFS 바이패스 (직선 이동)
     ↓
     ↓
@@ -105,7 +105,7 @@ MovementArrivalSystem → 도착 판정 → 이동 정지 + Intent.Idle + Action
   - Compute: 캐시 미스 목적지에 대해 FlowFieldComputeJob 8개 병렬 BFS (Small 완료 → Large 순차)
   - Apply: FlowFieldRef 할당, MovementWaypoints 활성화, IsPathPartial 자동 판정 (`IsPathPartial = (IsDestAdjusted == 1)`, 매 프레임 클리어/설정)
 - **Flying 유닛**: 별도 처리 (직선 이동, FlowField 스킵)
-- **LRU 캐시**: 32 필드 × 2풀(Small/Large), Flat NativeArray + NativeHashMap, 그리드 변경 시 전체 무효화
+- **LRU 캐시**: GameSettings.FlowFieldCacheSize(기본 256) × 2풀(Small/Large), Flat NativeArray + NativeHashMap, 그리드 변경 시 전체 무효화
 - **Persistent 메모리**: 워커 8세트 (BfsQueue, Visited, CostMap) + FlowFieldCacheData 싱글톤
 ---
 파일: FlowFieldSteeringSystem.cs
@@ -124,8 +124,11 @@ MovementArrivalSystem → 도착 판정 → 이동 정지 + Intent.Idle + Action
 그룹: SimulationSystemGroup (UpdateAfter: FlowFieldSteeringSystem)
 역할: 핵심 이동 시스템
 - Kinematic 방식: LocalTransform.Position 직접 수정
+- **dt 클램핑**: `GameSettings.MaxDeltaTimeTicks`(기본 2) / 60f 로 DeltaTime 상한 제한. 서버 FPS 드랍 시 순간이동 방지
 - 가속/감속 적용 (MovementDynamics)
 - **Steering 기반 회피 (TimeSlice)**: SpatialMaps.MovementMap 사용 (셀 크기 3.0f). 이동 방향만 조정, 위치 직접 변경 없음 (밀림 없음). entityIndex 기반 결정론적 좌/우 분산
+  - **이웃 탐색 상한**: `MaxAvoidanceNeighbors`(기본 8)개까지만 유효 이웃 확인 후 중단 (O(n²) 방지). 9셀 전체를 고르게 탐색하되 실제 겹침이 확인된 이웃만 카운트
+  - **밀집 감쇠**: 유효 이웃 수가 `maxNeighbors/2`~`maxNeighbors` 구간에서 회피 blendFactor를 1→0으로 선형 감소. 밀집 시 회피 진동 방지, 목적지 직진 유도
   - **TimeSlice**: `SteeringSliceDivisor`(기본 4) 프레임 주기로 회피 계산 분산. `entity.Index % Divisor == FrameCount % Divisor`인 프레임에만 이웃 탐색 실행, 나머지는 `CachedAvoidanceDir` 캐시 방향 재사용. 첫 프레임(Strength < 0.001f)은 즉시 계산
   - 적-유닛 간 회피: 항상 활성화
   - 유닛-유닛 간 회피: 한쪽이라도 작업 중(Gather/Build)이면 면제 (적 제외)

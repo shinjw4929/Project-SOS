@@ -52,7 +52,10 @@ namespace Server
             if (!SystemAPI.TryGetSingleton<SpatialMaps>(out var spatialMaps) || !spatialMaps.IsValid)
                 return;
 
-            float dt = SystemAPI.Time.DeltaTime;
+            // 서버 FPS 드랍 시 큰 dt로 인한 순간이동 방지
+            int maxDtTicks = SystemAPI.TryGetSingleton<GameSettings>(out var preGS) && preGS.MaxDeltaTimeTicks >= 1
+                ? preGS.MaxDeltaTimeTicks : 2;
+            float dt = math.min(SystemAPI.Time.DeltaTime, maxDtTicks / 60f);
 
             // Grid 데이터 준비
             var gridSettings = SystemAPI.GetSingleton<GridSettings>();
@@ -86,7 +89,8 @@ namespace Server
                 GridSettings = gridSettings,
                 FrameCount = (uint)state.GlobalSystemVersion,
                 SteeringSliceDivisor = movGS.SteeringSliceDivisor >= 1 ? movGS.SteeringSliceDivisor : 4u,
-                SteeringCacheMaxStrength = movGS.SteeringCacheMaxStrength > 0f ? movGS.SteeringCacheMaxStrength : 0.3f
+                SteeringCacheMaxStrength = movGS.SteeringCacheMaxStrength > 0f ? movGS.SteeringCacheMaxStrength : 0.3f,
+                MaxAvoidanceNeighbors = movGS.MaxAvoidanceNeighbors >= 1 ? movGS.MaxAvoidanceNeighbors : 8
             };
 
             state.Dependency = moveJob.ScheduleParallel(_movingQuery, state.Dependency);
@@ -117,6 +121,7 @@ namespace Server
         public uint FrameCount;
         public uint SteeringSliceDivisor;
         public float SteeringCacheMaxStrength;
+        public int MaxAvoidanceNeighbors;
 
         [ReadOnly] public NativeArray<GridCell> GridCells;
         public GridSettings GridSettings;
@@ -332,6 +337,9 @@ namespace Server
             float avoidWeight = 0f;
             float3 avoidDir = float3.zero;
 
+            int maxNeighbors = MaxAvoidanceNeighbors;
+            int validCount = 0;
+
             for (int x = -1; x <= 1; x++)
             {
                 for (int z = -1; z <= 1; z++)
@@ -382,15 +390,23 @@ namespace Server
                             avoidDir += math.normalizesafe(awayDir + perpDir) * overlap;
                             avoidWeight += overlap;
 
+                            if (++validCount >= maxNeighbors) break;
+
                         } while (SpatialMap.TryGetNextValue(out neighbor, ref it));
                     }
+
+                    if (validCount >= maxNeighbors) break;
                 }
+                if (validCount >= maxNeighbors) break;
             }
 
             if (avoidWeight > 0.001f)
             {
                 avoidDir = math.normalizesafe(avoidDir);
                 float blendFactor = math.saturate(avoidWeight * AvoidanceStrength);
+                // 밀집 구간: 이웃이 많을수록 회피 영향 점진적 감소 (진동 방지)
+                float densityScale = math.saturate(1f - (float)(validCount - maxNeighbors / 2) / (maxNeighbors / 2));
+                blendFactor *= densityScale;
                 adjustedDir = math.normalizesafe(math.lerp(adjustedDir, avoidDir, blendFactor));
             }
 
