@@ -63,9 +63,9 @@ namespace Client
 
             float deltaTime = SystemAPI.Time.DeltaTime;
 
-            _combatStatsLookup.Update(ref state);
-
             InitializeTiltComponents(ref state);
+
+            _combatStatsLookup.Update(ref state);
 
             new UnitTiltJob
             {
