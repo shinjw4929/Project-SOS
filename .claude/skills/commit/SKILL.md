@@ -2,7 +2,7 @@
 name: commit
 description: 현재 변경사항을 주제별로 분류하여 각각 독립적인 커밋으로 작성합니다.
 disable-model-invocation: true
-allowed-tools: Bash, Read, Grep, Glob
+allowed-tools: Bash, Read, Grep, Glob, AskUserQuestion
 ---
 
 ## 주제별 분류 커밋

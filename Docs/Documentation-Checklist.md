@@ -29,7 +29,10 @@ Docs/
 │   └── 채팅 시스템.md                  # ChatClient, ChatUIController, 채널, 입력 격리
 │
 ├── Checklists/                    # 스킬 참조용 체크리스트
-│   └── review-code-checklist.md   # 코드 리뷰 상세 검토 항목 (A~E)
+│   ├── pattern-search-guide.md           # 패턴 탐색 가이드 (implement, plan-execute, diagnose, review-code)
+│   ├── review-checklist-dots.md          # DOTS/네트워크/시스템 설계 (A+B+D)
+│   ├── review-checklist-convention.md    # 컨벤션/코드 품질 (C+E)
+│   └── review-checklist-perf.md          # 성능 (F)
 │
 ├── Plans/                         # 구현 계획 문서
 │   ├── 계획-작성-가이드.md           # 계획 작성 가이드

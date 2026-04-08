@@ -1,7 +1,7 @@
 ---
 name: plan-create
 description: 사용자 요구사항을 분석하여 오케스트레이션 + Phase 파일로 구성된 구현 계획을 Docs/Plans/ 아래에 생성합니다.
-allowed-tools: Read, Grep, Glob, Bash, Write, Edit, Agent, Skill
+allowed-tools: Read, Grep, Glob, Bash, Write, Edit, Agent, Skill, AskUserQuestion
 ---
 
 ## 역할
