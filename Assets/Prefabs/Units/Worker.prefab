@@ -59,10 +59,10 @@ CapsuleCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 2
-  m_Radius: 0.4
-  m_Height: 1.4
+  m_Radius: 0.6
+  m_Height: 1.8
   m_Direction: 1
-  m_Center: {x: 0, y: 0.7, z: 0}
+  m_Center: {x: 0, y: 0.9, z: 0}
 --- !u!54 &8364120396669651066
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -115,14 +115,14 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   unitType: 1
-  cost: 0
+  cost: 30
   populationCost: 1
-  trainingTime: 1
+  trainingTime: 3
   maxHealth: 100
   defense: 0
   visionRange: 10
   workRange: 0.7
-  obstacleRadius: 0.5
+  obstacleRadius: 0.4
   attackPower: 0
   attackSpeed: 1
   attackRange: 2
@@ -214,15 +214,15 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 4098154856099424, guid: a1d7d186960099441bd3c8257ec594e6, type: 3}
       propertyPath: m_LocalScale.x
-      value: 2.5
+      value: 2.75
       objectReference: {fileID: 0}
     - target: {fileID: 4098154856099424, guid: a1d7d186960099441bd3c8257ec594e6, type: 3}
       propertyPath: m_LocalScale.y
-      value: 2.5
+      value: 2.75
       objectReference: {fileID: 0}
     - target: {fileID: 4098154856099424, guid: a1d7d186960099441bd3c8257ec594e6, type: 3}
       propertyPath: m_LocalScale.z
-      value: 3
+      value: 3.3000002
       objectReference: {fileID: 0}
     - target: {fileID: 4098154856099424, guid: a1d7d186960099441bd3c8257ec594e6, type: 3}
       propertyPath: m_LocalPosition.x
@@ -266,7 +266,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 4098154856099424, guid: a1d7d186960099441bd3c8257ec594e6, type: 3}
       propertyPath: m_ConstrainProportionsScale
-      value: 0
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 23210264580106770, guid: a1d7d186960099441bd3c8257ec594e6, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'

@@ -115,9 +115,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   unitType: 5
-  cost: 0
-  populationCost: 1
-  trainingTime: 1
+  cost: 100
+  populationCost: 4
+  trainingTime: 9
   maxHealth: 100
   defense: 0
   visionRange: 20

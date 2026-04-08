@@ -119,8 +119,8 @@ MonoBehaviour:
   length: 4
   height: 0
   obstacleRadius: 2.5
-  cost: 0
-  buildTime: 3
+  cost: 100
+  buildTime: 0
   maxHealth: 10
   defense: 0
   visionRange: 10
